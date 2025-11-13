@@ -2,9 +2,7 @@ package io.github.HenriqueMichelini.craftalism.api.model;
 
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
-import java.math.BigDecimal;
 import java.time.Instant;
-import java.util.UUID;
 
 @Entity
 @Table(name = "transactions")
@@ -14,36 +12,43 @@ public class Transaction {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @NotNull(message = "Transaction requires a sender UUID")
-    @Column(name = "from_uuid", nullable = false)
-    private UUID fromUuid;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "from_uuid", referencedColumnName = "uuid", nullable = false)
+    private Balance fromBalance;
 
-    @NotNull(message = "Transaction requires a receiver UUID")
-    @Column(name = "to_uuid", nullable = false)
-    private UUID toUuid;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "to_uuid", referencedColumnName = "uuid", nullable = false)
+    private Balance toBalance;
 
     @NotNull(message = "Transaction requires an amount")
-    @Column(nullable = false, precision = 18, scale = 2)
-    private BigDecimal amount;
+    @Column(nullable = false)
+    private Long amount;
 
     @Column(nullable = false, updatable = false)
-    private final Instant createdAt = Instant.now();
+    private Instant createdAt;
 
     public Transaction() {}
 
-    public Transaction(UUID fromUuid, UUID toUuid, BigDecimal amount) {
-        this.fromUuid = fromUuid;
-        this.toUuid = toUuid;
+    public Transaction(Balance fromBalance, Balance toBalance, Long amount) {
+        this.fromBalance = fromBalance;
+        this.toBalance = toBalance;
         this.amount = amount;
     }
 
+    @PrePersist
+    protected void onCreate() {
+        if (createdAt == null) createdAt = Instant.now();
+    }
+
+    // Getters & setters
     public Long getId() { return id; }
-    public UUID getFromUuid() { return fromUuid; }
-    public UUID getToUuid() { return toUuid; }
-    public BigDecimal getAmount() { return amount; }
+    public Balance getFromBalance() { return fromBalance; }
+    public Balance getToBalance() { return toBalance; }
+    public Long getAmount() { return amount; }
     public Instant getCreatedAt() { return createdAt; }
 
-    public void setFromUuid(UUID fromUuid) { this.fromUuid = fromUuid; }
-    public void setToUuid(UUID toUuid) { this.toUuid = toUuid; }
-    public void setAmount(BigDecimal amount) { this.amount = amount; }
+    public void setFromBalance(Balance fromBalance) { this.fromBalance = fromBalance; }
+    public void setToBalance(Balance toBalance) { this.toBalance = toBalance; }
+    public void setAmount(Long amount) { this.amount = amount; }
 }
+
