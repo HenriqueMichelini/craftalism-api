@@ -9,9 +9,6 @@ import java.util.UUID;
 public class Balance {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
-
     @NotNull(message = "Balance requires a UUID")
     @Column(nullable = false, unique = true)
     private UUID uuid;
@@ -25,10 +22,6 @@ public class Balance {
     public Balance(UUID uuid, Long amount) {
         this.uuid = uuid;
         this.amount = amount;
-    }
-
-    public Long getId() {
-        return id;
     }
 
     public UUID getUuid() {
