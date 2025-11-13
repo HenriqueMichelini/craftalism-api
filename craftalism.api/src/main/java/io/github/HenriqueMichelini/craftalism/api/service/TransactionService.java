@@ -9,6 +9,8 @@ import io.github.HenriqueMichelini.craftalism.api.repository.TransactionReposito
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
+
 @Service
 public class TransactionService {
 
@@ -26,15 +28,48 @@ public class TransactionService {
 
     @Transactional
     public TransactionResponseDTO processTransaction(TransactionRequestDTO dto) {
+
         Balance from = balanceService.getBalance(dto.fromUuid());
         Balance to = balanceService.getBalance(dto.toUuid());
 
-        balanceService.updateBalance(from.getUuid(), dto.amount());
-        balanceService.updateBalance(to.getUuid(), dto.amount());
+        long amount = dto.amount();
 
-        Transaction transaction = new Transaction(from, to, dto.amount());
-        Transaction saved = repository.save(transaction);
+        if (amount <= 0) {
+            throw new IllegalArgumentException("Amount must be greater than 0.");
+        }
+
+        if (from.getAmount() < amount) {
+            throw new IllegalArgumentException("Insufficient balance.");
+        }
+
+        from.setAmount(from.getAmount() - amount);
+        to.setAmount(to.getAmount() + amount);
+
+        Transaction tx = new Transaction(from, to, dto.amount());
+        Transaction saved = repository.save(tx);
 
         return mapper.toDto(saved);
     }
+
+    @Transactional
+    public List<Transaction> getAllTransactions() {
+        return repository.findAll();
+    }
+
+    @Transactional
+    public Transaction getTransactionById(Long id) {
+        return repository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Transaction not found for id: " + id));
+    }
+
+    @Transactional
+    public List<Transaction> getTransactionByFromBalance(Balance fromBalance) {
+        return repository.findByFromBalance(fromBalance);
+    }
+
+    @Transactional
+    public List<Transaction> getTransactionByToBalance(Balance toBalance) {
+        return repository.findByToBalance(toBalance);
+    }
 }
+
