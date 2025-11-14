@@ -34,12 +34,12 @@ public class BalanceService {
     }
 
     @Transactional
-    public void updateBalance(UUID uuid, Long newAmount) {
+    public Balance updateBalance(UUID uuid, Long newAmount) {
         if (newAmount < 0)
             throw new IllegalArgumentException("Amount must be non-negative.");
 
         Balance balance = getBalance(uuid);
         balance.setAmount(newAmount);
-        repository.save(balance);
+        return repository.save(balance);
     }
 }
