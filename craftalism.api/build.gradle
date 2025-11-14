@@ -18,6 +18,13 @@ repositories {
     mavenCentral()
 }
 
+configurations.configureEach {
+    resolutionStrategy {
+        force 'org.springframework:spring-web:6.2.12'
+        force 'org.springframework:spring-webmvc:6.2.12'
+    }
+}
+
 dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'

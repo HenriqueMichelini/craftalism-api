@@ -46,8 +46,7 @@ public class PlayerController {
             ),
             @ApiResponse(
                     responseCode = "404",
-                    description = "Player not found for this UUID",
-                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))
+                    description = "Player not found for this UUID"
             )
     })
     @GetMapping("/{uuid}")
@@ -73,8 +72,7 @@ public class PlayerController {
             ),
             @ApiResponse(
                     responseCode = "404",
-                    description = "Player not found for this name",
-                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))
+                    description = "Player not found for this name"
             )
     })
     @GetMapping("/name/{name}")

@@ -16,7 +16,6 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.ErrorResponse;
 import org.springframework.web.bind.annotation.*;
 
 import java.net.URI;
@@ -73,8 +72,7 @@ public class TransactionController {
             ),
             @ApiResponse(
                     responseCode = "404",
-                    description = "Transaction not found for this ID",
-                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))
+                    description = "Transaction not found for this ID"
             )
     })
     @GetMapping("/{id}")
@@ -99,8 +97,7 @@ public class TransactionController {
             ),
             @ApiResponse(
                     responseCode = "404",
-                    description = "Balance not found for this UUID",
-                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))
+                    description = "Balance not found for this UUID"
             )
     })
     @GetMapping("/from/{uuid}")
@@ -129,8 +126,7 @@ public class TransactionController {
             ),
             @ApiResponse(
                     responseCode = "404",
-                    description = "Balance not found for this UUID",
-                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))
+                    description = "Balance not found for this UUID"
             )
     })
     @GetMapping("/to/{uuid}")
@@ -160,13 +156,11 @@ public class TransactionController {
             ),
             @ApiResponse(
                     responseCode = "400",
-                    description = "Invalid transaction (insufficient balance, invalid amount, etc.)",
-                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))
+                    description = "Invalid transaction (insufficient balance, invalid amount, etc.)"
             ),
             @ApiResponse(
                     responseCode = "404",
-                    description = "One or both balances not found",
-                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))
+                    description = "One or both balances not found"
             )
     })
     @PostMapping

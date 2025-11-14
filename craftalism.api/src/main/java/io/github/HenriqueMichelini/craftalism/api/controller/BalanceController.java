@@ -42,8 +42,7 @@ public class BalanceController {
             ),
             @ApiResponse(
                     responseCode = "404",
-                    description = "Balance not found for this UUID",
-                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))
+                    description = "Balance not found for this UUID"
             )
     })
     @GetMapping("/{uuid}")
