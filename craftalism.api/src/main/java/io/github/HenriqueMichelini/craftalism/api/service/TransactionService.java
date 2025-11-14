@@ -26,6 +26,17 @@ public class TransactionService {
         this.mapper = mapper;
     }
 
+    public TransactionResponseDTO toDto(Transaction t) {
+        return new TransactionResponseDTO(
+                t.getId(),
+                t.getFromBalance().getUuid(),
+                t.getToBalance().getUuid(),
+                t.getAmount(),
+                t.getCreatedAt()
+        );
+    }
+
+
     @Transactional
     public TransactionResponseDTO processTransaction(TransactionRequestDTO dto) {
 

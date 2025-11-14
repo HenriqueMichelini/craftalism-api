@@ -1,13 +1,11 @@
 package io.github.HenriqueMichelini.craftalism.api.controller;
 
+import io.github.HenriqueMichelini.craftalism.api.dto.TransactionRequestDTO;
+import io.github.HenriqueMichelini.craftalism.api.dto.TransactionResponseDTO;
 import io.github.HenriqueMichelini.craftalism.api.model.Balance;
-import io.github.HenriqueMichelini.craftalism.api.model.Transaction;
 import io.github.HenriqueMichelini.craftalism.api.service.BalanceService;
 import io.github.HenriqueMichelini.craftalism.api.service.TransactionService;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.UUID;
@@ -25,24 +23,39 @@ public class TransactionController {
     }
 
     @GetMapping
-    public List<Transaction> getAllTransactions() {
-        return service.getAllTransactions();
+    public List<TransactionResponseDTO> getAllTransactions() {
+        return service.getAllTransactions()
+                .stream()
+                .map(service::toDto)
+                .toList();
     }
 
     @GetMapping("/{id}")
-    public Transaction getTransactionById(@PathVariable Long id) {
-        return service.getTransactionById(id);
+    public TransactionResponseDTO getTransactionById(@PathVariable Long id) {
+        return service.toDto(service.getTransactionById(id));
     }
 
     @GetMapping("/from/{uuid}")
-    public List<Transaction> getTransactionsByFromBalance(@PathVariable UUID uuid) {
+    public List<TransactionResponseDTO> getTransactionsByFromBalance(@PathVariable UUID uuid) {
         Balance balance = balanceService.getBalance(uuid);
-        return service.getTransactionByFromBalance(balance);
+        return service.getTransactionByFromBalance(balance)
+                .stream()
+                .map(service::toDto)
+                .toList();
     }
 
     @GetMapping("/to/{uuid}")
-    public List<Transaction> getTransactionsByToBalance(@PathVariable UUID uuid) {
+    public List<TransactionResponseDTO> getTransactionsByToBalance(@PathVariable UUID uuid) {
         Balance balance = balanceService.getBalance(uuid);
-        return service.getTransactionByToBalance(balance);
+        return service.getTransactionByToBalance(balance)
+                .stream()
+                .map(service::toDto)
+                .toList();
+    }
+
+    @PostMapping
+    public TransactionResponseDTO createTransaction(@RequestBody TransactionRequestDTO dto) {
+        return service.processTransaction(dto);
     }
 }
+
