@@ -3,6 +3,8 @@ package io.github.HenriqueMichelini.craftalism.api.model;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+
+import java.time.Instant;
 import java.util.UUID;
 
 @Entity
@@ -18,11 +20,19 @@ public class Player {
     @Column(nullable = false, unique = true)
     private String name;
 
+    @Column(nullable = false)
+    private Instant createdAt;
+
     public Player() {}
 
     public Player(UUID uuid, String name) {
         this.uuid = uuid;
         this.name = name;
+    }
+
+    @PrePersist
+    protected void onCreate() {
+        if (createdAt == null) createdAt = Instant.now();
     }
 
     public UUID getUuid() {
@@ -39,5 +49,13 @@ public class Player {
 
     public void setName(String name) {
         this.name = name;
+    }
+
+    public Instant getCreatedAt() {
+        return createdAt;
+    }
+
+    public void setCreatedAt(Instant createdAt) {
+        this.createdAt = createdAt;
     }
 }

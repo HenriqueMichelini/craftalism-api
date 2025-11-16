@@ -12,7 +12,8 @@ public class PlayerMapper {
 
         return new PlayerResponseDTO(
                 entity.getUuid(),
-                entity.getName()
+                entity.getName(),
+                entity.getCreatedAt()
         );
     }
 }

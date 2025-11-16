@@ -3,6 +3,7 @@ package io.github.HenriqueMichelini.craftalism.api.dto;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 
+import java.time.Instant;
 import java.util.UUID;
 
 public record PlayerResponseDTO(
@@ -11,6 +12,15 @@ public record PlayerResponseDTO(
 
         @Schema(description = "Player name", example = "KOLONY_9",  minLength = 3, maxLength = 16)
         @NotBlank(message = "Name is required")
-        String name
+        String name,
+
+        @Schema(
+                description = "Timestamp when the player was created",
+                example = "2024-11-14T15:30:00Z",
+                type = "string",
+                format = "date-time",
+                accessMode = Schema.AccessMode.READ_ONLY
+        )
+        Instant createdAt
     ) {
 }
