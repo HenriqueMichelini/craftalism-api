@@ -1,6 +1,7 @@
 package io.github.HenriqueMichelini.craftalism.api.model;
 
 import jakarta.persistence.*;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import java.util.UUID;
 
@@ -14,6 +15,7 @@ public class Balance {
     private UUID uuid;
 
     @NotNull
+    @Min(0)
     @Column(nullable = false)
     private Long amount = 0L;
 
