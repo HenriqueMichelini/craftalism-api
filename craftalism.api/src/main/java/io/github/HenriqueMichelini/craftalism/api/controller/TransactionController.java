@@ -26,15 +26,11 @@ import java.util.UUID;
 @RequestMapping("/api/transactions")
 @Tag(name = "Transactions", description = "Transaction management between player balances")
 public class TransactionController {
-
     private final TransactionService service;
-    private final BalanceService balanceService;
-
     private final TransactionMapper mapper;
 
     public TransactionController(TransactionService service, BalanceService balanceService, TransactionMapper mapper) {
         this.service = service;
-        this.balanceService = balanceService;
         this.mapper = mapper;
     }
 
@@ -101,12 +97,11 @@ public class TransactionController {
             )
     })
     @GetMapping("/from/{uuid}")
-    public ResponseEntity<List<TransactionResponseDTO>> getTransactionsByFromBalance(
+    public ResponseEntity<List<TransactionResponseDTO>> getTransactionsByFromUuid(
             @Parameter(description = "Sender's player UUID", example = "550e8400-e29b-41d4-a716-446655440000")
             @PathVariable UUID uuid
     ) {
-        Balance balance = balanceService.getBalance(uuid);
-        List<TransactionResponseDTO> list = service.getTransactionByFromBalance(balance)
+        List<TransactionResponseDTO> list = service.getTransactionByFromBalance(uuid)
                 .stream()
                 .map(mapper::toDto)
                 .toList();
@@ -130,13 +125,11 @@ public class TransactionController {
             )
     })
     @GetMapping("/to/{uuid}")
-    public ResponseEntity<List<TransactionResponseDTO>> getTransactionsByToBalance(
+    public ResponseEntity<List<TransactionResponseDTO>> getTransactionsByToUuid(
             @Parameter(description = "Receiver's player UUID", example = "550e8400-e29b-41d4-a716-446655440001")
             @PathVariable UUID uuid
     ) {
-        Balance balance = balanceService.getBalance(uuid);
-
-        List<TransactionResponseDTO> list = service.getTransactionByToBalance(balance)
+        List<TransactionResponseDTO> list = service.getTransactionByToBalance(uuid)
                 .stream()
                 .map(mapper::toDto)
                 .toList();

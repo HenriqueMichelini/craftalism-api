@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.UUID;
 
 @Service
 public class TransactionService {
@@ -26,37 +27,24 @@ public class TransactionService {
         this.mapper = mapper;
     }
 
-    public TransactionResponseDTO toDto(Transaction t) {
-        return new TransactionResponseDTO(
-                t.getId(),
-                t.getFromBalance().getUuid(),
-                t.getToBalance().getUuid(),
-                t.getAmount(),
-                t.getCreatedAt()
-        );
-    }
-
-
     @Transactional
     public TransactionResponseDTO processTransaction(TransactionRequestDTO dto) {
-
-        Balance from = balanceService.getBalance(dto.fromUuid());
-        Balance to = balanceService.getBalance(dto.toUuid());
-
         long amount = dto.amount();
-
         if (amount <= 0) {
             throw new IllegalArgumentException("Amount must be greater than 0.");
         }
+
+        Balance from = balanceService.getBalance(dto.fromUuid());
+        Balance to = balanceService.getBalance(dto.toUuid());
 
         if (from.getAmount() < amount) {
             throw new IllegalArgumentException("Insufficient balance.");
         }
 
-        from.setAmount(from.getAmount() - amount);
-        to.setAmount(to.getAmount() + amount);
+        balanceService.updateBalance(dto.fromUuid(), from.getAmount() - amount);
+        balanceService.updateBalance(dto.toUuid(), to.getAmount() + amount);
 
-        Transaction tx = new Transaction(from, to, dto.amount());
+        Transaction tx = new Transaction(dto.fromUuid(), dto.toUuid(), amount);
         Transaction saved = repository.save(tx);
 
         return mapper.toDto(saved);
@@ -74,13 +62,13 @@ public class TransactionService {
     }
 
     @Transactional
-    public List<Transaction> getTransactionByFromBalance(Balance fromBalance) {
-        return repository.findByFromBalance(fromBalance);
+    public List<Transaction> getTransactionByFromBalance(UUID fromBalance) {
+        return repository.findByFromUuid(fromBalance);
     }
 
     @Transactional
-    public List<Transaction> getTransactionByToBalance(Balance toBalance) {
-        return repository.findByToBalance(toBalance);
+    public List<Transaction> getTransactionByToBalance(UUID toBalance) {
+        return repository.findByToUuid(toBalance);
     }
 }
 
