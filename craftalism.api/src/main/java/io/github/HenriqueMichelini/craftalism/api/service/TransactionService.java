@@ -62,13 +62,13 @@ public class TransactionService {
     }
 
     @Transactional
-    public List<Transaction> getTransactionByFromBalance(UUID fromBalance) {
-        return repository.findByFromUuid(fromBalance);
+    public List<Transaction> getTransactionsByFromUuid(UUID fromUuid) {
+        return repository.findByFromUuid(fromUuid);
     }
 
     @Transactional
-    public List<Transaction> getTransactionByToBalance(UUID toBalance) {
-        return repository.findByToUuid(toBalance);
+    public List<Transaction> getTransactionsByToUuid(UUID toUuid) {
+        return repository.findByToUuid(toUuid);
     }
 }
 

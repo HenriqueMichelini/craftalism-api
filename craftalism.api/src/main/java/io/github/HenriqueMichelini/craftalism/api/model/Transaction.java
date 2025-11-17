@@ -20,7 +20,6 @@ public class Transaction {
     private final UUID toUuid;
 
     @NotNull(message = "Transaction requires an amount")
-    @Min(1)
     @Column(nullable = false)
     private Long amount;
 

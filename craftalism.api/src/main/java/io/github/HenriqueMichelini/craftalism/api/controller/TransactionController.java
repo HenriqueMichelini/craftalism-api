@@ -3,7 +3,6 @@ package io.github.HenriqueMichelini.craftalism.api.controller;
 import io.github.HenriqueMichelini.craftalism.api.dto.TransactionRequestDTO;
 import io.github.HenriqueMichelini.craftalism.api.dto.TransactionResponseDTO;
 import io.github.HenriqueMichelini.craftalism.api.mapper.TransactionMapper;
-import io.github.HenriqueMichelini.craftalism.api.model.Balance;
 import io.github.HenriqueMichelini.craftalism.api.model.Transaction;
 import io.github.HenriqueMichelini.craftalism.api.service.BalanceService;
 import io.github.HenriqueMichelini.craftalism.api.service.TransactionService;
@@ -101,7 +100,7 @@ public class TransactionController {
             @Parameter(description = "Sender's player UUID", example = "550e8400-e29b-41d4-a716-446655440000")
             @PathVariable UUID uuid
     ) {
-        List<TransactionResponseDTO> list = service.getTransactionByFromBalance(uuid)
+        List<TransactionResponseDTO> list = service.getTransactionsByFromUuid(uuid)
                 .stream()
                 .map(mapper::toDto)
                 .toList();
@@ -129,7 +128,7 @@ public class TransactionController {
             @Parameter(description = "Receiver's player UUID", example = "550e8400-e29b-41d4-a716-446655440001")
             @PathVariable UUID uuid
     ) {
-        List<TransactionResponseDTO> list = service.getTransactionByToBalance(uuid)
+        List<TransactionResponseDTO> list = service.getTransactionsByToUuid(uuid)
                 .stream()
                 .map(mapper::toDto)
                 .toList();

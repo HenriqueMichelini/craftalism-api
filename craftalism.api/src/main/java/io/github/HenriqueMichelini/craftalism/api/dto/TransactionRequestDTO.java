@@ -31,6 +31,5 @@ public record TransactionRequestDTO(
                 format = "int64"
         )
         @NotNull(message = "Amount is required")
-        @Min(value = 1, message = "Amount must be greater than 0")
         Long amount
 ) {}
