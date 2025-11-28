@@ -5,6 +5,7 @@ import io.github.HenriqueMichelini.craftalism.api.repository.BalanceRepository;
 import jakarta.transaction.Transactional;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -41,5 +42,13 @@ public class BalanceService {
         Balance balance = getBalance(uuid);
         balance.setAmount(newAmount);
         return repository.save(balance);
+    }
+
+    @Transactional
+    public List<Balance> getTopBalances(int limit) {
+        if (limit <= 0) limit = 10;
+        if (limit > 20) limit = 20;
+
+        return repository.findTopByOrderByAmountDesc(limit);
     }
 }

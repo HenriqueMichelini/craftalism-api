@@ -12,10 +12,10 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.ErrorResponse;
 import org.springframework.web.bind.annotation.*;
 
 import java.net.URI;
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -107,5 +107,22 @@ public class BalanceController {
             @RequestParam Long amount) {
         Balance updated = service.updateBalance(uuid, amount);
         return ResponseEntity.ok(mapper.toDto(updated));
+    }
+
+    @GetMapping("/top")
+    public ResponseEntity<List<BalanceResponseDTO>> getTopBalances(
+        @Parameter(description = "Balance limit number (must be >= 0 and <= 20)", example = "15")
+        @RequestParam(defaultValue = "10") int limit
+    ) {
+        List<Balance> topBalances = service.getTopBalances(limit);
+
+        List<BalanceResponseDTO> response = topBalances.stream()
+                .map(balance -> new BalanceResponseDTO(
+                        balance.getUuid(),
+                        balance.getAmount()
+                ))
+                .toList();
+
+        return ResponseEntity.ok(response);
     }
 }
