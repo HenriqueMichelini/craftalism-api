@@ -16,6 +16,10 @@ public class Balance {
     @Column(nullable = false, unique = true)
     private UUID uuid;
 
+    @OneToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "uuid", referencedColumnName = "uuid", insertable = false, updatable = false)
+    private Player player;
+
     @NotNull
     @Min(0)
     @Column(nullable = false)
@@ -42,5 +46,9 @@ public class Balance {
 
     public void setAmount(Long amount) {
         this.amount = amount;
+    }
+
+    public Player getPlayer() {
+        return player;
     }
 }
