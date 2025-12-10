@@ -1,6 +1,5 @@
 package io.github.HenriqueMichelini.craftalism.api.controller;
 
-import io.github.HenriqueMichelini.craftalism.api.dto.BalanceResponseDTO;
 import io.github.HenriqueMichelini.craftalism.api.dto.PlayerRequestDTO;
 import io.github.HenriqueMichelini.craftalism.api.dto.PlayerResponseDTO;
 import io.github.HenriqueMichelini.craftalism.api.mapper.PlayerMapper;
@@ -15,7 +14,6 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.ErrorResponse;
 import org.springframework.web.bind.annotation.*;
 
 import java.net.URI;
@@ -100,6 +98,7 @@ public class PlayerController {
                     description = "Player already exists for this UUID"
             )
     })
+
     @PostMapping
     public ResponseEntity<PlayerResponseDTO> createPlayer(
             @io.swagger.v3.oas.annotations.parameters.RequestBody(

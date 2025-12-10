@@ -1,5 +1,6 @@
 package io.github.HenriqueMichelini.craftalism.api.service;
 
+import io.github.HenriqueMichelini.craftalism.api.exceptions.PlayerNotFoundException;
 import io.github.HenriqueMichelini.craftalism.api.model.Player;
 import io.github.HenriqueMichelini.craftalism.api.repository.PlayerRepository;
 import org.springframework.stereotype.Service;
@@ -18,12 +19,12 @@ public class PlayerService {
 
     public Player getPlayerByUuid(UUID uuid) {
         return repository.findById(uuid)
-                .orElseThrow(() -> new IllegalArgumentException("Player not found for UUID: " + uuid));
+                .orElseThrow(() -> new PlayerNotFoundException(uuid));
     }
 
     public Player getPlayerByName(String name) {
         return repository.findByName(name.trim())
-                .orElseThrow(() -> new IllegalArgumentException("Player not found for name: " + name));
+                .orElseThrow(() -> new PlayerNotFoundException(name));
     }
 
     @Transactional
