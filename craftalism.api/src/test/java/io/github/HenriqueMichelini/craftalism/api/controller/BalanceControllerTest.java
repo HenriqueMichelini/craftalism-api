@@ -1,70 +1,167 @@
 package io.github.HenriqueMichelini.craftalism.api.controller;
 
+import io.github.HenriqueMichelini.craftalism.api.dto.BalanceRequestDTO;
 import io.github.HenriqueMichelini.craftalism.api.dto.BalanceResponseDTO;
 import io.github.HenriqueMichelini.craftalism.api.mapper.BalanceMapper;
 import io.github.HenriqueMichelini.craftalism.api.model.Balance;
 import io.github.HenriqueMichelini.craftalism.api.service.BalanceService;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
-import org.springframework.test.web.servlet.MockMvc;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 
-import java.util.Arrays;
+import java.net.URI;
 import java.util.List;
 import java.util.UUID;
 
-import static org.mockito.Mockito.when;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.junit.jupiter.api.Assertions.*;
+        import static org.mockito.Mockito.*;
 
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-
-@WebMvcTest(BalanceController.class)
+@ExtendWith(MockitoExtension.class)
 class BalanceControllerTest {
 
-    @Autowired
-    private MockMvc mockMvc;
+    @Mock
+    private BalanceService service;
 
-    @MockitoBean
-    private BalanceService balanceService;
+    @Mock
+    private BalanceMapper mapper;
 
-    @MockitoBean
-    private BalanceMapper balanceMapper;
+    @InjectMocks
+    private BalanceController controller;
 
     @Test
-    void shouldGetTopBalances() throws Exception {
-        // Arrange
-        UUID uuid1 = UUID.randomUUID();
-        UUID uuid2 = UUID.randomUUID();
+    void getBalanceByUuid_returnsOk() {
+        UUID uuid = UUID.randomUUID();
+        Balance balance = mock(Balance.class);
+        BalanceResponseDTO dto = mock(BalanceResponseDTO.class);
 
-        Balance balance1 = new Balance(uuid1, 1000000L);
-        Balance balance2 = new Balance(uuid2, 500000L);
+        when(service.getBalance(uuid)).thenReturn(balance);
+        when(mapper.toDto(balance)).thenReturn(dto);
 
-        when(balanceService.getTopBalances(10))
-                .thenReturn(Arrays.asList(balance1, balance2));
+        ResponseEntity<BalanceResponseDTO> resp = controller.getBalanceByUuid(uuid);
 
-        when(balanceMapper.toDto(balance1))
-                .thenReturn(new BalanceResponseDTO(uuid1, 1000000L));
+        assertEquals(HttpStatus.OK, resp.getStatusCode());
+        assertSame(dto, resp.getBody());
 
-        when(balanceMapper.toDto(balance2))
-                .thenReturn(new BalanceResponseDTO(uuid2, 500000L));
-
-        // Act & Assert
-        mockMvc.perform(get("/api/balances/top?limit=10"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].uuid").value(uuid1.toString()))
-                .andExpect(jsonPath("$[0].amount").value(1000000))
-                .andExpect(jsonPath("$[1].uuid").value(uuid2.toString()))
-                .andExpect(jsonPath("$[1].amount").value(500000));
+        verify(service).getBalance(uuid);
+        verify(mapper).toDto(balance);
     }
 
     @Test
-    void shouldUseDefaultLimit() throws Exception {
-        when(balanceService.getTopBalances(10))
-                .thenReturn(List.of());
+    void createBalance_returnsCreatedWithLocationAndBody() {
+        UUID uuid = UUID.randomUUID();
+        BalanceRequestDTO request = mock(BalanceRequestDTO.class);
 
-        mockMvc.perform(get("/api/balances/top"))
-                .andExpect(status().isOk());
+        Balance created = mock(Balance.class);
+        BalanceResponseDTO dto = mock(BalanceResponseDTO.class);
+
+        when(request.uuid()).thenReturn(uuid);
+        when(service.createBalance(uuid)).thenReturn(created);
+        when(created.getUuid()).thenReturn(uuid);
+        when(mapper.toDto(created)).thenReturn(dto);
+
+        ResponseEntity<BalanceResponseDTO> resp = controller.createBalance(request);
+
+        assertEquals(HttpStatus.CREATED, resp.getStatusCode());
+        assertSame(dto, resp.getBody());
+
+        assertEquals(URI.create("/api/balances/" + uuid), resp.getHeaders().getLocation());
+
+        verify(service).createBalance(uuid);
+        verify(mapper).toDto(created);
+    }
+
+    @Test
+    void setBalance_returnsOk() {
+        UUID uuid = UUID.randomUUID();
+        long amount = 500;
+
+        Balance updated = mock(Balance.class);
+        BalanceResponseDTO dto = mock(BalanceResponseDTO.class);
+
+        when(service.setBalance(uuid, amount)).thenReturn(updated);
+        when(mapper.toDto(updated)).thenReturn(dto);
+
+        ResponseEntity<BalanceResponseDTO> resp = controller.setBalance(uuid, amount);
+
+        assertEquals(HttpStatus.OK, resp.getStatusCode());
+        assertSame(dto, resp.getBody());
+
+        verify(service).setBalance(uuid, amount);
+        verify(mapper).toDto(updated);
+    }
+
+    @Test
+    void deposit_returnsOk() {
+        UUID uuid = UUID.randomUUID();
+        long amount = 300;
+
+        Balance updated = mock(Balance.class);
+        BalanceResponseDTO dto = mock(BalanceResponseDTO.class);
+
+        when(service.deposit(uuid, amount)).thenReturn(updated);
+        when(mapper.toDto(updated)).thenReturn(dto);
+
+        ResponseEntity<BalanceResponseDTO> resp = controller.deposit(uuid, amount);
+
+        assertEquals(HttpStatus.OK, resp.getStatusCode());
+        assertSame(dto, resp.getBody());
+
+        verify(service).deposit(uuid, amount);
+        verify(mapper).toDto(updated);
+    }
+
+    @Test
+    void withdraw_returnsOk() {
+        UUID uuid = UUID.randomUUID();
+        long amount = 200;
+
+        Balance updated = mock(Balance.class);
+        BalanceResponseDTO dto = mock(BalanceResponseDTO.class);
+
+        when(service.withdraw(uuid, amount)).thenReturn(updated);
+        when(mapper.toDto(updated)).thenReturn(dto);
+
+        ResponseEntity<BalanceResponseDTO> resp = controller.withdraw(uuid, amount);
+
+        assertEquals(HttpStatus.OK, resp.getStatusCode());
+        assertSame(dto, resp.getBody());
+
+        verify(service).withdraw(uuid, amount);
+        verify(mapper).toDto(updated);
+    }
+
+    @Test
+    void getTopBalances_returnsListOfDtos() {
+        int limit = 5;
+
+        Balance b1 = new Balance();
+        b1.setUuid(UUID.randomUUID());
+        b1.setAmount(1000L);
+
+        Balance b2 = new Balance();
+        b2.setUuid(UUID.randomUUID());
+        b2.setAmount(800L);
+
+        when(service.getTopBalances(limit)).thenReturn(List.of(b1, b2));
+
+        ResponseEntity<List<BalanceResponseDTO>> resp = controller.getTopBalances(limit);
+
+        assertEquals(HttpStatus.OK, resp.getStatusCode());
+        assertNotNull(resp.getBody());
+        assertEquals(2, resp.getBody().size());
+
+        List<BalanceResponseDTO> list = resp.getBody();
+
+        assertEquals(b1.getUuid(), list.get(0).uuid());
+        assertEquals(b1.getAmount(), list.get(0).amount());
+
+        assertEquals(b2.getUuid(), list.get(1).uuid());
+        assertEquals(b2.getAmount(), list.get(1).amount());
+
+        verify(service).getTopBalances(limit);
     }
 }

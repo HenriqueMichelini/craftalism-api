@@ -1,12 +1,11 @@
 package io.github.HenriqueMichelini.craftalism.api.model;
 
 import jakarta.persistence.*;
-import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import java.time.Instant;
 import java.util.UUID;
 
-@Entity
+@Entity(name = "transactions")
 @Table(name = "transactions")
 public class Transaction {
     @Id

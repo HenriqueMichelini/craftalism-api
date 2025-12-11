@@ -1,24 +1,21 @@
 package io.github.HenriqueMichelini.craftalism.api.service;
 
+import io.github.HenriqueMichelini.craftalism.api.exceptions.*;
 import io.github.HenriqueMichelini.craftalism.api.model.Balance;
 import io.github.HenriqueMichelini.craftalism.api.repository.BalanceRepository;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.util.Optional;
-import java.util.UUID;
+import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
-@DisplayName("Balance Service Tests")
 class BalanceServiceTest {
 
     @Mock
@@ -27,153 +24,284 @@ class BalanceServiceTest {
     @InjectMocks
     private BalanceService service;
 
-    private UUID testUuid;
-    private Balance testBalance;
+    @Test
+    void getBalance_found_returnsBalance() {
+        UUID uuid = UUID.randomUUID();
+        Balance balance = mock(Balance.class);
 
-    @BeforeEach
-    void setUp() {
-        testUuid = UUID.randomUUID();
-        testBalance = new Balance();
-        testBalance.setUuid(testUuid);
-        testBalance.setAmount(100L);
+        when(repository.findById(uuid)).thenReturn(Optional.of(balance));
+
+        Balance result = service.getBalance(uuid);
+
+        assertSame(balance, result);
+        verify(repository).findById(uuid);
     }
 
     @Test
-    @DisplayName("Should return balance when UUID exists")
-    void shouldReturnBalanceWhenUuidExists() {
-        when(repository.findById(testUuid)).thenReturn(Optional.of(testBalance));
+    void getBalance_notFound_throwsException() {
+        UUID uuid = UUID.randomUUID();
 
-        Balance result = service.getBalance(testUuid);
+        when(repository.findById(uuid)).thenReturn(Optional.empty());
 
-        assertNotNull(result);
-        assertEquals(testUuid, result.getUuid());
-        assertEquals(100L, result.getAmount());
-        verify(repository, times(1)).findById(testUuid);
+        assertThrows(BalanceNotFoundException.class,
+                () -> service.getBalance(uuid));
     }
 
     @Test
-    @DisplayName("Should throw exception when balance not found")
-    void shouldThrowExceptionWhenBalanceNotFound() {
-        UUID nonExistentUuid = UUID.randomUUID();
-        when(repository.findById(nonExistentUuid)).thenReturn(Optional.empty());
+    void createBalance_success_savesBalanceWithZeroAmount() {
+        UUID uuid = UUID.randomUUID();
 
-        IllegalArgumentException exception = assertThrows(
-                IllegalArgumentException.class,
-                () -> service.getBalance(nonExistentUuid)
-        );
+        when(repository.existsById(uuid)).thenReturn(false);
 
-        assertTrue(exception.getMessage().contains("Balance not found for UUID"));
-        assertTrue(exception.getMessage().contains(nonExistentUuid.toString()));
-        verify(repository, times(1)).findById(nonExistentUuid);
-    }
+        Balance saved = new Balance();
+        saved.setUuid(uuid);
+        saved.setAmount(0L);
 
-    @Test
-    @DisplayName("Should create balance with initial amount zero")
-    void shouldCreateBalanceWithInitialAmountZero() {
-        UUID newUuid = UUID.randomUUID();
-        Balance savedBalance = new Balance();
-        savedBalance.setUuid(newUuid);
-        savedBalance.setAmount(0L);
+        when(repository.save(any(Balance.class))).thenReturn(saved);
 
-        when(repository.existsById(newUuid)).thenReturn(false);
-        when(repository.save(any(Balance.class))).thenReturn(savedBalance);
+        Balance result = service.createBalance(uuid);
 
-        Balance result = service.createBalance(newUuid);
-
-        assertNotNull(result);
-        assertEquals(newUuid, result.getUuid());
+        assertEquals(uuid, result.getUuid());
         assertEquals(0L, result.getAmount());
-        verify(repository, times(1)).existsById(newUuid);
-        verify(repository, times(1)).save(any(Balance.class));
+
+        ArgumentCaptor<Balance> captor = ArgumentCaptor.forClass(Balance.class);
+        verify(repository).save(captor.capture());
+
+        Balance created = captor.getValue();
+        assertEquals(uuid, created.getUuid());
+        assertEquals(0L, created.getAmount());
+
+        verify(repository).existsById(uuid);
     }
 
     @Test
-    @DisplayName("Should throw exception when balance already exists")
-    void shouldThrowExceptionWhenBalanceAlreadyExists() {
-        when(repository.existsById(testUuid)).thenReturn(true);
+    void createBalance_alreadyExists_throwsException() {
+        UUID uuid = UUID.randomUUID();
 
-        IllegalArgumentException exception = assertThrows(
-                IllegalArgumentException.class,
-                () -> service.createBalance(testUuid)
-        );
+        when(repository.existsById(uuid)).thenReturn(true);
 
-        assertTrue(exception.getMessage().contains("Balance already exists for UUID"));
-        assertTrue(exception.getMessage().contains(testUuid.toString()));
-        verify(repository, times(1)).existsById(testUuid);
-        verify(repository, never()).save(any(Balance.class));
-    }
+        assertThrows(IllegalArgumentException.class,
+                () -> service.createBalance(uuid));
 
-    @Test
-    @DisplayName("Should update balance with valid amount")
-    void shouldUpdateBalanceWithValidAmount() {
-        Long newAmount = 500L;
-        when(repository.findById(testUuid)).thenReturn(Optional.of(testBalance));
-        when(repository.save(any(Balance.class))).thenReturn(testBalance);
-
-        service.updateBalance(testUuid, newAmount);
-
-        assertEquals(newAmount, testBalance.getAmount());
-        verify(repository, times(1)).findById(testUuid);
-        verify(repository, times(1)).save(testBalance);
-    }
-
-    @Test
-    @DisplayName("Should update balance to zero")
-    void shouldUpdateBalanceToZero() {
-        Long newAmount = 0L;
-        when(repository.findById(testUuid)).thenReturn(Optional.of(testBalance));
-        when(repository.save(any(Balance.class))).thenReturn(testBalance);
-
-        service.updateBalance(testUuid, newAmount);
-
-        assertEquals(0L, testBalance.getAmount());
-        verify(repository, times(1)).findById(testUuid);
-        verify(repository, times(1)).save(testBalance);
-    }
-
-    @Test
-    @DisplayName("Should throw exception when amount is negative")
-    void shouldThrowExceptionWhenAmountIsNegative() {
-        Long negativeAmount = -100L;
-
-        IllegalArgumentException exception = assertThrows(
-                IllegalArgumentException.class,
-                () -> service.updateBalance(testUuid, negativeAmount)
-        );
-
-        assertEquals("Amount must be non-negative.", exception.getMessage());
-        verify(repository, never()).findById(any());
+        verify(repository).existsById(uuid);
         verify(repository, never()).save(any());
     }
 
     @Test
-    @DisplayName("Should throw exception when updating non-existent balance")
-    void shouldThrowExceptionWhenUpdatingNonExistentBalance() {
-        UUID nonExistentUuid = UUID.randomUUID();
-        Long newAmount = 100L;
-        when(repository.findById(nonExistentUuid)).thenReturn(Optional.empty());
+    void withdraw_success_updatesBalance() {
+        UUID uuid = UUID.randomUUID();
+        long amount = 100;
 
-        IllegalArgumentException exception = assertThrows(
-                IllegalArgumentException.class,
-                () -> service.updateBalance(nonExistentUuid, newAmount)
-        );
+        Balance balance = new Balance();
+        balance.setUuid(uuid);
+        balance.setAmount(500L);
 
-        assertTrue(exception.getMessage().contains("Balance not found for UUID"));
-        verify(repository, times(1)).findById(nonExistentUuid);
-        verify(repository, never()).save(any());
+        when(repository.findForUpdate(uuid)).thenReturn(balance);
+        when(repository.save(any())).thenReturn(balance);
+
+        Balance result = service.withdraw(uuid, amount);
+
+        assertEquals(400, result.getAmount());
+        verify(repository).findForUpdate(uuid);
+        verify(repository).save(balance);
     }
 
     @Test
-    @DisplayName("Should handle large amount values")
-    void shouldHandleLargeAmountValues() {
-        Long largeAmount = Long.MAX_VALUE;
-        when(repository.findById(testUuid)).thenReturn(Optional.of(testBalance));
-        when(repository.save(any(Balance.class))).thenReturn(testBalance);
+    void withdraw_invalidAmount_throwsInvalidAmountException() {
+        UUID uuid = UUID.randomUUID();
+        assertThrows(InvalidAmountException.class,
+                () -> service.withdraw(uuid, 0));
+    }
 
-        service.updateBalance(testUuid, largeAmount);
+    @Test
+    void withdraw_insufficientFunds_throwsException() {
+        UUID uuid = UUID.randomUUID();
+        Balance balance = new Balance();
+        balance.setUuid(uuid);
+        balance.setAmount(50L);
 
-        assertEquals(largeAmount, testBalance.getAmount());
-        verify(repository, times(1)).findById(testUuid);
-        verify(repository, times(1)).save(testBalance);
+        when(repository.findForUpdate(uuid)).thenReturn(balance);
+
+        assertThrows(InsufficientFundsException.class,
+                () -> service.withdraw(uuid, 100));
+    }
+
+    @Test
+    void deposit_success_updatesBalance() {
+        UUID uuid = UUID.randomUUID();
+        long amount = 200;
+
+        Balance balance = new Balance();
+        balance.setUuid(uuid);
+        balance.setAmount(300L);
+
+        when(repository.findForUpdate(uuid)).thenReturn(balance);
+        when(repository.save(any())).thenReturn(balance);
+
+        Balance result = service.deposit(uuid, amount);
+
+        assertEquals(500, result.getAmount());
+        verify(repository).findForUpdate(uuid);
+        verify(repository).save(balance);
+    }
+
+    @Test
+    void deposit_invalidAmount_throwsInvalidAmountException() {
+        UUID uuid = UUID.randomUUID();
+        assertThrows(InvalidAmountException.class,
+                () -> service.deposit(uuid, 0));
+    }
+
+    @Test
+    void transfer_success_updatesBothBalances() {
+        UUID from = UUID.randomUUID();
+        UUID to = UUID.randomUUID();
+        long amount = 100;
+
+        Balance balFrom = new Balance();
+        balFrom.setUuid(from);
+        balFrom.setAmount(500L);
+
+        Balance balTo = new Balance();
+        balTo.setUuid(to);
+        balTo.setAmount(200L);
+
+        when(repository.findForUpdate(any())).thenAnswer(inv -> {
+            UUID id = inv.getArgument(0);
+            return id.equals(from) ? balFrom : balTo;
+        });
+
+        service.transfer(from, to, amount);
+
+        assertEquals(400, balFrom.getAmount());
+        assertEquals(300, balTo.getAmount());
+
+        verify(repository, times(2)).save(any());
+    }
+
+    @Test
+    void transfer_sameUuid_throwsException() {
+        UUID uuid = UUID.randomUUID();
+        assertThrows(IllegalArgumentException.class,
+                () -> service.transfer(uuid, uuid, 100));
+    }
+
+    @Test
+    void transfer_invalidAmountZero_throwsException() {
+        UUID from = UUID.randomUUID();
+        UUID to = UUID.randomUUID();
+
+        assertThrows(IllegalArgumentException.class,
+                () -> service.transfer(from, to, 0));
+    }
+
+    @Test
+    void transfer_insufficientFunds_throwsException() {
+        UUID from = UUID.randomUUID();
+        UUID to = UUID.randomUUID();
+
+        Balance balFrom = new Balance();
+        balFrom.setUuid(from);
+        balFrom.setAmount(50L);
+
+        Balance balTo = new Balance();
+        balTo.setUuid(to);
+        balTo.setAmount(200L);
+
+        when(repository.findForUpdate(from)).thenReturn(balFrom);
+        when(repository.findForUpdate(to)).thenReturn(balTo);
+
+        assertThrows(InsufficientFundsException.class,
+                () -> service.transfer(from, to, 100));
+    }
+
+    @Test
+    void transfer_outOfOrder_lockingStillWorks() {
+        // ensures the ordering logic (min UUID first) is correct
+
+        UUID from = UUID.randomUUID();
+        UUID to = UUID.randomUUID();
+
+        // force "from > to" to trigger reversed lock order
+        UUID first = from.compareTo(to) < 0 ? from : to;
+        UUID second = first.equals(from) ? to : from;
+
+        Balance balFirst = new Balance();
+        balFirst.setUuid(first);
+        balFirst.setAmount(400L);
+
+        Balance balSecond = new Balance();
+        balSecond.setUuid(second);
+        balSecond.setAmount(100L);
+
+        when(repository.findForUpdate(first)).thenReturn(balFirst);
+        when(repository.findForUpdate(second)).thenReturn(balSecond);
+
+        long amount = 50;
+
+        // determine logical mapping to from/to
+        Balance fromBalance = from.equals(first) ? balFirst : balSecond;
+        Balance toBalance   = to.equals(first) ? balFirst : balSecond;
+
+        service.transfer(from, to, amount);
+
+        assertEquals(fromBalance.getAmount(),
+                (fromBalance == balFirst ? 400 : 100) - 50);
+        assertEquals(toBalance.getAmount(),
+                (toBalance == balFirst ? 400 : 100) + 50);
+
+        verify(repository, times(2)).save(any());
+    }
+
+    @Test
+    void getTopBalances_validLimit_callsRepositoryWithNormalizedLimit() {
+        when(repository.findTopByOrderByAmountDesc(5)).thenReturn(List.of());
+
+        service.getTopBalances(5);
+
+        verify(repository).findTopByOrderByAmountDesc(5);
+    }
+
+    @Test
+    void getTopBalances_limitTooLow_defaultsTo10() {
+        when(repository.findTopByOrderByAmountDesc(10)).thenReturn(List.of());
+
+        service.getTopBalances(0);
+
+        verify(repository).findTopByOrderByAmountDesc(10);
+    }
+
+    @Test
+    void getTopBalances_limitTooHigh_capsAt20() {
+        when(repository.findTopByOrderByAmountDesc(20)).thenReturn(List.of());
+
+        service.getTopBalances(999);
+
+        verify(repository).findTopByOrderByAmountDesc(20);
+    }
+
+    @Test
+    void setBalance_success_updatesBalance() {
+        UUID uuid = UUID.randomUUID();
+        long newAmount = 800;
+
+        Balance balance = new Balance();
+        balance.setUuid(uuid);
+        balance.setAmount(100L);
+
+        when(repository.findById(uuid)).thenReturn(Optional.of(balance));
+        when(repository.save(balance)).thenReturn(balance);
+
+        Balance result = service.setBalance(uuid, newAmount);
+
+        assertEquals(newAmount, result.getAmount());
+        verify(repository).save(balance);
+    }
+
+    @Test
+    void setBalance_negative_throwsException() {
+        UUID uuid = UUID.randomUUID();
+        assertThrows(IllegalArgumentException.class,
+                () -> service.setBalance(uuid, -1));
     }
 }

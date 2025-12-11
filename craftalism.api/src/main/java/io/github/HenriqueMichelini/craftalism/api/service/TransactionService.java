@@ -3,7 +3,6 @@ package io.github.HenriqueMichelini.craftalism.api.service;
 import io.github.HenriqueMichelini.craftalism.api.dto.TransactionRequestDTO;
 import io.github.HenriqueMichelini.craftalism.api.dto.TransactionResponseDTO;
 import io.github.HenriqueMichelini.craftalism.api.mapper.TransactionMapper;
-import io.github.HenriqueMichelini.craftalism.api.model.Balance;
 import io.github.HenriqueMichelini.craftalism.api.model.Transaction;
 import io.github.HenriqueMichelini.craftalism.api.repository.TransactionRepository;
 import org.springframework.stereotype.Service;
@@ -34,15 +33,7 @@ public class TransactionService {
             throw new IllegalArgumentException("Amount must be greater than 0.");
         }
 
-        Balance from = balanceService.getBalance(dto.fromUuid());
-        Balance to = balanceService.getBalance(dto.toUuid());
-
-        if (from.getAmount() < amount) {
-            throw new IllegalArgumentException("Insufficient balance.");
-        }
-
-        balanceService.updateBalance(dto.fromUuid(), from.getAmount() - amount);
-        balanceService.updateBalance(dto.toUuid(), to.getAmount() + amount);
+        balanceService.transfer(dto.fromUuid(), dto.toUuid(), amount);
 
         Transaction tx = new Transaction(dto.fromUuid(), dto.toUuid(), amount);
         Transaction saved = repository.save(tx);

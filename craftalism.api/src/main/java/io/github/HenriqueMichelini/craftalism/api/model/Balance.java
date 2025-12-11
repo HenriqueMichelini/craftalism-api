@@ -5,7 +5,7 @@ import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import java.util.UUID;
 
-@Entity
+@Entity(name = "balances")
 @Table(name = "balances", indexes = {
         @Index(name = "idx_balance_amount", columnList = "amount DESC")
 })

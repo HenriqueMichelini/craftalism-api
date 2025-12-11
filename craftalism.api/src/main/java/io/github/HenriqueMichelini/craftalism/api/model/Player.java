@@ -7,7 +7,7 @@ import jakarta.validation.constraints.NotNull;
 import java.time.Instant;
 import java.util.UUID;
 
-@Entity
+@Entity(name = "players")
 @Table(name = "players")
 public class Player {
 

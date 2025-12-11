@@ -1,5 +1,6 @@
 package io.github.HenriqueMichelini.craftalism.api.controller;
 
+import io.github.HenriqueMichelini.craftalism.api.dto.BalanceRequestDTO;
 import io.github.HenriqueMichelini.craftalism.api.dto.BalanceResponseDTO;
 import io.github.HenriqueMichelini.craftalism.api.mapper.BalanceMapper;
 import io.github.HenriqueMichelini.craftalism.api.model.Balance;
@@ -11,6 +12,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -69,11 +71,12 @@ public class BalanceController {
                     description = "Balance already exists for this UUID"
             )
     })
-    @PostMapping()
+
+    @PostMapping
     public ResponseEntity<BalanceResponseDTO> createBalance(
-            @Parameter(description = "Balance UUID", required = true)
-            @RequestParam UUID uuid) {
-        Balance created = service.createBalance(uuid);
+            @RequestBody @Valid BalanceRequestDTO request
+    ) {
+        Balance created = service.createBalance(request.uuid());
 
         return ResponseEntity
                 .created(URI.create("/api/balances/" + created.getUuid()))
@@ -81,13 +84,13 @@ public class BalanceController {
     }
 
     @Operation(
-            summary = "Update balance amount",
-            description = "Updates the balance amount for a specific player. Amount must be non-negative."
+            summary = "Set balance amount",
+            description = "Sets the balance amount for a specific player. Amount must be non-negative."
     )
     @ApiResponses(value = {
             @ApiResponse(
                     responseCode = "200",
-                    description = "Balance updated successfully"
+                    description = "Balance set successfully"
             ),
             @ApiResponse(
                     responseCode = "400",
@@ -98,14 +101,29 @@ public class BalanceController {
                     description = "Balance not found for this UUID"
             )
     })
-    @PutMapping("/{uuid}")
-    public ResponseEntity<BalanceResponseDTO> updateBalance(
+    @PutMapping("/{uuid}/set")
+    //@PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<BalanceResponseDTO> setBalance (
             @Parameter(description = "Balance UUID")
             @PathVariable UUID uuid,
 
             @Parameter(description = "New balance amount (must be >= 0)", example = "1000")
             @RequestParam Long amount) {
-        Balance updated = service.updateBalance(uuid, amount);
+        Balance updated = service.setBalance(uuid, amount);
+        return ResponseEntity.ok(mapper.toDto(updated));
+    }
+
+    @PostMapping("/{uuid}/deposit")
+    public ResponseEntity<BalanceResponseDTO> deposit(@PathVariable UUID uuid,
+                                                      @RequestParam long amount) {
+        Balance updated = service.deposit(uuid, amount);
+        return ResponseEntity.ok(mapper.toDto(updated));
+    }
+
+    @PostMapping("/{uuid}/withdraw")
+    public ResponseEntity<BalanceResponseDTO> withdraw(@PathVariable UUID uuid,
+                                                       @RequestParam long amount) {
+        Balance updated = service.withdraw(uuid, amount);
         return ResponseEntity.ok(mapper.toDto(updated));
     }
 
