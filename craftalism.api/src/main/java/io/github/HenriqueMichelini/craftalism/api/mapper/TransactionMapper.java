@@ -9,8 +9,8 @@ public class TransactionMapper {
     public TransactionResponseDTO toDto(Transaction entity) {
         return new TransactionResponseDTO(
                 entity.getId(),
-                entity.getFromUuid(),
-                entity.getToUuid(),
+                entity.getFromPlayerUuid(),
+                entity.getToPlayerUuid(),
                 entity.getAmount(),
                 entity.getCreatedAt()
         );

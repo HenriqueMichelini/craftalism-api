@@ -33,9 +33,9 @@ public class TransactionService {
             throw new IllegalArgumentException("Amount must be greater than 0.");
         }
 
-        balanceService.transfer(dto.fromUuid(), dto.toUuid(), amount);
+        balanceService.transfer(dto.fromPlayerUuid(), dto.toPlayerUuid(), amount);
 
-        Transaction tx = new Transaction(dto.fromUuid(), dto.toUuid(), amount);
+        Transaction tx = new Transaction(dto.fromPlayerUuid(), dto.toPlayerUuid(), amount);
         Transaction saved = repository.save(tx);
 
         return mapper.toDto(saved);
@@ -54,12 +54,12 @@ public class TransactionService {
 
     @Transactional
     public List<Transaction> getTransactionsByFromUuid(UUID fromUuid) {
-        return repository.findByFromUuid(fromUuid);
+        return repository.findByFromPlayerUuid(fromUuid);
     }
 
     @Transactional
     public List<Transaction> getTransactionsByToUuid(UUID toUuid) {
-        return repository.findByToUuid(toUuid);
+        return repository.findByToPlayerUuid(toUuid);
     }
 }
 

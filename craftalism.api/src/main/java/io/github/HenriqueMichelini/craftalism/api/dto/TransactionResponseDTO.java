@@ -18,14 +18,14 @@ public record TransactionResponseDTO(
                 example = "550e8400-e29b-41d4-a716-446655440000",
                 format = "uuid"
         )
-        UUID fromUuid,
+        UUID fromPlayerUuid,
 
         @Schema(
                 description = "Receiver's UUID (who received the money)",
                 example = "550e8400-e29b-41d4-a716-446655440001",
                 format = "uuid"
         )
-        UUID toUuid,
+        UUID toPlayerUuid,
 
         @Schema(
                 description = "Transaction amount transferred",

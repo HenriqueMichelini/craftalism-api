@@ -1,7 +1,6 @@
 package io.github.HenriqueMichelini.craftalism.api.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
-import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 
 import java.util.UUID;
@@ -13,7 +12,7 @@ public record TransactionRequestDTO(
                 format = "uuid"
         )
         @NotNull(message = "Sender UUID is required")
-        UUID fromUuid,
+        UUID fromPlayerUuid,
 
         @Schema(
                 description = "Receiver's UUID",
@@ -21,7 +20,7 @@ public record TransactionRequestDTO(
                 format = "uuid"
         )
         @NotNull(message = "Receiver UUID is required")
-        UUID toUuid,
+        UUID toPlayerUuid,
 
         @Schema(
                 description = "Amount to transfer",

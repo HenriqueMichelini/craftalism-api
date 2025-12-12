@@ -42,8 +42,8 @@ class TransactionServiceTest {
         UUID to = UUID.randomUUID();
         long amount = 123L;
 
-        when(req.fromUuid()).thenReturn(from);
-        when(req.toUuid()).thenReturn(to);
+        when(req.fromPlayerUuid()).thenReturn(from);
+        when(req.toPlayerUuid()).thenReturn(to);
         when(req.amount()).thenReturn(amount);
 
         Transaction savedTx = mock(Transaction.class);

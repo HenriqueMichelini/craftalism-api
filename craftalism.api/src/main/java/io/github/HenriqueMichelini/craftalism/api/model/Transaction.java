@@ -12,11 +12,11 @@ public class Transaction {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @JoinColumn(name = "from_uuid", referencedColumnName = "uuid", nullable = false)
-    private final UUID fromUuid;
+    @Column(name = "from_player_uuid")
+    private UUID fromPlayerUuid;
 
-    @JoinColumn(name = "to_uuid", referencedColumnName = "uuid", nullable = false)
-    private final UUID toUuid;
+    @Column(name = "to_player_uuid")
+    private UUID toPlayerUuid;
 
     @NotNull(message = "Transaction requires an amount")
     @Column(nullable = false)
@@ -25,11 +25,14 @@ public class Transaction {
     @Column(nullable = false, updatable = false)
     private Instant createdAt;
 
-    public Transaction(UUID fromUuid, UUID toUuid, Long amount) {
-        this.fromUuid = fromUuid;
-        this.toUuid = toUuid;
+
+    public Transaction(UUID fromPlayerUuid, UUID toPlayerUuid, Long amount) {
+        this.fromPlayerUuid = fromPlayerUuid;
+        this.toPlayerUuid = toPlayerUuid;
         this.amount = amount;
     }
+
+    protected Transaction() {}
 
     @PrePersist
     protected void onCreate() {
@@ -37,8 +40,8 @@ public class Transaction {
     }
 
     public Long getId() { return id; }
-    public UUID getFromUuid() { return fromUuid; }
-    public UUID getToUuid() { return toUuid; }
+    public UUID getFromPlayerUuid() { return fromPlayerUuid; }
+    public UUID getToPlayerUuid() { return toPlayerUuid; }
     public Long getAmount() { return amount; }
     public Instant getCreatedAt() { return createdAt; }
 
