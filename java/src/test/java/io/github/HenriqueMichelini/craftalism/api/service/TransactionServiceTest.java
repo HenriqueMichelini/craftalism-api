@@ -121,23 +121,23 @@ class TransactionServiceTest {
     void getTransactionsByFromUuid_returnsRepositoryList() {
         UUID from = UUID.randomUUID();
         List<Transaction> list = List.of(mock(Transaction.class));
-        when(repository.findByFromUuid(from)).thenReturn(list);
+        when(repository.findByFromPlayerUuid(from)).thenReturn(list);
 
         List<Transaction> result = service.getTransactionsByFromUuid(from);
 
         assertSame(list, result);
-        verify(repository, times(1)).findByFromUuid(from);
+        verify(repository, times(1)).findByFromPlayerUuid(from);
     }
 
     @Test
     void getTransactionsByToUuid_returnsRepositoryList() {
         UUID to = UUID.randomUUID();
         List<Transaction> list = List.of(mock(Transaction.class));
-        when(repository.findByToUuid(to)).thenReturn(list);
+        when(repository.findByToPlayerUuid(to)).thenReturn(list);
 
         List<Transaction> result = service.getTransactionsByToUuid(to);
 
         assertSame(list, result);
-        verify(repository, times(1)).findByToUuid(to);
+        verify(repository, times(1)).findByToPlayerUuid(to);
     }
 }
