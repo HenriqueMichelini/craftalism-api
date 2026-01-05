@@ -17,6 +17,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.net.URI;
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -30,6 +31,12 @@ public class PlayerController {
     public PlayerController(PlayerService service, PlayerMapper mapper) {
         this.service = service;
         this.mapper = mapper;
+    }
+
+    @GetMapping
+    public ResponseEntity<List<PlayerResponseDTO>> getAllPlayers() {
+        List<Player> players = service.getAllPlayers();
+        return ResponseEntity.ok(mapper.toDto(players));
     }
 
     @Operation(

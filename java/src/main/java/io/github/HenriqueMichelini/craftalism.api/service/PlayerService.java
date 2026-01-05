@@ -6,6 +6,7 @@ import io.github.HenriqueMichelini.craftalism.api.repository.PlayerRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -15,6 +16,10 @@ public class PlayerService {
 
     public PlayerService(PlayerRepository repository) {
         this.repository = repository;
+    }
+
+    public List<Player> getAllPlayers() {
+        return repository.findAll();
     }
 
     public Player getPlayerByUuid(UUID uuid) {
