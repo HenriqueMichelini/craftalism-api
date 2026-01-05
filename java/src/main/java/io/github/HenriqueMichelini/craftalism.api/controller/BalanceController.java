@@ -13,17 +13,17 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
-
 import java.net.URI;
 import java.util.List;
 import java.util.UUID;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/balances")
 @Tag(name = "Balances", description = "Balance management for players")
 public class BalanceController {
+
     private final BalanceService service;
     private final BalanceMapper mapper;
 
@@ -32,114 +32,136 @@ public class BalanceController {
         this.mapper = mapper;
     }
 
-    @Operation(
-            summary = "Get balance by UUID",
-            description = "Returns the balance information for a specific player UUID"
-    )
-    @ApiResponses(value = {
-            @ApiResponse(
-                    responseCode = "200",
-                    description = "Balance found successfully",
-                    content = @Content(schema = @Schema(implementation = BalanceResponseDTO.class))
-            ),
-            @ApiResponse(
-                    responseCode = "404",
-                    description = "Balance not found for this UUID"
-            )
-    })
-    @GetMapping("/{uuid}")
-    public ResponseEntity<BalanceResponseDTO> getBalanceByUuid(
-            @Parameter(description = "Player UUID", example = "550e8400-e29b-41d4-a716-446655440000")
-            @PathVariable UUID uuid) {
-        Balance balance = service.getBalance(uuid);
-
-        return ResponseEntity
-                .ok(mapper.toDto(balance));
+    @GetMapping
+    public ResponseEntity<List<BalanceResponseDTO>> getAllBalances() {
+        List<Balance> balances = service.getAllBalances();
+        return ResponseEntity.ok(mapper.toDto(balances));
     }
 
     @Operation(
-            summary = "Create new balance",
-            description = "Creates a new balance for a player with initial amount of 0"
+        summary = "Get balance by UUID",
+        description = "Returns the balance information for a specific player UUID"
     )
-    @ApiResponses(value = {
+    @ApiResponses(
+        value = {
             @ApiResponse(
-                    responseCode = "201",
-                    description = "Balance created successfully"
+                responseCode = "200",
+                description = "Balance found successfully",
+                content = @Content(
+                    schema = @Schema(implementation = BalanceResponseDTO.class)
+                )
             ),
             @ApiResponse(
-                    responseCode = "400",
-                    description = "Balance already exists for this UUID"
-            )
-    })
+                responseCode = "404",
+                description = "Balance not found for this UUID"
+            ),
+        }
+    )
+    @GetMapping("/{uuid}")
+    public ResponseEntity<BalanceResponseDTO> getBalanceByUuid(
+        @Parameter(
+            description = "Player UUID",
+            example = "550e8400-e29b-41d4-a716-446655440000"
+        ) @PathVariable UUID uuid
+    ) {
+        Balance balance = service.getBalance(uuid);
 
+        return ResponseEntity.ok(mapper.toDto(balance));
+    }
+
+    @Operation(
+        summary = "Create new balance",
+        description = "Creates a new balance for a player with initial amount of 0"
+    )
+    @ApiResponses(
+        value = {
+            @ApiResponse(
+                responseCode = "201",
+                description = "Balance created successfully"
+            ),
+            @ApiResponse(
+                responseCode = "400",
+                description = "Balance already exists for this UUID"
+            ),
+        }
+    )
     @PostMapping
     public ResponseEntity<BalanceResponseDTO> createBalance(
-            @RequestBody @Valid BalanceRequestDTO request
+        @RequestBody @Valid BalanceRequestDTO request
     ) {
         Balance created = service.createBalance(request.uuid());
 
-        return ResponseEntity
-                .created(URI.create("/api/balances/" + created.getUuid()))
-                .body(mapper.toDto(created));
+        return ResponseEntity.created(
+            URI.create("/api/balances/" + created.getUuid())
+        ).body(mapper.toDto(created));
     }
 
     @Operation(
-            summary = "Set balance amount",
-            description = "Sets the balance amount for a specific player. Amount must be non-negative."
+        summary = "Set balance amount",
+        description = "Sets the balance amount for a specific player. Amount must be non-negative."
     )
-    @ApiResponses(value = {
+    @ApiResponses(
+        value = {
             @ApiResponse(
-                    responseCode = "200",
-                    description = "Balance set successfully"
+                responseCode = "200",
+                description = "Balance set successfully"
             ),
             @ApiResponse(
-                    responseCode = "400",
-                    description = "Invalid amount (negative value)"
+                responseCode = "400",
+                description = "Invalid amount (negative value)"
             ),
             @ApiResponse(
-                    responseCode = "404",
-                    description = "Balance not found for this UUID"
-            )
-    })
+                responseCode = "404",
+                description = "Balance not found for this UUID"
+            ),
+        }
+    )
     @PutMapping("/{uuid}/set")
     //@PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<BalanceResponseDTO> setBalance (
-            @Parameter(description = "Balance UUID")
-            @PathVariable UUID uuid,
-
-            @Parameter(description = "New balance amount (must be >= 0)", example = "1000")
-            @RequestParam Long amount) {
+    public ResponseEntity<BalanceResponseDTO> setBalance(
+        @Parameter(description = "Balance UUID") @PathVariable UUID uuid,
+        @Parameter(
+            description = "New balance amount (must be >= 0)",
+            example = "1000"
+        ) @RequestParam Long amount
+    ) {
         Balance updated = service.setBalance(uuid, amount);
         return ResponseEntity.ok(mapper.toDto(updated));
     }
 
     @PostMapping("/{uuid}/deposit")
-    public ResponseEntity<BalanceResponseDTO> deposit(@PathVariable UUID uuid,
-                                                      @RequestParam long amount) {
+    public ResponseEntity<BalanceResponseDTO> deposit(
+        @PathVariable UUID uuid,
+        @RequestParam long amount
+    ) {
         Balance updated = service.deposit(uuid, amount);
         return ResponseEntity.ok(mapper.toDto(updated));
     }
 
     @PostMapping("/{uuid}/withdraw")
-    public ResponseEntity<BalanceResponseDTO> withdraw(@PathVariable UUID uuid,
-                                                       @RequestParam long amount) {
+    public ResponseEntity<BalanceResponseDTO> withdraw(
+        @PathVariable UUID uuid,
+        @RequestParam long amount
+    ) {
         Balance updated = service.withdraw(uuid, amount);
         return ResponseEntity.ok(mapper.toDto(updated));
     }
 
     @GetMapping("/top")
     public ResponseEntity<List<BalanceResponseDTO>> getTopBalances(
-        @Parameter(description = "Balance limit number (must be >= 0 and <= 20)", example = "15")
-        @RequestParam(defaultValue = "10") int limit
+        @Parameter(
+            description = "Balance limit number (must be >= 0 and <= 20)",
+            example = "15"
+        ) @RequestParam(defaultValue = "10") int limit
     ) {
         List<Balance> topBalances = service.getTopBalances(limit);
 
-        List<BalanceResponseDTO> response = topBalances.stream()
-                .map(balance -> new BalanceResponseDTO(
-                        balance.getUuid(),
-                        balance.getAmount()
-                ))
-                .toList();
+        List<BalanceResponseDTO> response = topBalances
+            .stream()
+            .map(balance ->
+                new BalanceResponseDTO(balance.getUuid(), balance.getAmount())
+            )
+            .toList();
 
         return ResponseEntity.ok(response);
     }

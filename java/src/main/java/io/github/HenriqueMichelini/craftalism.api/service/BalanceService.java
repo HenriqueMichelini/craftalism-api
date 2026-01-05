@@ -6,10 +6,9 @@ import io.github.HenriqueMichelini.craftalism.api.exceptions.InvalidAmountExcept
 import io.github.HenriqueMichelini.craftalism.api.model.Balance;
 import io.github.HenriqueMichelini.craftalism.api.repository.BalanceRepository;
 import jakarta.transaction.Transactional;
-import org.springframework.stereotype.Service;
-
 import java.util.List;
 import java.util.UUID;
+import org.springframework.stereotype.Service;
 
 @Service
 public class BalanceService {
@@ -20,16 +19,22 @@ public class BalanceService {
         this.repository = repository;
     }
 
+    public List<Balance> getAllBalances() {
+        return repository.findAll();
+    }
+
     @Transactional
     public Balance getBalance(UUID uuid) {
-        return repository.findById(uuid)
-                .orElseThrow(() -> new BalanceNotFoundException(uuid));
+        return repository
+            .findById(uuid)
+            .orElseThrow(() -> new BalanceNotFoundException(uuid));
     }
 
     @Transactional
     public Balance createBalance(UUID uuid) {
-        if (repository.existsById(uuid))
-            throw new IllegalArgumentException("Balance already exists for UUID: " + uuid);
+        if (repository.existsById(uuid)) throw new IllegalArgumentException(
+            "Balance already exists for UUID: " + uuid
+        );
 
         Balance balance = new Balance();
         balance.setUuid(uuid);
@@ -39,12 +44,13 @@ public class BalanceService {
 
     @Transactional
     public Balance withdraw(UUID uuid, long amount) {
-        if (amount <= 0)
-            throw new InvalidAmountException();
+        if (amount <= 0) throw new InvalidAmountException();
 
         Balance balance = repository.findForUpdate(uuid);
-        if (balance.getAmount() < amount)
-            throw new InsufficientFundsException(uuid, amount);
+        if (balance.getAmount() < amount) throw new InsufficientFundsException(
+            uuid,
+            amount
+        );
 
         balance.setAmount(balance.getAmount() - amount);
         return repository.save(balance);
@@ -52,8 +58,7 @@ public class BalanceService {
 
     @Transactional
     public Balance deposit(UUID uuid, long amount) {
-        if (amount <= 0)
-            throw new InvalidAmountException();
+        if (amount <= 0) throw new InvalidAmountException();
 
         Balance balance = repository.findForUpdate(uuid);
         balance.setAmount(balance.getAmount() + amount);
@@ -62,8 +67,12 @@ public class BalanceService {
 
     @Transactional
     public void transfer(UUID from, UUID to, long amount) {
-        if (from.equals(to)) throw new IllegalArgumentException("From and To must be different.");
-        if (amount <= 0) throw new IllegalArgumentException("Amount must be greater than 0.");
+        if (from.equals(to)) throw new IllegalArgumentException(
+            "From and To must be different."
+        );
+        if (amount <= 0) throw new IllegalArgumentException(
+            "Amount must be greater than 0."
+        );
 
         UUID first = (from.compareTo(to) < 0) ? from : to;
         UUID second = (first.equals(from) ? to : from);
@@ -72,7 +81,7 @@ public class BalanceService {
         Balance secondBalance = repository.findForUpdate(second);
 
         Balance fromBalance = from.equals(first) ? firstBalance : secondBalance;
-        Balance toBalance   = to.equals(first)   ? firstBalance : secondBalance;
+        Balance toBalance = to.equals(first) ? firstBalance : secondBalance;
 
         if (fromBalance.getAmount() < amount) {
             throw new InsufficientFundsException(from, amount);
@@ -95,7 +104,9 @@ public class BalanceService {
 
     @Transactional
     public Balance setBalance(UUID uuid, long newAmount) {
-        if (newAmount < 0) throw new IllegalArgumentException("Amount must be non-negative.");
+        if (newAmount < 0) throw new IllegalArgumentException(
+            "Amount must be non-negative."
+        );
         Balance b = getBalance(uuid);
         b.setAmount(newAmount);
         return repository.save(b);
