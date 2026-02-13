@@ -1,8 +1,8 @@
 CREATE TABLE transactions (
     id BIGSERIAL PRIMARY KEY,
     amount BIGINT NOT NULL,
-    from_player_uuid UUID,
-    to_player_uuid UUID,
+    from_player_uuid UUID NOT NULL,
+    to_player_uuid UUID NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT now(),
 
     CONSTRAINT fk_from_player_uuid FOREIGN KEY (from_player_uuid) REFERENCES players (uuid),
