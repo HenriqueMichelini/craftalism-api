@@ -5,12 +5,13 @@ import io.github.HenriqueMichelini.craftalism.api.exceptions.InsufficientFundsEx
 import io.github.HenriqueMichelini.craftalism.api.exceptions.InvalidAmountException;
 import io.github.HenriqueMichelini.craftalism.api.model.Balance;
 import io.github.HenriqueMichelini.craftalism.api.repository.BalanceRepository;
-import jakarta.transaction.Transactional;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
+@Transactional(readOnly = true)
 public class BalanceService {
 
     private final BalanceRepository repository;
@@ -23,7 +24,6 @@ public class BalanceService {
         return repository.findAll();
     }
 
-    @Transactional
     public Balance getBalance(UUID uuid) {
         return repository
             .findById(uuid)
@@ -94,7 +94,6 @@ public class BalanceService {
         repository.save(toBalance);
     }
 
-    @Transactional
     public List<Balance> getTopBalances(int limit) {
         if (limit <= 0) limit = 10;
         if (limit > 20) limit = 20;
