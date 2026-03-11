@@ -1,1 +1,0 @@
-CREATE INDEX IF NOT EXISTS idx_balances_amount_desc ON balances(amount DESC);
