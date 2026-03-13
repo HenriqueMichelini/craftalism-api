@@ -1,11 +1,10 @@
 package io.github.HenriqueMichelini.craftalism.api.exceptions;
 
 import org.springframework.http.HttpStatus;
-import org.springframework.web.bind.annotation.ResponseStatus;
 
-@ResponseStatus(HttpStatus.UNPROCESSABLE_ENTITY)
-public class InvalidAmountException extends RuntimeException {
-    public InvalidAmountException () {
-        super("Invalid amount.");
+public class InvalidAmountException extends BusinessException {
+
+    public InvalidAmountException() {
+        super("Invalid amount.", HttpStatus.UNPROCESSABLE_ENTITY);
     }
 }

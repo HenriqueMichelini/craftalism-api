@@ -1,17 +1,15 @@
 package io.github.HenriqueMichelini.craftalism.api.exceptions;
 
-import org.springframework.http.HttpStatus;
-import org.springframework.web.bind.annotation.ResponseStatus;
-
 import java.util.UUID;
+import org.springframework.http.HttpStatus;
 
-@ResponseStatus(HttpStatus.NOT_FOUND)
-public class PlayerNotFoundException extends RuntimeException {
+public class PlayerNotFoundException extends BusinessException {
+
     public PlayerNotFoundException(UUID uuid) {
-        super("Player not found for UUID: " + uuid);
+        super("Player not found for UUID: " + uuid, HttpStatus.NOT_FOUND);
     }
 
     public PlayerNotFoundException(String name) {
-        super("Player not found for name: " + name);
+        super("Player not found for name: " + name, HttpStatus.NOT_FOUND);
     }
 }

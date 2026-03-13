@@ -2,6 +2,8 @@ package io.github.HenriqueMichelini.craftalism.api.service;
 
 import io.github.HenriqueMichelini.craftalism.api.dto.TransactionRequestDTO;
 import io.github.HenriqueMichelini.craftalism.api.dto.TransactionResponseDTO;
+import io.github.HenriqueMichelini.craftalism.api.exceptions.InvalidAmountException;
+import io.github.HenriqueMichelini.craftalism.api.exceptions.TransactionNotFoundException;
 import io.github.HenriqueMichelini.craftalism.api.mapper.TransactionMapper;
 import io.github.HenriqueMichelini.craftalism.api.model.Transaction;
 import io.github.HenriqueMichelini.craftalism.api.repository.TransactionRepository;
@@ -33,11 +35,7 @@ public class TransactionService {
         TransactionRequestDTO dto
     ) {
         long amount = dto.amount();
-        if (amount <= 0) {
-            throw new IllegalArgumentException(
-                "Amount must be greater than 0."
-            );
-        }
+        if (amount <= 0) throw new InvalidAmountException();
 
         balanceService.transfer(
             dto.fromPlayerUuid(),
@@ -62,11 +60,7 @@ public class TransactionService {
     public Transaction getTransactionById(Long id) {
         return repository
             .findById(id)
-            .orElseThrow(() ->
-                new IllegalArgumentException(
-                    "Transaction not found for id: " + id
-                )
-            );
+            .orElseThrow(() -> new TransactionNotFoundException(id));
     }
 
     public List<Transaction> getTransactionsByFromUuid(UUID fromUuid) {

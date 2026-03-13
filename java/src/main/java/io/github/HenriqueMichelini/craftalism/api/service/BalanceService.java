@@ -1,8 +1,10 @@
 package io.github.HenriqueMichelini.craftalism.api.service;
 
+import io.github.HenriqueMichelini.craftalism.api.exceptions.BalanceAlreadyExistsException;
 import io.github.HenriqueMichelini.craftalism.api.exceptions.BalanceNotFoundException;
 import io.github.HenriqueMichelini.craftalism.api.exceptions.InsufficientFundsException;
 import io.github.HenriqueMichelini.craftalism.api.exceptions.InvalidAmountException;
+import io.github.HenriqueMichelini.craftalism.api.exceptions.InvalidTransferException;
 import io.github.HenriqueMichelini.craftalism.api.model.Balance;
 import io.github.HenriqueMichelini.craftalism.api.repository.BalanceRepository;
 import java.util.List;
@@ -32,9 +34,9 @@ public class BalanceService {
 
     @Transactional
     public Balance createBalance(UUID uuid) {
-        if (repository.existsById(uuid)) throw new IllegalArgumentException(
-            "Balance already exists for UUID: " + uuid
-        );
+        if (
+            repository.existsById(uuid)
+        ) throw new BalanceAlreadyExistsException(uuid);
 
         Balance balance = new Balance();
         balance.setUuid(uuid);
@@ -67,12 +69,8 @@ public class BalanceService {
 
     @Transactional
     public void transfer(UUID from, UUID to, long amount) {
-        if (from.equals(to)) throw new IllegalArgumentException(
-            "From and To must be different."
-        );
-        if (amount <= 0) throw new IllegalArgumentException(
-            "Amount must be greater than 0."
-        );
+        if (from.equals(to)) throw new InvalidTransferException();
+        if (amount <= 0) throw new InvalidAmountException();
 
         UUID first = (from.compareTo(to) < 0) ? from : to;
         UUID second = (first.equals(from) ? to : from);
@@ -103,9 +101,7 @@ public class BalanceService {
 
     @Transactional
     public Balance setBalance(UUID uuid, long newAmount) {
-        if (newAmount < 0) throw new IllegalArgumentException(
-            "Amount must be non-negative."
-        );
+        if (newAmount < 0) throw new InvalidAmountException();
         Balance b = getBalance(uuid);
         b.setAmount(newAmount);
         return repository.save(b);

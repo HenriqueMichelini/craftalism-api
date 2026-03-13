@@ -1,5 +1,6 @@
 package io.github.HenriqueMichelini.craftalism.api.service;
 
+import io.github.HenriqueMichelini.craftalism.api.exceptions.PlayerAlreadyExistsException;
 import io.github.HenriqueMichelini.craftalism.api.exceptions.PlayerNotFoundException;
 import io.github.HenriqueMichelini.craftalism.api.model.Player;
 import io.github.HenriqueMichelini.craftalism.api.repository.PlayerRepository;
@@ -36,8 +37,8 @@ public class PlayerService {
 
     @Transactional
     public Player createPlayer(UUID uuid, String name) {
-        if (repository.existsById(uuid)) throw new IllegalArgumentException(
-            "Player already exists for UUID: " + uuid
+        if (repository.existsById(uuid)) throw new PlayerAlreadyExistsException(
+            uuid
         );
 
         Player player = new Player();
