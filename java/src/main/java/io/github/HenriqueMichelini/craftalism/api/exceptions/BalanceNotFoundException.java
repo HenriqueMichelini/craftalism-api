@@ -6,6 +6,6 @@ import org.springframework.http.HttpStatus;
 public class BalanceNotFoundException extends BusinessException {
 
     public BalanceNotFoundException(UUID uuid) {
-        super("Balance already exists for UUID: " + uuid, HttpStatus.CONFLICT);
+        super("Balance not found for UUID: " + uuid, HttpStatus.CONFLICT);
     }
 }
