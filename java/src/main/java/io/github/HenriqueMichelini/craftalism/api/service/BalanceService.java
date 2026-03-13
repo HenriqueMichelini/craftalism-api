@@ -48,7 +48,9 @@ public class BalanceService {
     public Balance withdraw(UUID uuid, long amount) {
         if (amount <= 0) throw new InvalidAmountException();
 
-        Balance balance = repository.findForUpdate(uuid);
+        Balance balance = repository
+            .findForUpdate(uuid)
+            .orElseThrow(() -> new BalanceNotFoundException(uuid));
         if (balance.getAmount() < amount) throw new InsufficientFundsException(
             uuid,
             amount
@@ -59,10 +61,12 @@ public class BalanceService {
     }
 
     @Transactional
-    public Balance deposit(UUID uuid, long amount) {
+    public <Optional> Balance deposit(UUID uuid, long amount) {
         if (amount <= 0) throw new InvalidAmountException();
 
-        Balance balance = repository.findForUpdate(uuid);
+        Balance balance = repository
+            .findForUpdate(uuid)
+            .orElseThrow(() -> new BalanceNotFoundException(uuid));
         balance.setAmount(balance.getAmount() + amount);
         return repository.save(balance);
     }
@@ -74,9 +78,9 @@ public class BalanceService {
 
         UUID first = (from.compareTo(to) < 0) ? from : to;
         UUID second = (first.equals(from) ? to : from);
-
-        Balance firstBalance = repository.findForUpdate(first);
-        Balance secondBalance = repository.findForUpdate(second);
+        
+        Balance firstBalance = repository.findForUpdate(first).orElseThrow(() -> new BalanceNotFoundException(first));
+        Balance secondBalance = repository.findForUpdate(second).orElseThrow(() -> new BalanceNotFoundException(second));
 
         Balance fromBalance = from.equals(first) ? firstBalance : secondBalance;
         Balance toBalance = to.equals(first) ? firstBalance : secondBalance;
