@@ -2,7 +2,6 @@ package io.github.HenriqueMichelini.craftalism.api.exceptions;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
-import java.net.URI;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
@@ -16,6 +15,7 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.context.request.ServletWebRequest;
 import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 
@@ -28,7 +28,15 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         BusinessException ex,
         HttpServletRequest request
     ) {
-        return buildProblemDetail(ex.getStatus(), ex.getMessage(), request);
+        ProblemDetail problem = buildProblemDetail(
+            ex.getStatus(),
+            ex.getMessage(),
+            request
+        );
+
+        problem.setType(ErrorTypes.BUSINESS);
+
+        return problem;
     }
 
     @Override
@@ -44,12 +52,17 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
             errors.put(error.getField(), error.getDefaultMessage());
         }
 
-        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+        HttpServletRequest servletRequest = (
+            (ServletWebRequest) request
+        ).getRequest();
+
+        ProblemDetail problem = buildProblemDetail(
             HttpStatus.BAD_REQUEST,
-            "Validation failed"
+            "Validation failed",
+            servletRequest
         );
 
-        problem.setProperty("timestamp", Instant.now());
+        problem.setType(ErrorTypes.VALIDATION);
         problem.setProperty("errors", errors);
 
         return ResponseEntity.badRequest().body(problem);
@@ -60,11 +73,15 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         ConstraintViolationException ex,
         HttpServletRequest request
     ) {
-        return buildProblemDetail(
+        ProblemDetail problem = buildProblemDetail(
             HttpStatus.BAD_REQUEST,
             ex.getMessage(),
             request
         );
+
+        problem.setType(ErrorTypes.VALIDATION);
+
+        return problem;
     }
 
     @ExceptionHandler(Exception.class)
@@ -74,11 +91,15 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     ) {
         log.error("Unexpected server error", ex);
 
-        return buildProblemDetail(
+        ProblemDetail problem = buildProblemDetail(
             HttpStatus.INTERNAL_SERVER_ERROR,
             "Unexpected internal server error",
             request
         );
+
+        problem.setType(ErrorTypes.INTERNAL);
+
+        return problem;
     }
 
     private ProblemDetail buildProblemDetail(
@@ -91,9 +112,6 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
             message
         );
 
-        problem.setType(
-            URI.create("https://api.craftalism.com/errors/" + status.value())
-        );
         problem.setProperty("timestamp", Instant.now());
         problem.setProperty("path", request.getRequestURI());
 
