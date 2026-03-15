@@ -206,7 +206,7 @@ public class BalanceController {
                 description = "Balance not found"
             ),
             @ApiResponse(
-                responseCode = "409",
+                responseCode = "422",
                 description = "Insufficient funds"
             ),
             @ApiResponse(responseCode = "422", description = "Invalid amount"),
