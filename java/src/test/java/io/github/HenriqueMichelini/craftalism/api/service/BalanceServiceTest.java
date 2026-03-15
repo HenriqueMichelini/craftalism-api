@@ -1,19 +1,20 @@
 package io.github.HenriqueMichelini.craftalism.api.service;
 
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.*;
+
 import io.github.HenriqueMichelini.craftalism.api.exceptions.*;
 import io.github.HenriqueMichelini.craftalism.api.model.Balance;
 import io.github.HenriqueMichelini.craftalism.api.repository.BalanceRepository;
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-
-import java.util.*;
-
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class BalanceServiceTest {
@@ -43,8 +44,9 @@ class BalanceServiceTest {
 
         when(repository.findById(uuid)).thenReturn(Optional.empty());
 
-        assertThrows(BalanceNotFoundException.class,
-                () -> service.getBalance(uuid));
+        assertThrows(BalanceNotFoundException.class, () ->
+            service.getBalance(uuid)
+        );
     }
 
     @Test
@@ -80,8 +82,9 @@ class BalanceServiceTest {
 
         when(repository.existsById(uuid)).thenReturn(true);
 
-        assertThrows(IllegalArgumentException.class,
-                () -> service.createBalance(uuid));
+        assertThrows(BalanceAlreadyExistsException.class, () ->
+            service.createBalance(uuid)
+        );
 
         verify(repository).existsById(uuid);
         verify(repository, never()).save(any());
@@ -96,7 +99,7 @@ class BalanceServiceTest {
         balance.setUuid(uuid);
         balance.setAmount(500L);
 
-        when(repository.findForUpdate(uuid)).thenReturn(balance);
+        when(repository.findForUpdate(uuid)).thenReturn(Optional.of(balance));
         when(repository.save(any())).thenReturn(balance);
 
         Balance result = service.withdraw(uuid, amount);
@@ -109,8 +112,9 @@ class BalanceServiceTest {
     @Test
     void withdraw_invalidAmount_throwsInvalidAmountException() {
         UUID uuid = UUID.randomUUID();
-        assertThrows(InvalidAmountException.class,
-                () -> service.withdraw(uuid, 0));
+        assertThrows(InvalidAmountException.class, () ->
+            service.withdraw(uuid, 0)
+        );
     }
 
     @Test
@@ -120,10 +124,11 @@ class BalanceServiceTest {
         balance.setUuid(uuid);
         balance.setAmount(50L);
 
-        when(repository.findForUpdate(uuid)).thenReturn(balance);
+        when(repository.findForUpdate(uuid)).thenReturn(Optional.of(balance));
 
-        assertThrows(InsufficientFundsException.class,
-                () -> service.withdraw(uuid, 100));
+        assertThrows(InsufficientFundsException.class, () ->
+            service.withdraw(uuid, 100)
+        );
     }
 
     @Test
@@ -135,7 +140,7 @@ class BalanceServiceTest {
         balance.setUuid(uuid);
         balance.setAmount(300L);
 
-        when(repository.findForUpdate(uuid)).thenReturn(balance);
+        when(repository.findForUpdate(uuid)).thenReturn(Optional.of(balance));
         when(repository.save(any())).thenReturn(balance);
 
         Balance result = service.deposit(uuid, amount);
@@ -148,8 +153,9 @@ class BalanceServiceTest {
     @Test
     void deposit_invalidAmount_throwsInvalidAmountException() {
         UUID uuid = UUID.randomUUID();
-        assertThrows(InvalidAmountException.class,
-                () -> service.deposit(uuid, 0));
+        assertThrows(InvalidAmountException.class, () ->
+            service.deposit(uuid, 0)
+        );
     }
 
     @Test
@@ -168,7 +174,7 @@ class BalanceServiceTest {
 
         when(repository.findForUpdate(any())).thenAnswer(inv -> {
             UUID id = inv.getArgument(0);
-            return id.equals(from) ? balFrom : balTo;
+            return Optional.of(id.equals(from) ? balFrom : balTo);
         });
 
         service.transfer(from, to, amount);
@@ -182,8 +188,9 @@ class BalanceServiceTest {
     @Test
     void transfer_sameUuid_throwsException() {
         UUID uuid = UUID.randomUUID();
-        assertThrows(IllegalArgumentException.class,
-                () -> service.transfer(uuid, uuid, 100));
+        assertThrows(InvalidTransferException.class, () ->
+            service.transfer(uuid, uuid, 100)
+        );
     }
 
     @Test
@@ -191,8 +198,9 @@ class BalanceServiceTest {
         UUID from = UUID.randomUUID();
         UUID to = UUID.randomUUID();
 
-        assertThrows(IllegalArgumentException.class,
-                () -> service.transfer(from, to, 0));
+        assertThrows(InvalidAmountException.class, () ->
+            service.transfer(from, to, 0)
+        );
     }
 
     @Test
@@ -208,17 +216,16 @@ class BalanceServiceTest {
         balTo.setUuid(to);
         balTo.setAmount(200L);
 
-        when(repository.findForUpdate(from)).thenReturn(balFrom);
-        when(repository.findForUpdate(to)).thenReturn(balTo);
+        when(repository.findForUpdate(from)).thenReturn(Optional.of(balFrom));
+        when(repository.findForUpdate(to)).thenReturn(Optional.of(balTo));
 
-        assertThrows(InsufficientFundsException.class,
-                () -> service.transfer(from, to, 100));
+        assertThrows(InsufficientFundsException.class, () ->
+            service.transfer(from, to, 100)
+        );
     }
 
     @Test
     void transfer_outOfOrder_lockingStillWorks() {
-        // ensures the ordering logic (min UUID first) is correct
-
         UUID from = UUID.randomUUID();
         UUID to = UUID.randomUUID();
 
@@ -234,50 +241,56 @@ class BalanceServiceTest {
         balSecond.setUuid(second);
         balSecond.setAmount(100L);
 
-        when(repository.findForUpdate(first)).thenReturn(balFirst);
-        when(repository.findForUpdate(second)).thenReturn(balSecond);
+        when(repository.findForUpdate(first)).thenReturn(Optional.of(balFirst));
+        when(repository.findForUpdate(second)).thenReturn(
+            Optional.of(balSecond)
+        );
 
         long amount = 50;
 
         // determine logical mapping to from/to
         Balance fromBalance = from.equals(first) ? balFirst : balSecond;
-        Balance toBalance   = to.equals(first) ? balFirst : balSecond;
+        Balance toBalance = to.equals(first) ? balFirst : balSecond;
 
         service.transfer(from, to, amount);
 
-        assertEquals(fromBalance.getAmount(),
-                (fromBalance == balFirst ? 400 : 100) - 50);
-        assertEquals(toBalance.getAmount(),
-                (toBalance == balFirst ? 400 : 100) + 50);
+        assertEquals(
+            fromBalance.getAmount(),
+            (fromBalance == balFirst ? 400 : 100) - 50
+        );
+        assertEquals(
+            toBalance.getAmount(),
+            (toBalance == balFirst ? 400 : 100) + 50
+        );
 
         verify(repository, times(2)).save(any());
     }
 
     @Test
     void getTopBalances_validLimit_callsRepositoryWithNormalizedLimit() {
-        when(repository.findTopByOrderByAmountDesc(5)).thenReturn(List.of());
+        when(repository.findTopBalances(5)).thenReturn(List.of());
 
         service.getTopBalances(5);
 
-        verify(repository).findTopByOrderByAmountDesc(5);
+        verify(repository).findTopBalances(5);
     }
 
     @Test
     void getTopBalances_limitTooLow_defaultsTo10() {
-        when(repository.findTopByOrderByAmountDesc(10)).thenReturn(List.of());
+        when(repository.findTopBalances(10)).thenReturn(List.of());
 
         service.getTopBalances(0);
 
-        verify(repository).findTopByOrderByAmountDesc(10);
+        verify(repository).findTopBalances(10);
     }
 
     @Test
     void getTopBalances_limitTooHigh_capsAt20() {
-        when(repository.findTopByOrderByAmountDesc(20)).thenReturn(List.of());
+        when(repository.findTopBalances(20)).thenReturn(List.of());
 
         service.getTopBalances(999);
 
-        verify(repository).findTopByOrderByAmountDesc(20);
+        verify(repository).findTopBalances(20);
     }
 
     @Test
@@ -301,7 +314,8 @@ class BalanceServiceTest {
     @Test
     void setBalance_negative_throwsException() {
         UUID uuid = UUID.randomUUID();
-        assertThrows(IllegalArgumentException.class,
-                () -> service.setBalance(uuid, -1));
+        assertThrows(InvalidAmountException.class, () ->
+            service.setBalance(uuid, -1)
+        );
     }
 }

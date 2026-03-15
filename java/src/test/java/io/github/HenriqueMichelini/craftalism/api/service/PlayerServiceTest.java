@@ -1,20 +1,20 @@
 package io.github.HenriqueMichelini.craftalism.api.service;
 
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.*;
+
+import io.github.HenriqueMichelini.craftalism.api.exceptions.PlayerAlreadyExistsException;
 import io.github.HenriqueMichelini.craftalism.api.exceptions.PlayerNotFoundException;
 import io.github.HenriqueMichelini.craftalism.api.model.Player;
 import io.github.HenriqueMichelini.craftalism.api.repository.PlayerRepository;
+import java.util.Optional;
+import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-
-import java.util.Optional;
-import java.util.UUID;
-
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class PlayerServiceTest {
@@ -35,7 +35,7 @@ class PlayerServiceTest {
         Player result = service.getPlayerByUuid(uuid);
 
         assertSame(player, result);
-        verify(repository, times(1)).findById(uuid);
+        verify(repository).findById(uuid);
     }
 
     @Test
@@ -44,10 +44,11 @@ class PlayerServiceTest {
 
         when(repository.findById(uuid)).thenReturn(Optional.empty());
 
-        assertThrows(PlayerNotFoundException.class,
-                () -> service.getPlayerByUuid(uuid));
+        assertThrows(PlayerNotFoundException.class, () ->
+            service.getPlayerByUuid(uuid)
+        );
 
-        verify(repository, times(1)).findById(uuid);
+        verify(repository).findById(uuid);
     }
 
     @Test
@@ -60,7 +61,7 @@ class PlayerServiceTest {
         Player result = service.getPlayerByName(name);
 
         assertSame(player, result);
-        verify(repository, times(1)).findByName(name.trim());
+        verify(repository).findByName(name.trim());
     }
 
     @Test
@@ -69,10 +70,11 @@ class PlayerServiceTest {
 
         when(repository.findByName(name.trim())).thenReturn(Optional.empty());
 
-        assertThrows(PlayerNotFoundException.class,
-                () -> service.getPlayerByName(name));
+        assertThrows(PlayerNotFoundException.class, () ->
+            service.getPlayerByName(name)
+        );
 
-        verify(repository, times(1)).findByName(name.trim());
+        verify(repository).findByName(name.trim());
     }
 
     @Test
@@ -103,7 +105,7 @@ class PlayerServiceTest {
         assertEquals(uuid, captured.getUuid());
         assertEquals(trimmedName, captured.getName());
 
-        verify(repository, times(1)).existsById(uuid);
+        verify(repository).existsById(uuid);
     }
 
     @Test
@@ -113,13 +115,11 @@ class PlayerServiceTest {
 
         when(repository.existsById(uuid)).thenReturn(true);
 
-        IllegalArgumentException ex =
-                assertThrows(IllegalArgumentException.class,
-                        () -> service.createPlayer(uuid, name));
+        assertThrows(PlayerAlreadyExistsException.class, () ->
+            service.createPlayer(uuid, name)
+        );
 
-        assertTrue(ex.getMessage().contains("Player already exists"));
-
-        verify(repository, times(1)).existsById(uuid);
+        verify(repository).existsById(uuid);
         verify(repository, never()).save(any());
     }
 }

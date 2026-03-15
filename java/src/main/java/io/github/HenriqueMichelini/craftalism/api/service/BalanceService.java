@@ -78,9 +78,13 @@ public class BalanceService {
 
         UUID first = (from.compareTo(to) < 0) ? from : to;
         UUID second = (first.equals(from) ? to : from);
-        
-        Balance firstBalance = repository.findForUpdate(first).orElseThrow(() -> new BalanceNotFoundException(first));
-        Balance secondBalance = repository.findForUpdate(second).orElseThrow(() -> new BalanceNotFoundException(second));
+
+        Balance firstBalance = repository
+            .findForUpdate(first)
+            .orElseThrow(() -> new BalanceNotFoundException(first));
+        Balance secondBalance = repository
+            .findForUpdate(second)
+            .orElseThrow(() -> new BalanceNotFoundException(second));
 
         Balance fromBalance = from.equals(first) ? firstBalance : secondBalance;
         Balance toBalance = to.equals(first) ? firstBalance : secondBalance;
@@ -100,7 +104,7 @@ public class BalanceService {
         if (limit <= 0) limit = 10;
         if (limit > 20) limit = 20;
 
-        return repository.findTopByOrderByAmountDesc(limit);
+        return repository.findTopBalances(limit);
     }
 
     @Transactional

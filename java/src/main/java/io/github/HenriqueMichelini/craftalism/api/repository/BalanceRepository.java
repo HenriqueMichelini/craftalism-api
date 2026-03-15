@@ -17,9 +17,9 @@ public interface BalanceRepository extends JpaRepository<Balance, UUID> {
         value = "SELECT * FROM balances ORDER BY amount DESC LIMIT :limit",
         nativeQuery = true
     )
-    List<Balance> findTopByOrderByAmountDesc(@Param("limit") int limit);
+    List<Balance> findTopBalances(@Param("limit") int limit);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("SELECT b FROM balance b WHERE b.uuid = :uuid")
+    @Query("SELECT b FROM balances b WHERE b.uuid = :uuid")
     Optional<Balance> findForUpdate(@Param("uuid") UUID uuid);
 }
