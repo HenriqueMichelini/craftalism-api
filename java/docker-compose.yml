@@ -1,7 +1,6 @@
 name: craftalism
 
 services:
-
   postgres:
     image: postgres:18
     container_name: craftalism-postgres
@@ -34,6 +33,9 @@ services:
       SPRING_DATASOURCE_PASSWORD: 123
       SPRING_JPA_HIBERNATE_DDL_AUTO: update
       SPRING_PROFILES_ACTIVE: docker
+      APP_SECURITY_USERNAME: admin
+      APP_SECURITY_PASSWORD: change-me-now
+      APP_SECURITY_ROLE: ADMIN
     ports:
       - "8080:8080"
     networks:
