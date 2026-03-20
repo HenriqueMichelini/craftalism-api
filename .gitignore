@@ -47,7 +47,7 @@ out/
 .vscode/
 
 # Zed
-.java/bin/
+java/bin
 
 # ========================
 # OS

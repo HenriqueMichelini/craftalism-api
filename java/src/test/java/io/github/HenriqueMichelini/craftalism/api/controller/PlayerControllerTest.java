@@ -1,10 +1,15 @@
 package io.github.HenriqueMichelini.craftalism.api.controller;
 
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.*;
+
 import io.github.HenriqueMichelini.craftalism.api.dto.PlayerRequestDTO;
 import io.github.HenriqueMichelini.craftalism.api.dto.PlayerResponseDTO;
 import io.github.HenriqueMichelini.craftalism.api.mapper.PlayerMapper;
 import io.github.HenriqueMichelini.craftalism.api.model.Player;
 import io.github.HenriqueMichelini.craftalism.api.service.PlayerService;
+import java.net.URI;
+import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -12,12 +17,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-
-import java.net.URI;
-import java.util.UUID;
-
-import static org.junit.jupiter.api.Assertions.*;
-        import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class PlayerControllerTest {
@@ -40,7 +39,9 @@ class PlayerControllerTest {
         when(service.getPlayerByUuid(uuid)).thenReturn(player);
         when(mapper.toDto(player)).thenReturn(dto);
 
-        ResponseEntity<PlayerResponseDTO> resp = controller.getPlayerByUuid(uuid);
+        ResponseEntity<PlayerResponseDTO> resp = controller.getPlayerByUuid(
+            uuid
+        );
 
         assertEquals(HttpStatus.OK, resp.getStatusCode());
         assertSame(dto, resp.getBody());
@@ -58,7 +59,9 @@ class PlayerControllerTest {
         when(service.getPlayerByName(name)).thenReturn(player);
         when(mapper.toDto(player)).thenReturn(dto);
 
-        ResponseEntity<PlayerResponseDTO> resp = controller.getPlayerByName(name);
+        ResponseEntity<PlayerResponseDTO> resp = controller.getPlayerByName(
+            name
+        );
 
         assertEquals(HttpStatus.OK, resp.getStatusCode());
         assertSame(dto, resp.getBody());

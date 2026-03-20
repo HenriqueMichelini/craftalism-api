@@ -33,9 +33,7 @@ services:
       SPRING_DATASOURCE_PASSWORD: 123
       SPRING_JPA_HIBERNATE_DDL_AUTO: update
       SPRING_PROFILES_ACTIVE: docker
-      APP_SECURITY_USERNAME: admin
-      APP_SECURITY_PASSWORD: change-me-now
-      APP_SECURITY_ROLE: ADMIN
+      AUTH_ISSUER_URI: ${AUTH_ISSUER_URI:-http://craftalism-auth-server:9000}
     ports:
       - "8080:8080"
     networks:
