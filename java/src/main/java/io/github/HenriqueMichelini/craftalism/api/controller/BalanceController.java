@@ -1,7 +1,9 @@
 package io.github.HenriqueMichelini.craftalism.api.controller;
 
-import io.github.HenriqueMichelini.craftalism.api.dto.BalanceRequestDTO;
+import io.github.HenriqueMichelini.craftalism.api.dto.BalanceCreateRequestDTO;
 import io.github.HenriqueMichelini.craftalism.api.dto.BalanceResponseDTO;
+import io.github.HenriqueMichelini.craftalism.api.dto.BalanceSetRequestDTO;
+import io.github.HenriqueMichelini.craftalism.api.dto.BalanceUpdateRequestDTO;
 import io.github.HenriqueMichelini.craftalism.api.mapper.BalanceMapper;
 import io.github.HenriqueMichelini.craftalism.api.model.Balance;
 import io.github.HenriqueMichelini.craftalism.api.service.BalanceService;
@@ -54,8 +56,7 @@ public class BalanceController {
     )
     @GetMapping
     public ResponseEntity<List<BalanceResponseDTO>> getAllBalances() {
-        List<Balance> balances = service.getAllBalances();
-        return ResponseEntity.ok(mapper.toDto(balances));
+        return ResponseEntity.ok(mapper.toDto(service.getAllBalances()));
     }
 
     @Operation(
@@ -84,13 +85,12 @@ public class BalanceController {
             example = "550e8400-e29b-41d4-a716-446655440000"
         ) @PathVariable UUID uuid
     ) {
-        Balance balance = service.getBalance(uuid);
-        return ResponseEntity.ok(mapper.toDto(balance));
+        return ResponseEntity.ok(mapper.toDto(service.getBalance(uuid)));
     }
 
     @Operation(
         summary = "Create balance",
-        description = "Creates a new player balance with an initial amount of 0."
+        description = "Creates a new player balance. Initial amount must be zero or positive."
     )
     @ApiResponses(
         {
@@ -102,6 +102,10 @@ public class BalanceController {
                 )
             ),
             @ApiResponse(
+                responseCode = "400",
+                description = "Invalid request body"
+            ),
+            @ApiResponse(
                 responseCode = "409",
                 description = "Balance already exists for this UUID"
             ),
@@ -109,10 +113,12 @@ public class BalanceController {
     )
     @PostMapping
     public ResponseEntity<BalanceResponseDTO> createBalance(
-        @RequestBody @Valid BalanceRequestDTO request
+        @RequestBody @Valid BalanceCreateRequestDTO request
     ) {
-        Balance created = service.createBalance(request.uuid());
-
+        Balance created = service.createBalance(
+            request.uuid(),
+            request.amount()
+        );
         return ResponseEntity.created(
             URI.create("/api/balances/" + created.getUuid())
         ).body(mapper.toDto(created));
@@ -120,7 +126,7 @@ public class BalanceController {
 
     @Operation(
         summary = "Set balance amount",
-        description = "Sets the balance amount for a specific player. The amount must be non-negative."
+        description = "Overwrites a player's balance. Amount must be zero or positive."
     )
     @ApiResponses(
         {
@@ -131,7 +137,10 @@ public class BalanceController {
                     schema = @Schema(implementation = BalanceResponseDTO.class)
                 )
             ),
-            @ApiResponse(responseCode = "422", description = "Invalid amount"),
+            @ApiResponse(
+                responseCode = "400",
+                description = "Invalid request body"
+            ),
             @ApiResponse(
                 responseCode = "404",
                 description = "Balance not found"
@@ -144,18 +153,15 @@ public class BalanceController {
             description = "Player balance UUID",
             example = "550e8400-e29b-41d4-a716-446655440000"
         ) @PathVariable UUID uuid,
-        @Parameter(
-            description = "New balance amount (must be >= 0)",
-            example = "1000"
-        ) @RequestParam Long amount
+        @RequestBody @Valid BalanceSetRequestDTO request
     ) {
-        Balance updated = service.setBalance(uuid, amount);
+        Balance updated = service.setBalance(uuid, request.amount());
         return ResponseEntity.ok(mapper.toDto(updated));
     }
 
     @Operation(
         summary = "Deposit funds",
-        description = "Adds funds to a player's balance. The amount must be greater than zero."
+        description = "Adds funds to a player's balance. Amount must be greater than zero."
     )
     @ApiResponses(
         {
@@ -166,7 +172,10 @@ public class BalanceController {
                     schema = @Schema(implementation = BalanceResponseDTO.class)
                 )
             ),
-            @ApiResponse(responseCode = "422", description = "Invalid amount"),
+            @ApiResponse(
+                responseCode = "400",
+                description = "Invalid request body"
+            ),
             @ApiResponse(
                 responseCode = "404",
                 description = "Balance not found"
@@ -179,18 +188,15 @@ public class BalanceController {
             description = "Player balance UUID",
             example = "550e8400-e29b-41d4-a716-446655440000"
         ) @PathVariable UUID uuid,
-        @Parameter(
-            description = "Amount to deposit",
-            example = "500"
-        ) @RequestParam long amount
+        @RequestBody @Valid BalanceUpdateRequestDTO request
     ) {
-        Balance updated = service.deposit(uuid, amount);
+        Balance updated = service.deposit(uuid, request.amount());
         return ResponseEntity.ok(mapper.toDto(updated));
     }
 
     @Operation(
         summary = "Withdraw funds",
-        description = "Withdraws funds from a player's balance. The amount must be greater than zero and available."
+        description = "Withdraws funds from a player's balance. Amount must be greater than zero and available."
     )
     @ApiResponses(
         {
@@ -202,6 +208,10 @@ public class BalanceController {
                 )
             ),
             @ApiResponse(
+                responseCode = "400",
+                description = "Invalid request body"
+            ),
+            @ApiResponse(
                 responseCode = "404",
                 description = "Balance not found"
             ),
@@ -209,7 +219,6 @@ public class BalanceController {
                 responseCode = "422",
                 description = "Insufficient funds"
             ),
-            @ApiResponse(responseCode = "422", description = "Invalid amount"),
         }
     )
     @PostMapping("/{uuid}/withdraw")
@@ -218,18 +227,15 @@ public class BalanceController {
             description = "Player balance UUID",
             example = "550e8400-e29b-41d4-a716-446655440000"
         ) @PathVariable UUID uuid,
-        @Parameter(
-            description = "Amount to withdraw",
-            example = "200"
-        ) @RequestParam long amount
+        @RequestBody @Valid BalanceUpdateRequestDTO request
     ) {
-        Balance updated = service.withdraw(uuid, amount);
+        Balance updated = service.withdraw(uuid, request.amount());
         return ResponseEntity.ok(mapper.toDto(updated));
     }
 
     @Operation(
         summary = "Get top balances",
-        description = "Returns the richest player balances ordered by amount in descending order."
+        description = "Returns the richest players ordered by balance descending."
     )
     @ApiResponses(
         {
@@ -253,7 +259,6 @@ public class BalanceController {
             example = "10"
         ) @RequestParam(defaultValue = "10") int limit
     ) {
-        List<Balance> balances = service.getTopBalances(limit);
-        return ResponseEntity.ok(mapper.toDto(balances));
+        return ResponseEntity.ok(mapper.toDto(service.getTopBalances(limit)));
     }
 }

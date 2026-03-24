@@ -5,8 +5,7 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import java.util.UUID;
 
-@Schema(description = "Data for creating or updating a balance")
-public record BalanceRequestDTO(
+public record BalanceUpdateRequestDTO(
     @Schema(
         description = "Player's unique identifier (UUID)",
         example = "550e8400-e29b-41d4-a716-446655440000",
@@ -16,9 +15,9 @@ public record BalanceRequestDTO(
     UUID uuid,
 
     @Schema(
-        description = "Balance amount (must be non-negative)",
+        description = "Balance amount (must be greater than 0)",
         example = "1000",
-        minimum = "0",
+        minimum = "1",
         type = "integer",
         format = "int64"
     )

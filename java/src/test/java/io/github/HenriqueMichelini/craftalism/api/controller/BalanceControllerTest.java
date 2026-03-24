@@ -3,8 +3,10 @@ package io.github.HenriqueMichelini.craftalism.api.controller;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
-import io.github.HenriqueMichelini.craftalism.api.dto.BalanceRequestDTO;
+import io.github.HenriqueMichelini.craftalism.api.dto.BalanceCreateRequestDTO;
 import io.github.HenriqueMichelini.craftalism.api.dto.BalanceResponseDTO;
+import io.github.HenriqueMichelini.craftalism.api.dto.BalanceSetRequestDTO;
+import io.github.HenriqueMichelini.craftalism.api.dto.BalanceUpdateRequestDTO;
 import io.github.HenriqueMichelini.craftalism.api.mapper.BalanceMapper;
 import io.github.HenriqueMichelini.craftalism.api.model.Balance;
 import io.github.HenriqueMichelini.craftalism.api.service.BalanceService;
@@ -46,21 +48,22 @@ class BalanceControllerTest {
 
         assertEquals(HttpStatus.OK, resp.getStatusCode());
         assertSame(dto, resp.getBody());
-
         verify(service).getBalance(uuid);
         verify(mapper).toDto(balance);
     }
 
     @Test
-    void createBalance_returnsCreatedWithLocationAndBody() {
+    void createBalance_withZeroAmount_returnsCreated() {
         UUID uuid = UUID.randomUUID();
-        BalanceRequestDTO request = mock(BalanceRequestDTO.class);
+        long initialAmount = 0L;
 
+        BalanceCreateRequestDTO request = mock(BalanceCreateRequestDTO.class);
         Balance created = mock(Balance.class);
         BalanceResponseDTO dto = mock(BalanceResponseDTO.class);
 
         when(request.uuid()).thenReturn(uuid);
-        when(service.createBalance(uuid)).thenReturn(created);
+        when(request.amount()).thenReturn(initialAmount);
+        when(service.createBalance(uuid, initialAmount)).thenReturn(created);
         when(created.getUuid()).thenReturn(uuid);
         when(mapper.toDto(created)).thenReturn(dto);
 
@@ -70,58 +73,105 @@ class BalanceControllerTest {
 
         assertEquals(HttpStatus.CREATED, resp.getStatusCode());
         assertSame(dto, resp.getBody());
-
         assertEquals(
             URI.create("/api/balances/" + uuid),
             resp.getHeaders().getLocation()
         );
-
-        verify(service).createBalance(uuid);
+        verify(service).createBalance(uuid, initialAmount);
         verify(mapper).toDto(created);
+    }
+
+    @Test
+    void createBalance_withCustomInitialAmount_returnsCreated() {
+        UUID uuid = UUID.randomUUID();
+        long initialAmount = 100_000_000L;
+
+        BalanceCreateRequestDTO request = mock(BalanceCreateRequestDTO.class);
+        Balance created = mock(Balance.class);
+        BalanceResponseDTO dto = mock(BalanceResponseDTO.class);
+
+        when(request.uuid()).thenReturn(uuid);
+        when(request.amount()).thenReturn(initialAmount);
+        when(service.createBalance(uuid, initialAmount)).thenReturn(created);
+        when(created.getUuid()).thenReturn(uuid);
+        when(mapper.toDto(created)).thenReturn(dto);
+
+        ResponseEntity<BalanceResponseDTO> resp = controller.createBalance(
+            request
+        );
+
+        assertEquals(HttpStatus.CREATED, resp.getStatusCode());
+        assertSame(dto, resp.getBody());
+        verify(service).createBalance(uuid, initialAmount);
     }
 
     @Test
     void setBalance_returnsOk() {
         UUID uuid = UUID.randomUUID();
-        long amount = 500;
+        long amount = 500L;
 
+        BalanceSetRequestDTO request = mock(BalanceSetRequestDTO.class);
         Balance updated = mock(Balance.class);
         BalanceResponseDTO dto = mock(BalanceResponseDTO.class);
 
+        when(request.amount()).thenReturn(amount);
         when(service.setBalance(uuid, amount)).thenReturn(updated);
         when(mapper.toDto(updated)).thenReturn(dto);
 
         ResponseEntity<BalanceResponseDTO> resp = controller.setBalance(
             uuid,
-            amount
+            request
         );
 
         assertEquals(HttpStatus.OK, resp.getStatusCode());
         assertSame(dto, resp.getBody());
-
         verify(service).setBalance(uuid, amount);
         verify(mapper).toDto(updated);
     }
 
     @Test
-    void deposit_returnsOk() {
+    void setBalance_withZeroAmount_returnsOk() {
         UUID uuid = UUID.randomUUID();
-        long amount = 300;
+        long amount = 0L;
 
+        BalanceSetRequestDTO request = mock(BalanceSetRequestDTO.class);
         Balance updated = mock(Balance.class);
         BalanceResponseDTO dto = mock(BalanceResponseDTO.class);
 
+        when(request.amount()).thenReturn(amount);
+        when(service.setBalance(uuid, amount)).thenReturn(updated);
+        when(mapper.toDto(updated)).thenReturn(dto);
+
+        ResponseEntity<BalanceResponseDTO> resp = controller.setBalance(
+            uuid,
+            request
+        );
+
+        assertEquals(HttpStatus.OK, resp.getStatusCode());
+        assertSame(dto, resp.getBody());
+        verify(service).setBalance(uuid, amount);
+    }
+
+    @Test
+    void deposit_returnsOk() {
+        UUID uuid = UUID.randomUUID();
+        long amount = 300L;
+
+        BalanceUpdateRequestDTO request = mock(BalanceUpdateRequestDTO.class);
+        Balance updated = mock(Balance.class);
+        BalanceResponseDTO dto = mock(BalanceResponseDTO.class);
+
+        when(request.amount()).thenReturn(amount);
         when(service.deposit(uuid, amount)).thenReturn(updated);
         when(mapper.toDto(updated)).thenReturn(dto);
 
         ResponseEntity<BalanceResponseDTO> resp = controller.deposit(
             uuid,
-            amount
+            request
         );
 
         assertEquals(HttpStatus.OK, resp.getStatusCode());
         assertSame(dto, resp.getBody());
-
         verify(service).deposit(uuid, amount);
         verify(mapper).toDto(updated);
     }
@@ -129,22 +179,23 @@ class BalanceControllerTest {
     @Test
     void withdraw_returnsOk() {
         UUID uuid = UUID.randomUUID();
-        long amount = 200;
+        long amount = 200L;
 
+        BalanceUpdateRequestDTO request = mock(BalanceUpdateRequestDTO.class);
         Balance updated = mock(Balance.class);
         BalanceResponseDTO dto = mock(BalanceResponseDTO.class);
 
+        when(request.amount()).thenReturn(amount);
         when(service.withdraw(uuid, amount)).thenReturn(updated);
         when(mapper.toDto(updated)).thenReturn(dto);
 
         ResponseEntity<BalanceResponseDTO> resp = controller.withdraw(
             uuid,
-            amount
+            request
         );
 
         assertEquals(HttpStatus.OK, resp.getStatusCode());
         assertSame(dto, resp.getBody());
-
         verify(service).withdraw(uuid, amount);
         verify(mapper).toDto(updated);
     }
@@ -179,15 +230,10 @@ class BalanceControllerTest {
         assertEquals(HttpStatus.OK, resp.getStatusCode());
         assertNotNull(resp.getBody());
         assertEquals(2, resp.getBody().size());
-
-        List<BalanceResponseDTO> list = resp.getBody();
-
-        assertEquals(d1.uuid(), list.get(0).uuid());
-        assertEquals(d1.amount(), list.get(0).amount());
-
-        assertEquals(d2.uuid(), list.get(1).uuid());
-        assertEquals(d2.amount(), list.get(1).amount());
-
+        assertEquals(d1.uuid(), resp.getBody().get(0).uuid());
+        assertEquals(d1.amount(), resp.getBody().get(0).amount());
+        assertEquals(d2.uuid(), resp.getBody().get(1).uuid());
+        assertEquals(d2.amount(), resp.getBody().get(1).amount());
         verify(service).getTopBalances(limit);
         verify(mapper).toDto(List.of(b1, b2));
     }
