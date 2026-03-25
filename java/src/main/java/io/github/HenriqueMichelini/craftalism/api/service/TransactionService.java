@@ -17,16 +17,13 @@ import org.springframework.transaction.annotation.Transactional;
 public class TransactionService {
 
     private final TransactionRepository repository;
-    private final BalanceService balanceService;
     private final TransactionMapper mapper;
 
     public TransactionService(
         TransactionRepository repository,
-        BalanceService balanceService,
         TransactionMapper mapper
     ) {
         this.repository = repository;
-        this.balanceService = balanceService;
         this.mapper = mapper;
     }
 
@@ -36,12 +33,6 @@ public class TransactionService {
     ) {
         long amount = dto.amount();
         if (amount <= 0) throw new InvalidAmountException();
-
-        balanceService.transfer(
-            dto.fromPlayerUuid(),
-            dto.toPlayerUuid(),
-            amount
-        );
 
         Transaction tx = new Transaction(
             dto.fromPlayerUuid(),

@@ -27,16 +27,13 @@ class TransactionServiceTest {
     private TransactionRepository repository;
 
     @Mock
-    private BalanceService balanceService;
-
-    @Mock
     private TransactionMapper mapper;
 
     @InjectMocks
     private TransactionService service;
 
     @Test
-    void processTransaction_success_callsTransferAndSavesAndReturnsMappedDto() {
+    void processTransaction_success_savesAndReturnsMappedDto() {
         UUID from = UUID.randomUUID();
         UUID to = UUID.randomUUID();
         long amount = 123L;
@@ -52,8 +49,6 @@ class TransactionServiceTest {
         TransactionResponseDTO result = service.processTransaction(req);
 
         assertSame(responseDto, result);
-
-        verify(balanceService).transfer(from, to, amount);
 
         ArgumentCaptor<Transaction> captor = ArgumentCaptor.forClass(
             Transaction.class
@@ -78,7 +73,6 @@ class TransactionServiceTest {
             service.processTransaction(req)
         );
 
-        verifyNoInteractions(balanceService);
         verifyNoInteractions(repository);
         verifyNoInteractions(mapper);
     }
@@ -95,7 +89,7 @@ class TransactionServiceTest {
 
         assertSame(txs, result);
         verify(repository).findAll();
-        verifyNoInteractions(balanceService, mapper);
+        verifyNoInteractions(mapper);
     }
 
     @Test
