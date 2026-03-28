@@ -1,219 +1,247 @@
 # Craftalism API
 
-Core backend API for the Craftalism ecosystem. This service manages **players**, **balances**, and **transactions** through a secured REST API built with Spring Boot.
+> Core backend service that manages players, balances, and transactions for the Craftalism economy through a JWT-secured REST API.
 
 ---
 
-## What this project does
+## Overview
 
-Craftalism API provides:
-- Player registration and lookup by UUID or name
-- Balance lifecycle and wallet-like operations (create, set, deposit, withdraw)
-- Transaction records between players
-- OpenAPI/Swagger documentation
-- JWT scope-based authorization for read/write access
-- Standardized error responses using `ProblemDetail`
+The Craftalism API is the central data service for the economy platform. It exposes REST endpoints consumed by both the Craftalism Dashboard and the Minecraft plugin. All write operations require a valid JWT issued by the Craftalism Authorization Server.
 
-> Important implementation note: the current `POST /api/transactions` endpoint **stores a transaction record only**. It does **not** call the balance transfer logic in `BalanceService.transfer(...)`. Balances must currently be changed via the balance endpoints.
+**Key capabilities:**
 
----
+- Player registration and lookup by UUID or display name.
+- Balance lifecycle management: create, deposit, withdraw, set, and rank.
+- Transaction record storage between players.
+- JWT scope-based authorization for all endpoints.
+- Standardized RFC 9457 `ProblemDetail` error responses.
+- Interactive API documentation via Swagger UI (local profile).
 
-## Tech stack
-
-- **Java 17**
-- **Spring Boot 3.5.x**
-  - Spring Web
-  - Spring Data JPA
-  - Spring Validation
-  - Spring Security + OAuth2 Resource Server (JWT)
-  - Actuator
-- **PostgreSQL** (Docker profile)
-- **H2 (in-memory)** (local profile)
-- **Flyway** (enabled in Docker/Postgres profile)
-- **springdoc-openapi** (Swagger UI)
-- **JUnit 5 + Mockito + Spring Test**
-
-Build tool: **Gradle**.
+> **Important:** `POST /api/transactions` stores a transaction record only. It does **not** call `BalanceService.transfer()`. Balance changes must be made separately through the balance endpoints. These two operations are not yet atomic.
 
 ---
 
-## Architecture overview
+## Architecture
 
-The codebase follows a classic layered architecture:
+The codebase follows a classic layered architecture. Each layer has a single responsibility and communicates only with the layer directly below it.
 
-1. **Controller layer** (`controller/`)
-   - Exposes REST endpoints under `/api/**`
-   - Validates request DTOs
-   - Returns DTO responses and HTTP status codes
+### Controller layer (`controller/`)
 
-2. **Service layer** (`service/`)
-   - Encapsulates business rules and transactional behavior
-   - Throws typed business exceptions for domain errors
+Exposes REST endpoints under `/api/**`. Validates request DTOs using Bean Validation and returns typed DTO responses with appropriate HTTP status codes.
 
-3. **Repository layer** (`repository/`)
-   - Spring Data JPA repositories
-   - Includes custom queries for top balances and pessimistic locking
+### Service layer (`service/`)
 
-4. **Domain/model layer** (`model/`)
-   - JPA entities: `Player`, `Balance`, `Transaction`
+Encapsulates business rules and transactional behavior. Throws typed domain exceptions for constraint violations (e.g., insufficient funds, duplicate player).
 
-5. **Cross-cutting concerns**
-   - `config/`: Security and OpenAPI configuration
-   - `exceptions/`: centralized exception mapping and problem details
-   - `mapper/`: entity-to-DTO mapping components
+### Repository layer (`repository/`)
 
----
+Spring Data JPA repositories with custom queries for top-balance ranking and pessimistic locking on concurrent balance updates.
 
-## Security model
+### Domain/model layer (`model/`)
 
-- API is configured as **stateless resource server**.
-- JWTs are validated using issuer URI from `AUTH_ISSUER_URI` (default: `http://localhost:9000`).
-- Authorization is scope-based:
-  - `GET /api/**` requires `SCOPE_api:read`
-  - `POST|PUT|PATCH|DELETE /api/**` requires `SCOPE_api:write`
-- Public endpoints:
-  - `GET /actuator/health`
-  - Swagger endpoints (`/swagger-ui/**`, `/v3/api-docs/**`)
+JPA entities: `Player`, `Balance`, `Transaction`.
+
+### Cross-cutting concerns
+
+- `config/` — Security configuration (resource server, scope rules) and OpenAPI configuration.
+- `exceptions/` — Centralized exception handler mapping domain exceptions to `ProblemDetail` responses.
+- `mapper/` — Entity-to-DTO mapping components.
 
 ---
 
-## Error contract
+## Tech Stack
 
-Errors are returned as RFC-9457-style `ProblemDetail` payloads with additional properties:
-
-- `type`:
-  - `https://api.craftalism.com/errors/validation`
-  - `https://api.craftalism.com/errors/business-rule`
-  - `https://api.craftalism.com/errors/internal`
-- `detail`
-- `status`
-- `timestamp`
-- `path`
-- `errors` (field-level validation map, when applicable)
-
----
-
-## API overview
-
-Base path: `/api`
-
-### Players
-- `GET /players` — list all players
-- `GET /players/{uuid}` — get player by UUID
-- `GET /players/name/{name}` — get player by name
-- `POST /players` — create player
-
-### Balances
-- `GET /balances` — list all balances
-- `GET /balances/{uuid}` — get balance by player UUID
-- `POST /balances` — create balance
-- `PUT /balances/{uuid}/set` — overwrite balance amount
-- `POST /balances/{uuid}/deposit` — deposit funds
-- `POST /balances/{uuid}/withdraw` — withdraw funds
-- `GET /balances/top?limit=10` — top balances (limit clamped to 1..20, defaults to 10)
-
-### Transactions
-- `GET /transactions` — list all transactions
-- `GET /transactions/id/{id}` — get transaction by ID
-- `GET /transactions/from/{uuid}` — list outgoing transactions for player
-- `GET /transactions/to/{uuid}` — list incoming transactions for player
-- `POST /transactions` — create a transaction record
-
-Swagger UI path (local profile): `http://localhost:8080/api-docs`
+| Category | Technology |
+|---|---|
+| Language | Java 17 |
+| Framework | Spring Boot 3.5 |
+| Web | Spring Web |
+| Persistence | Spring Data JPA |
+| Validation | Spring Validation |
+| Security | Spring Security + OAuth2 Resource Server (JWT) |
+| Database (Docker profile) | PostgreSQL |
+| Database (local profile) | H2 in-memory |
+| Migrations | Flyway (Docker profile only) |
+| API Docs | springdoc-openapi (Swagger UI) |
+| Build Tool | Gradle |
+| Testing | JUnit 5, Mockito, Spring Test |
 
 ---
-
-## Running the project
 
 ## Prerequisites
 
-- Java 17
-- Docker + Docker Compose (optional, for Postgres run mode)
+- Java 17+
+- Docker Engine 20.10+ and Docker Compose v2+ *(for containerized deployment only)*
 
-### Option A: Run locally with H2 (fast dev mode)
+---
 
-From repository root:
+## Configuration
+
+| Variable | Default | Description |
+|---|---|---|
+| `SPRING_PROFILES_ACTIVE` | — | **Required.** Set to `local` for H2 or `docker` for PostgreSQL. |
+| `AUTH_ISSUER_URI` | `http://localhost:9000` (local) / `http://craftalism-auth-server:9000` (docker) | JWT issuer URI. Must match the Authorization Server's configured issuer. |
+| `SPRING_DATASOURCE_URL` | — | JDBC connection string *(Docker profile only)*. |
+| `SPRING_DATASOURCE_USERNAME` | — | Database username *(Docker profile only)*. |
+| `SPRING_DATASOURCE_PASSWORD` | — | Database password *(Docker profile only)*. |
+
+Additional settings are managed per profile:
+
+- `src/main/resources/application.properties` — shared defaults.
+- `src/main/resources/application-local.properties` — H2, create-drop schema, Flyway disabled.
+- `src/main/resources/application-docker.properties` — PostgreSQL, Flyway enabled.
+
+### Security model
+
+The API is a stateless OAuth2 resource server. JWTs are validated against the issuer URI.
+
+| Scope | Permitted methods |
+|---|---|
+| `SCOPE_api:read` | `GET /api/**` |
+| `SCOPE_api:write` | `POST`, `PUT`, `PATCH`, `DELETE` on `/api/**` |
+
+Public paths (no token required): `GET /actuator/health`, `/swagger-ui/**`, `/v3/api-docs/**`.
+
+### Error contract
+
+All errors are returned as RFC 9457 `ProblemDetail` with these additional fields:
+
+| Field | Description |
+|---|---|
+| `type` | One of: `.../validation`, `.../business-rule`, `.../internal` |
+| `detail` | Human-readable error description. |
+| `status` | HTTP status code. |
+| `timestamp` | ISO 8601 timestamp. |
+| `path` | Request path. |
+| `errors` | Field-level validation map (validation errors only). |
+
+---
+
+## Running Locally
+
+Runs with H2 in-memory database. Schema is recreated on each startup. Flyway is disabled.
 
 ```bash
 cd java
 SPRING_PROFILES_ACTIVE=local ./gradlew bootRun
 ```
 
-Then access:
-- API: `http://localhost:8080`
-- Swagger UI: `http://localhost:8080/api-docs`
-- H2 console: `http://localhost:8080/h2-console`
+| Endpoint | URL |
+|---|---|
+| API | `http://localhost:8080` |
+| Swagger UI | `http://localhost:8080/api-docs` |
+| H2 Console | `http://localhost:8080/h2-console` |
 
-Notes:
-- In this profile Flyway is disabled.
-- Schema is recreated on startup/shutdown (`create-drop`).
+---
 
-### Option B: Run with Docker Compose + PostgreSQL
+## Running with Docker
 
-From repository root:
+Runs with PostgreSQL. Flyway manages schema migrations.
 
 ```bash
 cd java
 docker compose up --build
 ```
 
-Then access:
-- API: `http://localhost:8080`
-- Postgres: `localhost:5432` (`admin` / `123`, DB `craftalism`)
-
-Notes:
-- Flyway migrations are enabled in Docker profile.
-- `AUTH_ISSUER_URI` defaults to `http://craftalism-auth-server:9000` in Compose and can be overridden.
+| Service | Port | URL |
+|---|---|---|
+| API | 8080 | `http://localhost:8080` |
+| PostgreSQL | 5432 | `localhost:5432` (user: `admin`, password: `123`, db: `craftalism`) |
 
 ---
 
-## Configuration
+## API Reference
 
-Main environment/property knobs:
+Base path: `/api`. Full interactive documentation is available at `http://localhost:8080/api-docs` when running locally.
 
-- `SPRING_PROFILES_ACTIVE` (`local` or `docker`)
-- `AUTH_ISSUER_URI` (JWT issuer)
-- `SPRING_DATASOURCE_URL`
-- `SPRING_DATASOURCE_USERNAME`
-- `SPRING_DATASOURCE_PASSWORD`
+### Players
 
-See:
-- `java/src/main/resources/application.properties`
-- `java/src/main/resources/application-local.properties`
-- `java/src/main/resources/application-docker.properties`
+| Method | Path | Scope | Description |
+|---|---|---|---|
+| `GET` | `/players` | `api:read` | List all players. |
+| `GET` | `/players/{uuid}` | `api:read` | Get player by UUID. |
+| `GET` | `/players/name/{name}` | `api:read` | Get player by display name. |
+| `POST` | `/players` | `api:write` | Register a new player. |
+
+### Balances
+
+| Method | Path | Scope | Description |
+|---|---|---|---|
+| `GET` | `/balances` | `api:read` | List all balances. |
+| `GET` | `/balances/{uuid}` | `api:read` | Get a player's balance. |
+| `GET` | `/balances/top` | `api:read` | Top balances. `?limit=` clamped to 1–20, default 10. |
+| `POST` | `/balances` | `api:write` | Create a balance record for a player. |
+| `PUT` | `/balances/{uuid}/set` | `api:write` | Overwrite a player's balance. |
+| `POST` | `/balances/{uuid}/deposit` | `api:write` | Add funds to a player's balance. |
+| `POST` | `/balances/{uuid}/withdraw` | `api:write` | Deduct funds from a player's balance. |
+
+### Transactions
+
+| Method | Path | Scope | Description |
+|---|---|---|---|
+| `GET` | `/transactions` | `api:read` | List all transactions. |
+| `GET` | `/transactions/id/{id}` | `api:read` | Get transaction by ID. |
+| `GET` | `/transactions/from/{uuid}` | `api:read` | List outgoing transactions for a player. |
+| `GET` | `/transactions/to/{uuid}` | `api:read` | List incoming transactions for a player. |
+| `POST` | `/transactions` | `api:write` | Store a transaction record. Does not update balances. |
 
 ---
 
-## Project structure
+## Testing
+
+```bash
+cd java
+./gradlew test
+```
+
+The test suite includes unit tests and Spring MVC integration tests. Tests run against H2 with mock security tokens where needed.
+
+---
+
+## Project Structure
 
 ```text
-.
-├── README.md
-├── java/
-│   ├── build.gradle
-│   ├── docker-compose.yml
-│   └── src/
-│       ├── main/java/io/github/HenriqueMichelini/craftalism/api/
-│       │   ├── config/
-│       │   ├── controller/
-│       │   ├── dto/
-│       │   ├── exceptions/
-│       │   ├── mapper/
-│       │   ├── model/
-│       │   ├── repository/
-│       │   ├── service/
-│       │   └── Application.java
-│       ├── main/resources/
-│       │   ├── application*.properties
-│       │   └── db/migration/
-│       └── test/java/... (unit and MVC tests)
+java/
+├── build.gradle
+├── docker-compose.yml
+└── src/
+    ├── main/java/io/github/HenriqueMichelini/craftalism/api/
+    │   ├── Application.java
+    │   ├── config/
+    │   ├── controller/
+    │   ├── dto/
+    │   ├── exceptions/
+    │   ├── mapper/
+    │   ├── model/
+    │   ├── repository/
+    │   └── service/
+    └── main/resources/
+        ├── application.properties
+        ├── application-local.properties
+        ├── application-docker.properties
+        └── db/migration/
 ```
 
 ---
 
-## Current limitations / next improvements
+## Known Limitations
 
-- Integrate transaction creation with atomic balance transfer (`BalanceService.transfer`) so ledger and balances are updated together.
-- Add pagination/filtering for listing endpoints.
-- Expand integration tests with real database and security tokens.
-- Add CI pipeline and coverage badge in repository root.
+- `POST /api/transactions` does not atomically update balances. Creating a transaction record and modifying balances are two separate, uncoordinated operations.
+- List endpoints have no pagination or filtering support; all records are returned in a single response.
+- Integration tests do not run against a real PostgreSQL instance.
+- No CI pipeline is configured.
+
+---
+
+## Roadmap
+
+- Integrate transaction creation with `BalanceService.transfer()` so the ledger and balances are updated atomically.
+- Add pagination and filtering to all list endpoints.
+- Add integration tests against real PostgreSQL with actual security tokens.
+- Add CI pipeline with lint, typecheck, build, and test stages.
+
+---
+
+## License
+
+MIT. See [`LICENSE`](./LICENSE) for details.
