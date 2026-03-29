@@ -32,8 +32,10 @@ public class SecurityConfig {
                     .permitAll()
                     .requestMatchers("/swagger-ui/**", "/v3/api-docs/**")
                     .permitAll()
+                    // Dashboard is currently a static SPA with no OAuth2 login
+                    // flow, so read-only API routes must be public.
                     .requestMatchers(HttpMethod.GET, "/api/**")
-                    .hasAuthority("SCOPE_api:read")
+                    .permitAll()
                     .requestMatchers(HttpMethod.POST, "/api/**")
                     .hasAuthority("SCOPE_api:write")
                     .requestMatchers(HttpMethod.PUT, "/api/**")

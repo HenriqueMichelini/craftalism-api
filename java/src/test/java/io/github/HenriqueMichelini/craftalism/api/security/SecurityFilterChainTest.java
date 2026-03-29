@@ -34,10 +34,12 @@ class SecurityFilterChainTest {
     PlayerMapper playerMapper;
 
     @Test
-    void noToken_returns401() throws Exception {
+    void noToken_canGetPublicReadEndpoint() throws Exception {
+        when(playerService.getAllPlayers()).thenReturn(List.of());
+        when(playerMapper.toDto(anyList())).thenReturn(List.of());
         mockMvc
             .perform(get("/api/players"))
-            .andExpect(status().isUnauthorized());
+            .andExpect(status().isOk());
     }
 
     @Test
