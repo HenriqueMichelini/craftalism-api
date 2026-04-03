@@ -146,7 +146,7 @@ public class TransactionControllerTest {
 
             // create an actual UriComponents to return from buildAndExpand(...)
             UriComponents uriComponents = UriComponentsBuilder.fromUriString(
-                "http://localhost/api/transactions/id/555"
+                "http://localhost/api/transactions/555"
             ).build();
 
             // static method returns the mock builder
@@ -155,7 +155,7 @@ public class TransactionControllerTest {
                 .thenReturn(builder);
 
             // stub fluent methods
-            when(builder.path("/id/{id}")).thenReturn(builder);
+            when(builder.path("/{id}")).thenReturn(builder);
             when(builder.buildAndExpand(555L)).thenReturn(uriComponents);
 
             ResponseEntity<TransactionResponseDTO> resp =
@@ -167,7 +167,7 @@ public class TransactionControllerTest {
             URI location = resp.getHeaders().getLocation();
             assertNotNull(location);
             assertEquals(
-                "http://localhost/api/transactions/id/555",
+                "http://localhost/api/transactions/555",
                 location.toString()
             );
 

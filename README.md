@@ -97,7 +97,7 @@ The API is a stateless OAuth2 resource server. JWTs are validated against the is
 
 | Scope | Permitted methods |
 |---|---|
-| `SCOPE_api:read` | `GET /api/**` |
+| *(no scope required)* | `GET /api/**` (public read policy for current MVP) |
 | `SCOPE_api:write` | `POST`, `PUT`, `PATCH`, `DELETE` on `/api/**` |
 
 Public paths (no token required): `GET /actuator/health`, `/swagger-ui/**`, `/v3/api-docs/**`.
@@ -158,18 +158,18 @@ Base path: `/api`. Full interactive documentation is available at `http://localh
 
 | Method | Path | Scope | Description |
 |---|---|---|---|
-| `GET` | `/players` | `api:read` | List all players. |
-| `GET` | `/players/{uuid}` | `api:read` | Get player by UUID. |
-| `GET` | `/players/name/{name}` | `api:read` | Get player by display name. |
+| `GET` | `/players` | public | List all players. |
+| `GET` | `/players/{uuid}` | public | Get player by UUID. |
+| `GET` | `/players/name/{name}` | public | Get player by display name. |
 | `POST` | `/players` | `api:write` | Register a new player. |
 
 ### Balances
 
 | Method | Path | Scope | Description |
 |---|---|---|---|
-| `GET` | `/balances` | `api:read` | List all balances. |
-| `GET` | `/balances/{uuid}` | `api:read` | Get a player's balance. |
-| `GET` | `/balances/top` | `api:read` | Top balances. `?limit=` clamped to 1–20, default 10. |
+| `GET` | `/balances` | public | List all balances. |
+| `GET` | `/balances/{uuid}` | public | Get a player's balance. |
+| `GET` | `/balances/top` | public | Top balances. `?limit=` clamped to 1–20, default 10. |
 | `POST` | `/balances` | `api:write` | Create a balance record for a player. |
 | `PUT` | `/balances/{uuid}/set` | `api:write` | Overwrite a player's balance. |
 | `POST` | `/balances/{uuid}/deposit` | `api:write` | Add funds to a player's balance. |
@@ -179,10 +179,10 @@ Base path: `/api`. Full interactive documentation is available at `http://localh
 
 | Method | Path | Scope | Description |
 |---|---|---|---|
-| `GET` | `/transactions` | `api:read` | List all transactions. |
-| `GET` | `/transactions/id/{id}` | `api:read` | Get transaction by ID. |
-| `GET` | `/transactions/from/{uuid}` | `api:read` | List outgoing transactions for a player. |
-| `GET` | `/transactions/to/{uuid}` | `api:read` | List incoming transactions for a player. |
+| `GET` | `/transactions` | public | List all transactions. |
+| `GET` | `/transactions/{id}` | public | Get transaction by ID. Legacy alias `/transactions/id/{id}` is also accepted. |
+| `GET` | `/transactions/from/{uuid}` | public | List outgoing transactions for a player. |
+| `GET` | `/transactions/to/{uuid}` | public | List incoming transactions for a player. |
 | `POST` | `/transactions` | `api:write` | Store a transaction record. Does not update balances. |
 
 ---

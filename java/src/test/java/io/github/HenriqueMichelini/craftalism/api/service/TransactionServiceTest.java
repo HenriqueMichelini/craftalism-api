@@ -6,9 +6,11 @@ import static org.mockito.Mockito.*;
 import io.github.HenriqueMichelini.craftalism.api.dto.TransactionRequestDTO;
 import io.github.HenriqueMichelini.craftalism.api.dto.TransactionResponseDTO;
 import io.github.HenriqueMichelini.craftalism.api.exceptions.InvalidAmountException;
+import io.github.HenriqueMichelini.craftalism.api.exceptions.PlayerNotFoundException;
 import io.github.HenriqueMichelini.craftalism.api.exceptions.TransactionNotFoundException;
 import io.github.HenriqueMichelini.craftalism.api.mapper.TransactionMapper;
 import io.github.HenriqueMichelini.craftalism.api.model.Transaction;
+import io.github.HenriqueMichelini.craftalism.api.repository.PlayerRepository;
 import io.github.HenriqueMichelini.craftalism.api.repository.TransactionRepository;
 import java.util.List;
 import java.util.Optional;
@@ -27,6 +29,9 @@ class TransactionServiceTest {
     private TransactionRepository repository;
 
     @Mock
+    private PlayerRepository playerRepository;
+
+    @Mock
     private TransactionMapper mapper;
 
     @InjectMocks
@@ -43,6 +48,8 @@ class TransactionServiceTest {
         Transaction savedTx = mock(Transaction.class);
         TransactionResponseDTO responseDto = mock(TransactionResponseDTO.class);
 
+        when(playerRepository.existsById(from)).thenReturn(true);
+        when(playerRepository.existsById(to)).thenReturn(true);
         when(repository.save(any(Transaction.class))).thenReturn(savedTx);
         when(mapper.toDto(savedTx)).thenReturn(responseDto);
 
@@ -65,6 +72,43 @@ class TransactionServiceTest {
     }
 
     @Test
+    void processTransaction_missingSender_throwsPlayerNotFoundException() {
+        UUID from = UUID.randomUUID();
+        UUID to = UUID.randomUUID();
+        TransactionRequestDTO req = new TransactionRequestDTO(from, to, 123L);
+
+        when(playerRepository.existsById(from)).thenReturn(false);
+
+        assertThrows(PlayerNotFoundException.class, () ->
+            service.processTransaction(req)
+        );
+
+        verify(playerRepository).existsById(from);
+        verify(playerRepository, never()).existsById(to);
+        verifyNoInteractions(repository);
+        verifyNoInteractions(mapper);
+    }
+
+    @Test
+    void processTransaction_missingReceiver_throwsPlayerNotFoundException() {
+        UUID from = UUID.randomUUID();
+        UUID to = UUID.randomUUID();
+        TransactionRequestDTO req = new TransactionRequestDTO(from, to, 123L);
+
+        when(playerRepository.existsById(from)).thenReturn(true);
+        when(playerRepository.existsById(to)).thenReturn(false);
+
+        assertThrows(PlayerNotFoundException.class, () ->
+            service.processTransaction(req)
+        );
+
+        verify(playerRepository).existsById(from);
+        verify(playerRepository).existsById(to);
+        verifyNoInteractions(repository);
+        verifyNoInteractions(mapper);
+    }
+
+    @Test
     void processTransaction_amountZeroOrNegative_throwsAndDoesNotCallDependencies() {
         TransactionRequestDTO req = mock(TransactionRequestDTO.class);
         when(req.amount()).thenReturn(0L); // test zero; negative case is equivalent
@@ -73,6 +117,7 @@ class TransactionServiceTest {
             service.processTransaction(req)
         );
 
+        verifyNoInteractions(playerRepository);
         verifyNoInteractions(repository);
         verifyNoInteractions(mapper);
     }
