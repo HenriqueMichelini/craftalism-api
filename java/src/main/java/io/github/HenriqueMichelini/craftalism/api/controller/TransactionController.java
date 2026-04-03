@@ -89,7 +89,7 @@ public class TransactionController {
             ),
         }
     )
-    @GetMapping("/id/{id}")
+    @GetMapping({ "/{id}", "/id/{id}" })
     public ResponseEntity<TransactionResponseDTO> getTransactionById(
         @Parameter(
             description = "Transaction identifier",
@@ -197,7 +197,7 @@ public class TransactionController {
             ),
             @ApiResponse(
                 responseCode = "404",
-                description = "Sender or receiver balance not found"
+                description = "Sender or receiver player not found"
             ),
             @ApiResponse(
                 responseCode = "422",
@@ -218,7 +218,7 @@ public class TransactionController {
         TransactionResponseDTO created = service.processTransaction(dto);
 
         URI location = ServletUriComponentsBuilder.fromCurrentRequest()
-            .path("/id/{id}")
+            .path("/{id}")
             .buildAndExpand(created.id())
             .toUri();
 
