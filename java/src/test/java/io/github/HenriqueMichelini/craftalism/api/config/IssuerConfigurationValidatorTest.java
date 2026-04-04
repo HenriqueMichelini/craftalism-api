@@ -31,8 +31,16 @@ class IssuerConfigurationValidatorTest {
             )
             .run(context -> {
                 assertThat(context).hasFailed();
-                assertThat(context.getStartupFailure())
-                    .hasMessageContaining("Issuer mismatch detected");
+                Throwable failure = context.getStartupFailure();
+                assertThat(failure)
+                    .isInstanceOf(
+                        org.springframework.beans.factory
+                            .BeanCreationException.class
+                    )
+                    .hasCauseInstanceOf(IllegalStateException.class);
+                assertThat(failure.getCause()).hasMessageContaining(
+                    "Issuer mismatch detected"
+                );
             });
     }
 }
