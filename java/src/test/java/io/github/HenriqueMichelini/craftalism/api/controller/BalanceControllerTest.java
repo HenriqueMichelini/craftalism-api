@@ -6,6 +6,7 @@ import static org.mockito.Mockito.*;
 import io.github.HenriqueMichelini.craftalism.api.dto.BalanceCreateRequestDTO;
 import io.github.HenriqueMichelini.craftalism.api.dto.BalanceResponseDTO;
 import io.github.HenriqueMichelini.craftalism.api.dto.BalanceSetRequestDTO;
+import io.github.HenriqueMichelini.craftalism.api.dto.BalanceTransferRequestDTO;
 import io.github.HenriqueMichelini.craftalism.api.dto.BalanceUpdateRequestDTO;
 import io.github.HenriqueMichelini.craftalism.api.mapper.BalanceMapper;
 import io.github.HenriqueMichelini.craftalism.api.model.Balance;
@@ -198,6 +199,26 @@ class BalanceControllerTest {
         assertSame(dto, resp.getBody());
         verify(service).withdraw(uuid, amount);
         verify(mapper).toDto(updated);
+    }
+
+    @Test
+    void transfer_returnsNoContent() {
+        UUID from = UUID.randomUUID();
+        UUID to = UUID.randomUUID();
+        long amount = 200L;
+
+        BalanceTransferRequestDTO request = mock(
+            BalanceTransferRequestDTO.class
+        );
+        when(request.fromPlayerUuid()).thenReturn(from);
+        when(request.toPlayerUuid()).thenReturn(to);
+        when(request.amount()).thenReturn(amount);
+
+        ResponseEntity<Void> resp = controller.transfer(request);
+
+        assertEquals(HttpStatus.NO_CONTENT, resp.getStatusCode());
+        assertNull(resp.getBody());
+        verify(service).transfer(from, to, amount);
     }
 
     @Test
