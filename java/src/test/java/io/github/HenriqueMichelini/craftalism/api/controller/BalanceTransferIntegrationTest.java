@@ -139,6 +139,17 @@ class BalanceTransferIntegrationTest {
     }
 
     @Test
+    void transfer_missingIdempotencyKey_returns400() throws Exception {
+        mockMvc
+            .perform(
+                post("/api/balances/transfer")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(payload(senderId, receiverId, 100))
+            )
+            .andExpect(status().isBadRequest());
+    }
+
+    @Test
     void transfer_idempotentRetry_returnsSameTransaction() throws Exception {
         mockMvc
             .perform(

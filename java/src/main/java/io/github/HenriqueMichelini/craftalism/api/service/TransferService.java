@@ -19,6 +19,7 @@ import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.util.HexFormat;
 import java.util.UUID;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -65,16 +66,10 @@ public class TransferService {
         String normalizedKey = idempotencyKey.trim();
         String requestHash = requestHash(from, to, amount);
 
-        TransferIdempotencyRecord record = idempotencyRepository
-            .findForUpdateByIdempotencyKey(normalizedKey)
-            .orElseGet(() -> {
-                TransferIdempotencyRecord created =
-                    new TransferIdempotencyRecord();
-                created.setIdempotencyKey(normalizedKey);
-                created.setRequestHash(requestHash);
-                created.setStatus(TransferIdempotencyRecord.Status.PROCESSING);
-                return idempotencyRepository.save(created);
-            });
+        TransferIdempotencyRecord record = findOrCreateIdempotencyRecord(
+            normalizedKey,
+            requestHash
+        );
 
         if (!record.getRequestHash().equals(requestHash)) {
             incidentService.recordIncident(
@@ -174,6 +169,32 @@ public class TransferService {
             return HexFormat.of().formatHex(hash);
         } catch (NoSuchAlgorithmException ex) {
             throw new IllegalStateException("SHA-256 digest is not available", ex);
+        }
+    }
+
+    private TransferIdempotencyRecord findOrCreateIdempotencyRecord(
+        String normalizedKey,
+        String requestHash
+    ) {
+        return idempotencyRepository
+            .findForUpdateByIdempotencyKey(normalizedKey)
+            .orElseGet(() -> createIdempotencyRecord(normalizedKey, requestHash));
+    }
+
+    private TransferIdempotencyRecord createIdempotencyRecord(
+        String normalizedKey,
+        String requestHash
+    ) {
+        try {
+            TransferIdempotencyRecord created = new TransferIdempotencyRecord();
+            created.setIdempotencyKey(normalizedKey);
+            created.setRequestHash(requestHash);
+            created.setStatus(TransferIdempotencyRecord.Status.PROCESSING);
+            return idempotencyRepository.saveAndFlush(created);
+        } catch (DataIntegrityViolationException ex) {
+            return idempotencyRepository
+                .findForUpdateByIdempotencyKey(normalizedKey)
+                .orElseThrow(() -> ex);
         }
     }
 }
