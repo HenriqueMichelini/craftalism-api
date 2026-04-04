@@ -32,7 +32,7 @@ class IssuerConfigurationValidatorTest {
             .run(context -> {
                 assertThat(context).hasFailed();
                 assertThat(context.getStartupFailure())
-                    .hasRootCauseMessageContaining("Issuer mismatch detected");
+                    .hasMessageContaining("Issuer mismatch detected");
             });
     }
 }
