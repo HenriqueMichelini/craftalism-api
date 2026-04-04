@@ -4,10 +4,12 @@ import io.github.HenriqueMichelini.craftalism.api.dto.BalanceCreateRequestDTO;
 import io.github.HenriqueMichelini.craftalism.api.dto.BalanceResponseDTO;
 import io.github.HenriqueMichelini.craftalism.api.dto.BalanceSetRequestDTO;
 import io.github.HenriqueMichelini.craftalism.api.dto.BalanceTransferRequestDTO;
+import io.github.HenriqueMichelini.craftalism.api.dto.BalanceTransferResponseDTO;
 import io.github.HenriqueMichelini.craftalism.api.dto.BalanceUpdateRequestDTO;
 import io.github.HenriqueMichelini.craftalism.api.mapper.BalanceMapper;
 import io.github.HenriqueMichelini.craftalism.api.model.Balance;
 import io.github.HenriqueMichelini.craftalism.api.service.BalanceService;
+import io.github.HenriqueMichelini.craftalism.api.service.TransferService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.ArraySchema;
@@ -30,10 +32,16 @@ public class BalanceController {
 
     private final BalanceService service;
     private final BalanceMapper mapper;
+    private final TransferService transferService;
 
-    public BalanceController(BalanceService service, BalanceMapper mapper) {
+    public BalanceController(
+        BalanceService service,
+        BalanceMapper mapper,
+        TransferService transferService
+    ) {
         this.service = service;
         this.mapper = mapper;
+        this.transferService = transferService;
     }
 
     @Operation(
@@ -240,7 +248,10 @@ public class BalanceController {
     )
     @ApiResponses(
         {
-            @ApiResponse(responseCode = "204", description = "Transfer successful"),
+            @ApiResponse(
+                responseCode = "200",
+                description = "Transfer successful"
+            ),
             @ApiResponse(
                 responseCode = "400",
                 description = "Invalid request body"
@@ -256,15 +267,17 @@ public class BalanceController {
         }
     )
     @PostMapping("/transfer")
-    public ResponseEntity<Void> transfer(
-        @RequestBody @Valid BalanceTransferRequestDTO request
+    public ResponseEntity<BalanceTransferResponseDTO> transfer(
+        @RequestBody @Valid BalanceTransferRequestDTO request,
+        @RequestHeader(name = "Idempotency-Key", required = false) String idempotencyKey
     ) {
-        service.transfer(
+        BalanceTransferResponseDTO response = transferService.transfer(
             request.fromPlayerUuid(),
             request.toPlayerUuid(),
-            request.amount()
+            request.amount(),
+            idempotencyKey
         );
-        return ResponseEntity.noContent().build();
+        return ResponseEntity.ok(response);
     }
 
     @Operation(
