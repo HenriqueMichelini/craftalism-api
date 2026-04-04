@@ -7,10 +7,13 @@ import io.github.HenriqueMichelini.craftalism.api.dto.BalanceCreateRequestDTO;
 import io.github.HenriqueMichelini.craftalism.api.dto.BalanceResponseDTO;
 import io.github.HenriqueMichelini.craftalism.api.dto.BalanceSetRequestDTO;
 import io.github.HenriqueMichelini.craftalism.api.dto.BalanceTransferRequestDTO;
+import io.github.HenriqueMichelini.craftalism.api.dto.BalanceTransferResponseDTO;
+import io.github.HenriqueMichelini.craftalism.api.dto.TransactionResponseDTO;
 import io.github.HenriqueMichelini.craftalism.api.dto.BalanceUpdateRequestDTO;
 import io.github.HenriqueMichelini.craftalism.api.mapper.BalanceMapper;
 import io.github.HenriqueMichelini.craftalism.api.model.Balance;
 import io.github.HenriqueMichelini.craftalism.api.service.BalanceService;
+import io.github.HenriqueMichelini.craftalism.api.service.TransferService;
 import java.net.URI;
 import java.util.List;
 import java.util.UUID;
@@ -30,6 +33,9 @@ class BalanceControllerTest {
 
     @Mock
     private BalanceMapper mapper;
+
+    @Mock
+    private TransferService transferService;
 
     @InjectMocks
     private BalanceController controller;
@@ -202,7 +208,7 @@ class BalanceControllerTest {
     }
 
     @Test
-    void transfer_returnsNoContent() {
+    void transfer_returnsOk() {
         UUID from = UUID.randomUUID();
         UUID to = UUID.randomUUID();
         long amount = 200L;
@@ -214,11 +220,17 @@ class BalanceControllerTest {
         when(request.toPlayerUuid()).thenReturn(to);
         when(request.amount()).thenReturn(amount);
 
-        ResponseEntity<Void> resp = controller.transfer(request);
+        BalanceTransferResponseDTO response = new BalanceTransferResponseDTO(
+            new TransactionResponseDTO(1L, from, to, amount, null),
+            false
+        );
+        when(transferService.transfer(from, to, amount, "idem-1")).thenReturn(response);
 
-        assertEquals(HttpStatus.NO_CONTENT, resp.getStatusCode());
-        assertNull(resp.getBody());
-        verify(service).transfer(from, to, amount);
+        ResponseEntity<BalanceTransferResponseDTO> resp = controller.transfer(request, "idem-1");
+
+        assertEquals(HttpStatus.OK, resp.getStatusCode());
+        assertSame(response, resp.getBody());
+        verify(transferService).transfer(from, to, amount, "idem-1");
     }
 
     @Test
