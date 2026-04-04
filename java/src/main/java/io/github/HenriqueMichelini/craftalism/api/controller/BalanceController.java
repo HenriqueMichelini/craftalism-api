@@ -3,6 +3,7 @@ package io.github.HenriqueMichelini.craftalism.api.controller;
 import io.github.HenriqueMichelini.craftalism.api.dto.BalanceCreateRequestDTO;
 import io.github.HenriqueMichelini.craftalism.api.dto.BalanceResponseDTO;
 import io.github.HenriqueMichelini.craftalism.api.dto.BalanceSetRequestDTO;
+import io.github.HenriqueMichelini.craftalism.api.dto.BalanceTransferRequestDTO;
 import io.github.HenriqueMichelini.craftalism.api.dto.BalanceUpdateRequestDTO;
 import io.github.HenriqueMichelini.craftalism.api.mapper.BalanceMapper;
 import io.github.HenriqueMichelini.craftalism.api.model.Balance;
@@ -231,6 +232,39 @@ public class BalanceController {
     ) {
         Balance updated = service.withdraw(uuid, request.amount());
         return ResponseEntity.ok(mapper.toDto(updated));
+    }
+
+    @Operation(
+        summary = "Transfer funds between players",
+        description = "Atomically withdraws from one player and deposits to another in a single request."
+    )
+    @ApiResponses(
+        {
+            @ApiResponse(responseCode = "204", description = "Transfer successful"),
+            @ApiResponse(
+                responseCode = "400",
+                description = "Invalid request body"
+            ),
+            @ApiResponse(
+                responseCode = "404",
+                description = "Source or destination balance not found"
+            ),
+            @ApiResponse(
+                responseCode = "422",
+                description = "Insufficient funds or invalid transfer"
+            ),
+        }
+    )
+    @PostMapping("/transfer")
+    public ResponseEntity<Void> transfer(
+        @RequestBody @Valid BalanceTransferRequestDTO request
+    ) {
+        service.transfer(
+            request.fromPlayerUuid(),
+            request.toPlayerUuid(),
+            request.amount()
+        );
+        return ResponseEntity.noContent().build();
     }
 
     @Operation(
