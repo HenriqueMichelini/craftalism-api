@@ -17,7 +17,7 @@ The Craftalism API is the central data service for the economy platform. It expo
 - Standardized RFC 9457 `ProblemDetail` error responses.
 - Interactive API documentation via Swagger UI (local profile).
 
-> **Important:** `POST /api/transactions` stores a transaction record only. It does **not** transfer balances. Use `POST /api/balances/transfer` for atomic balance movement. Recording a transaction and moving balances are still separate operations.
+> **Important:** `POST /api/transactions` stores a transaction record only. It does **not** transfer balances. Use `POST /api/balances/transfer` for atomic balance movement **with transaction persistence and idempotency key support**.
 
 ---
 
@@ -227,7 +227,6 @@ java/
 
 ## Known Limitations
 
-- Transaction recording and balance transfer are still separate calls; there is no endpoint that atomically updates balances and persists a transaction record together.
 - List endpoints have no pagination or filtering support; all records are returned in a single response.
 - Integration tests do not run against a real PostgreSQL instance.
 - No CI pipeline is configured.
@@ -236,7 +235,6 @@ java/
 
 ## Roadmap
 
-- Integrate transaction creation with `BalanceService.transfer()` so the ledger and balances are updated atomically.
 - Add pagination and filtering to all list endpoints.
 - Add integration tests against real PostgreSQL with actual security tokens.
 - Add CI pipeline with lint, typecheck, build, and test stages.
