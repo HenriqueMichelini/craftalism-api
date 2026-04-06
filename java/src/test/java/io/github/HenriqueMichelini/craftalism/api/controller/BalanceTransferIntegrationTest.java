@@ -13,6 +13,7 @@ import io.github.HenriqueMichelini.craftalism.api.repository.BalanceRepository;
 import io.github.HenriqueMichelini.craftalism.api.repository.PlayerRepository;
 import io.github.HenriqueMichelini.craftalism.api.repository.TransactionRepository;
 import io.github.HenriqueMichelini.craftalism.api.repository.TransferIncidentRepository;
+import io.github.HenriqueMichelini.craftalism.api.service.TransferIncidentService;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -46,6 +47,9 @@ class BalanceTransferIntegrationTest {
 
     @MockitoSpyBean
     private TransactionRepository transactionRepositorySpy;
+
+    @MockitoSpyBean
+    private TransferIncidentService incidentServiceSpy;
 
     private UUID senderId;
     private UUID receiverId;
@@ -199,6 +203,32 @@ class BalanceTransferIntegrationTest {
             .andExpect(status().isConflict());
 
         org.junit.jupiter.api.Assertions.assertTrue(incidentRepository.count() >= 1);
+    }
+
+    @Test
+    void transfer_idempotencyConflict_stillReturns409_whenIncidentRecordingFails()
+        throws Exception {
+        doThrow(new RuntimeException("incident persistence unavailable"))
+            .when(incidentServiceSpy)
+            .recordIncident(any(), any(), any(), any(), any(), any());
+
+        mockMvc
+            .perform(
+                post("/api/balances/transfer")
+                    .header("Idempotency-Key", "idem-conflict-incident-failure")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(payload(senderId, receiverId, 100))
+            )
+            .andExpect(status().isOk());
+
+        mockMvc
+            .perform(
+                post("/api/balances/transfer")
+                    .header("Idempotency-Key", "idem-conflict-incident-failure")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(payload(senderId, receiverId, 200))
+            )
+            .andExpect(status().isConflict());
     }
 
     @Test
