@@ -13,7 +13,7 @@ The Craftalism API is the central data service for the economy platform. It expo
 - Player registration and lookup by UUID or display name.
 - Balance lifecycle management: create, deposit, withdraw, set, and rank.
 - Transaction record storage between players.
-- JWT scope-based authorization for all endpoints.
+- JWT scope-based authorization for protected write endpoints.
 - Standardized RFC 9457 `ProblemDetail` error responses.
 - Interactive API documentation via Swagger UI (local profile).
 
@@ -115,6 +115,13 @@ All errors are returned as RFC 9457 `ProblemDetail` with these additional fields
 | `path` | Request path. |
 | `errors` | Field-level validation map (validation errors only). |
 
+### Troubleshooting quick checks
+
+- **Issuer mismatch at startup**  
+  If the API fails fast with an issuer mismatch error, verify `AUTH_ISSUER_URI` is aligned between API, auth server, and deployment environment.
+- **Transfer failures with incident warnings**  
+  Transfer incident recording is diagnostic. If incident persistence fails, the API logs a critical error and preserves the original transfer response semantics.
+
 ---
 
 ## Running Locally
@@ -186,6 +193,14 @@ Base path: `/api`. Full interactive documentation is available at `http://localh
 | `GET` | `/transactions/to/{uuid}` | public | List incoming transactions for a player. |
 | `POST` | `/transactions` | `api:write` | Store a transaction record. Does not update balances. |
 
+### Transfer incidents (diagnostic)
+
+Incident records are persisted by the transfer workflow for failure/conflict diagnostics (for example idempotency conflicts and unexpected transfer failures). Records can be queried through:
+
+| Method | Path | Scope | Description |
+|---|---|---|---|
+| `GET` | `/transfer-incidents` | public | List recorded transfer incidents with incident type, reason, metadata, and idempotency correlation context. |
+
 ---
 
 ## Testing
@@ -229,7 +244,7 @@ java/
 
 - List endpoints have no pagination or filtering support; all records are returned in a single response.
 - Integration tests do not run against a real PostgreSQL instance.
-- No CI pipeline is configured.
+- Repository workflows currently enforce checks, but branch protection/required status enforcement is configured outside this repository.
 
 ---
 
@@ -237,7 +252,7 @@ java/
 
 - Add pagination and filtering to all list endpoints.
 - Add integration tests against real PostgreSQL with actual security tokens.
-- Add CI pipeline with lint, typecheck, build, and test stages.
+- Add contract-focused smoke tests covering token issuance + protected write + read verification across composed services.
 
 ---
 

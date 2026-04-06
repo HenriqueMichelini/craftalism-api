@@ -13,6 +13,7 @@ import io.github.HenriqueMichelini.craftalism.api.repository.BalanceRepository;
 import io.github.HenriqueMichelini.craftalism.api.repository.PlayerRepository;
 import io.github.HenriqueMichelini.craftalism.api.repository.TransactionRepository;
 import io.github.HenriqueMichelini.craftalism.api.repository.TransferIncidentRepository;
+import io.github.HenriqueMichelini.craftalism.api.service.TransferIncidentService;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -46,6 +47,9 @@ class BalanceTransferIntegrationTest {
 
     @MockitoSpyBean
     private TransactionRepository transactionRepositorySpy;
+
+    @MockitoSpyBean
+    private TransferIncidentService incidentServiceSpy;
 
     private UUID senderId;
     private UUID receiverId;
@@ -202,6 +206,32 @@ class BalanceTransferIntegrationTest {
     }
 
     @Test
+    void transfer_idempotencyConflict_stillReturns409_whenIncidentRecordingFails()
+        throws Exception {
+        doThrow(new RuntimeException("incident persistence unavailable"))
+            .when(incidentServiceSpy)
+            .recordIncident(any(), any(), any(), any(), any(), any());
+
+        mockMvc
+            .perform(
+                post("/api/balances/transfer")
+                    .header("Idempotency-Key", "idem-conflict-incident-failure")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(payload(senderId, receiverId, 100))
+            )
+            .andExpect(status().isOk());
+
+        mockMvc
+            .perform(
+                post("/api/balances/transfer")
+                    .header("Idempotency-Key", "idem-conflict-incident-failure")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(payload(senderId, receiverId, 200))
+            )
+            .andExpect(status().isConflict());
+    }
+
+    @Test
     void transfer_rollsBackWhenTransactionPersistenceFails() throws Exception {
         doThrow(new RuntimeException("ledger db failure"))
             .when(transactionRepositorySpy)
@@ -222,6 +252,33 @@ class BalanceTransferIntegrationTest {
         org.junit.jupiter.api.Assertions.assertEquals(100L, receiver.getAmount());
         org.junit.jupiter.api.Assertions.assertEquals(0, transactionRepository.count());
         org.junit.jupiter.api.Assertions.assertEquals(1, incidentRepository.count());
+    }
+
+    @Test
+    void transfer_preservesPrimaryFailure_whenTransactionAndIncidentPersistenceFail()
+        throws Exception {
+        doThrow(new RuntimeException("ledger db failure"))
+            .when(transactionRepositorySpy)
+            .save(any(Transaction.class));
+        doThrow(new RuntimeException("incident persistence unavailable"))
+            .when(incidentServiceSpy)
+            .recordIncident(any(), any(), any(), any(), any(), any());
+
+        mockMvc
+            .perform(
+                post("/api/balances/transfer")
+                    .header("Idempotency-Key", "idem-dual-failure")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(payload(senderId, receiverId, 120))
+            )
+            .andExpect(status().isInternalServerError());
+
+        Balance sender = balanceRepository.findById(senderId).orElseThrow();
+        Balance receiver = balanceRepository.findById(receiverId).orElseThrow();
+        org.junit.jupiter.api.Assertions.assertEquals(1000L, sender.getAmount());
+        org.junit.jupiter.api.Assertions.assertEquals(100L, receiver.getAmount());
+        org.junit.jupiter.api.Assertions.assertEquals(0, transactionRepository.count());
+        org.junit.jupiter.api.Assertions.assertEquals(0, incidentRepository.count());
     }
 
     private String payload(UUID from, UUID to, long amount) {

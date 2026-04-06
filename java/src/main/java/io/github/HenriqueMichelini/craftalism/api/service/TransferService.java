@@ -19,10 +19,12 @@ import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.util.HexFormat;
 import java.util.UUID;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+@Slf4j
 @Service
 public class TransferService {
 
@@ -72,13 +74,14 @@ public class TransferService {
         );
 
         if (!record.getRequestHash().equals(requestHash)) {
-            incidentService.recordIncident(
+            recordIncidentSafely(
                 "IDEMPOTENCY_CONFLICT",
                 from,
                 to,
                 normalizedKey,
                 "Idempotency key was reused with a different transfer payload",
-                "expectedHash=" + record.getRequestHash() + ", actualHash=" + requestHash
+                "expectedHash=" + record.getRequestHash() + ", actualHash=" + requestHash,
+                null
             );
             throw new IdempotencyConflictException(normalizedKey);
         }
@@ -111,13 +114,14 @@ public class TransferService {
             );
             return new BalanceTransferResponseDTO(response, false);
         } catch (RuntimeException ex) {
-            incidentService.recordIncident(
+            recordIncidentSafely(
                 "TRANSFER_CRITICAL_FAILURE",
                 from,
                 to,
                 normalizedKey,
                 ex.getMessage(),
-                "exception=" + ex.getClass().getName()
+                "exception=" + ex.getClass().getName(),
+                ex
             );
             throw ex;
         }
@@ -195,6 +199,44 @@ public class TransferService {
             return idempotencyRepository
                 .findForUpdateByIdempotencyKey(normalizedKey)
                 .orElseThrow(() -> ex);
+        }
+    }
+
+    private void recordIncidentSafely(
+        String type,
+        UUID from,
+        UUID to,
+        String idempotencyKey,
+        String reason,
+        String metadata,
+        Exception originalFailure
+    ) {
+        try {
+            incidentService.recordIncident(
+                type,
+                from,
+                to,
+                idempotencyKey,
+                reason,
+                metadata
+            );
+        } catch (RuntimeException incidentError) {
+            if (originalFailure == null) {
+                log.error(
+                    "Critical: failed to persist transfer incident for type={} idempotencyKey={}",
+                    type,
+                    idempotencyKey,
+                    incidentError
+                );
+            } else {
+                log.error(
+                    "Critical: failed to persist transfer incident while handling transfer failure. type={} idempotencyKey={} originalError={}",
+                    type,
+                    idempotencyKey,
+                    originalFailure.getClass().getName(),
+                    incidentError
+                );
+            }
         }
     }
 }
