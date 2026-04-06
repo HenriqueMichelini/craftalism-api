@@ -1,7 +1,7 @@
 # Repo Requirement Pack: craftalism-api
 
 ## Repo Role
-`craftalism-api` is the authoritative backend source of truth for the economy domain. It must define and enforce canonical server-side behavior for balances, transactions, transfers, API error semantics, idempotency behavior, and incident persistence.
+`craftalism-api` is the authoritative backend source of truth for the economy domain. It defines and enforces canonical server-side behavior for balances, transactions, transfers, API error semantics, idempotency behavior, and incident persistence.
 
 ## Owned Contracts
 - `transfer-flow`
@@ -18,23 +18,45 @@
 
 ## Consumed Contracts
 - `auth-issuer`
-  - Validate tokens consistently with the canonical issuer/JWKS contract
+  - Own validation-side enforcement of issuer alignment for protected API access
+  - Consume issuance-side truth from `craftalism-authorization-server`
 - `ci-cd`
   - Meet backend quality-gate standards for PR/push/release workflows
 - `testing`
   - Meet test expectations appropriate for a contract-owning backend service
 - `documentation`
   - Keep README and endpoint docs aligned with implementation and ecosystem contracts
+- `security-access-control`
+  - Keep public/protected API surface policy explicit and aligned with implementation
 
-## Current Priority Areas
-- Verify and enforce transfer-flow correctness and canonical endpoint behavior
-- Verify and enforce transaction route consistency and compatibility behavior
-- Verify and enforce deterministic error semantics for API consumers
-- Verify and enforce idempotency behavior for transfer retries
-- Verify and enforce incident recording/queryability behavior
-- Verify issuer alignment and fail-fast configuration safety
-- Improve CI/CD quality gates if missing or weak
-- Ensure README/docs reflect actual implementation and current canonical behavior
+## Current Phase Objective
+This phase is limited to:
+- verifying or implementing missing behavior for owned contracts
+- aligning validation-side issuer behavior with the shared `auth-issuer` contract
+- correcting documentation drift directly related to owned contracts
+- correcting CI/CD or test gaps only when they block contract confidence for this repo
+
+This phase is not for broad refactoring or unrelated platform improvements.
+
+## Required This Phase
+- Verify each owned contract and classify it as:
+  - already compliant
+  - partially compliant
+  - missing
+  - incorrectly implemented
+- Implement only owned-contract gaps that are confirmed in this repo
+- Verify validation-side issuer enforcement behavior against the shared contract
+- Fix documentation only where it directly contradicts implementation or owned contracts
+- Fix CI/CD or testing only where:
+  - required standards are clearly violated, and
+  - the gap materially weakens trust in this repo’s owned contracts
+
+## Not Required This Phase
+- Broad architectural rewrites
+- Unrelated endpoint redesign
+- Plugin/client consumer fixes
+- Deployment-wide environment redesign
+- Dashboard/auth feature expansion unrelated to API-owned contracts
 
 ## Local Requirements
 - Keep controller/service/repository boundaries clean
@@ -44,7 +66,7 @@
 - Preserve backward compatibility only where explicitly required
 
 ## Governance Requirements
-- Comply with shared `ci-cd`, `testing`, and `documentation` standards
+- Comply with shared `ci-cd`, `testing`, `documentation`, and `security-access-control` standards
 - Do not leave owned contracts partially implemented without explicitly documenting the gap
 - Treat this repo as the canonical source of truth for the contracts it owns
 
@@ -59,12 +81,12 @@
 - Are all owned contracts fully implemented, authoritative, and documented?
 - Are routes, transfer semantics, and error behavior stable and consistent for consumers?
 - Is issuer validation aligned with the shared issuer contract?
-- Are tests strong enough for a contract-owning backend repo?
-- Are CI/CD workflows enforcing quality, not just publishing artifacts?
+- Is API access policy aligned with the shared security/access-control standard?
+- Are tests and CI/CD sufficient to trust this repo’s owned contracts?
 
 ## Success Criteria
 - Owned contracts are implemented or explicitly verified as already compliant
 - API behavior is authoritative and safe for consumers
-- Docs match implementation
-- CI/CD includes meaningful quality gates
-- Tests provide confidence in critical behaviors
+- Validation-side issuer behavior is aligned and explicit
+- Docs match implementation where contract ownership applies
+- CI/CD and tests meet minimum required confidence for this phase
