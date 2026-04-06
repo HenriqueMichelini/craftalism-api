@@ -115,6 +115,13 @@ All errors are returned as RFC 9457 `ProblemDetail` with these additional fields
 | `path` | Request path. |
 | `errors` | Field-level validation map (validation errors only). |
 
+### Troubleshooting quick checks
+
+- **Issuer mismatch at startup**  
+  If the API fails fast with an issuer mismatch error, verify `AUTH_ISSUER_URI` is aligned between API, auth server, and deployment environment.
+- **Transfer failures with incident warnings**  
+  Transfer incident recording is diagnostic. If incident persistence fails, the API logs a critical error and preserves the original transfer response semantics.
+
 ---
 
 ## Running Locally

@@ -254,6 +254,33 @@ class BalanceTransferIntegrationTest {
         org.junit.jupiter.api.Assertions.assertEquals(1, incidentRepository.count());
     }
 
+    @Test
+    void transfer_preservesPrimaryFailure_whenTransactionAndIncidentPersistenceFail()
+        throws Exception {
+        doThrow(new RuntimeException("ledger db failure"))
+            .when(transactionRepositorySpy)
+            .save(any(Transaction.class));
+        doThrow(new RuntimeException("incident persistence unavailable"))
+            .when(incidentServiceSpy)
+            .recordIncident(any(), any(), any(), any(), any(), any());
+
+        mockMvc
+            .perform(
+                post("/api/balances/transfer")
+                    .header("Idempotency-Key", "idem-dual-failure")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(payload(senderId, receiverId, 120))
+            )
+            .andExpect(status().isInternalServerError());
+
+        Balance sender = balanceRepository.findById(senderId).orElseThrow();
+        Balance receiver = balanceRepository.findById(receiverId).orElseThrow();
+        org.junit.jupiter.api.Assertions.assertEquals(1000L, sender.getAmount());
+        org.junit.jupiter.api.Assertions.assertEquals(100L, receiver.getAmount());
+        org.junit.jupiter.api.Assertions.assertEquals(0, transactionRepository.count());
+        org.junit.jupiter.api.Assertions.assertEquals(0, incidentRepository.count());
+    }
+
     private String payload(UUID from, UUID to, long amount) {
         return """
             {
