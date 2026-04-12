@@ -1,40 +1,78 @@
 package io.github.HenriqueMichelini.craftalism.api.service;
 
 import io.github.HenriqueMichelini.craftalism.api.dto.MarketSide;
+import io.github.HenriqueMichelini.craftalism.api.model.MarketQuote;
+import io.github.HenriqueMichelini.craftalism.api.repository.MarketQuoteRepository;
 import java.time.Instant;
-import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
 @Component
 public class MarketQuoteStore {
 
-    private final Map<String, StoredQuote> quotes = new ConcurrentHashMap<>();
+    private final MarketQuoteRepository marketQuoteRepository;
 
+    public MarketQuoteStore(MarketQuoteRepository marketQuoteRepository) {
+        this.marketQuoteRepository = marketQuoteRepository;
+    }
+
+    @Transactional
     public void put(StoredQuote quote) {
-        quotes.put(quote.quoteToken(), quote);
+        deleteExpired();
+
+        MarketQuote entity = new MarketQuote();
+        entity.setQuoteToken(quote.quoteToken());
+        entity.setPlayerUuid(quote.playerUuid());
+        entity.setItemId(quote.itemId());
+        entity.setSide(quote.side());
+        entity.setQuantity(quote.quantity());
+        entity.setUnitPrice(quote.unitPrice());
+        entity.setTotalPrice(quote.totalPrice());
+        entity.setSnapshotVersion(quote.snapshotVersion());
+        entity.setExpiresAt(quote.expiresAt());
+        entity.setCreatedAt(Instant.now());
+        marketQuoteRepository.save(entity);
     }
 
+    @Transactional
     public Optional<StoredQuote> getActive(String quoteToken) {
-        StoredQuote quote = quotes.get(quoteToken);
-        if (quote == null) {
+        Optional<MarketQuote> quote = marketQuoteRepository.findById(quoteToken);
+        if (quote.isEmpty()) {
             return Optional.empty();
         }
-        if (quote.expiresAt().isBefore(Instant.now())) {
-            quotes.remove(quoteToken);
-            return Optional.empty();
-        }
-        return Optional.of(quote);
+        return Optional.of(toStoredQuote(quote.get()));
     }
 
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void remove(String quoteToken) {
-        quotes.remove(quoteToken);
+        marketQuoteRepository.deleteById(quoteToken);
     }
 
+    @Transactional
     public void clear() {
-        quotes.clear();
+        marketQuoteRepository.deleteAll();
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void deleteExpired() {
+        marketQuoteRepository.deleteExpired(Instant.now());
+    }
+
+    private StoredQuote toStoredQuote(MarketQuote quote) {
+        return new StoredQuote(
+            quote.getQuoteToken(),
+            quote.getPlayerUuid(),
+            quote.getItemId(),
+            quote.getSide(),
+            quote.getQuantity(),
+            quote.getUnitPrice(),
+            quote.getTotalPrice(),
+            quote.getSnapshotVersion(),
+            quote.getExpiresAt()
+        );
     }
 
     public record StoredQuote(

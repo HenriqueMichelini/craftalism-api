@@ -12,8 +12,10 @@ import io.github.HenriqueMichelini.craftalism.api.exceptions.MarketRejectionCode
 import io.github.HenriqueMichelini.craftalism.api.exceptions.MarketRejectionException;
 import io.github.HenriqueMichelini.craftalism.api.model.Balance;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketItem;
+import io.github.HenriqueMichelini.craftalism.api.model.MarketQuote;
 import io.github.HenriqueMichelini.craftalism.api.repository.BalanceRepository;
 import io.github.HenriqueMichelini.craftalism.api.repository.MarketItemRepository;
+import io.github.HenriqueMichelini.craftalism.api.repository.MarketQuoteRepository;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -38,18 +40,24 @@ public class MarketService {
     private final MarketItemRepository marketItemRepository;
     private final BalanceRepository balanceRepository;
     private final MarketQuoteStore quoteStore;
+    private final MarketQuoteRepository marketQuoteRepository;
     private final boolean marketEnabled;
+    private final long quoteTtlSeconds;
 
     public MarketService(
         MarketItemRepository marketItemRepository,
         BalanceRepository balanceRepository,
         MarketQuoteStore quoteStore,
-        @Value("${craftalism.market.enabled:true}") boolean marketEnabled
+        MarketQuoteRepository marketQuoteRepository,
+        @Value("${craftalism.market.enabled:true}") boolean marketEnabled,
+        @Value("${craftalism.market.quote-ttl-seconds:60}") long quoteTtlSeconds
     ) {
         this.marketItemRepository = marketItemRepository;
         this.balanceRepository = balanceRepository;
         this.quoteStore = quoteStore;
+        this.marketQuoteRepository = marketQuoteRepository;
         this.marketEnabled = marketEnabled;
+        this.quoteTtlSeconds = quoteTtlSeconds;
     }
 
     @Transactional
@@ -154,7 +162,7 @@ public class MarketService {
 
         long unitPrice = quoteUnitPrice(item, request.side(), quantity);
         long totalPrice = Math.multiplyExact(unitPrice, quantity);
-        Instant expiresAt = Instant.now().plusSeconds(QUOTE_TTL_SECONDS);
+        Instant expiresAt = Instant.now().plusSeconds(quoteTtlSeconds);
         String quoteToken = UUID.randomUUID().toString();
 
         quoteStore.put(
@@ -206,12 +214,23 @@ public class MarketService {
                 )
             );
 
+        if (storedQuote.expiresAt().isBefore(Instant.now())) {
+            quoteStore.remove(request.quoteToken());
+            throw rejection(
+                MarketRejectionCode.QUOTE_EXPIRED,
+                "Quote has expired.",
+                HttpStatus.CONFLICT,
+                currentSnapshotVersion()
+            );
+        }
+
         if (
             !storedQuote.playerUuid().equals(playerUuid) ||
             !storedQuote.itemId().equals(request.itemId()) ||
             storedQuote.side() != request.side() ||
             storedQuote.quantity() != request.quantity()
         ) {
+            quoteStore.remove(request.quoteToken());
             throw rejection(
                 MarketRejectionCode.STALE_QUOTE,
                 "Quote is no longer valid.",
@@ -221,6 +240,7 @@ public class MarketService {
         }
 
         if (!storedQuote.snapshotVersion().equals(request.snapshotVersion())) {
+            quoteStore.remove(request.quoteToken());
             throw rejection(
                 MarketRejectionCode.STALE_QUOTE,
                 "Quote is no longer valid.",
@@ -427,6 +447,17 @@ public class MarketService {
         return snapshotVersion(
             marketItemRepository.findAllByOrderByCategoryIdAscDisplayNameAsc()
         );
+    }
+
+    @Transactional
+    public void deleteQuote(String quoteToken) {
+        quoteStore.remove(quoteToken);
+    }
+
+    @Transactional
+    public long activeQuoteCount() {
+        quoteStore.deleteExpired();
+        return marketQuoteRepository.count();
     }
 
     private String snapshotVersion(List<MarketItem> items) {

@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -19,10 +20,10 @@ import io.github.HenriqueMichelini.craftalism.api.model.Balance;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketItem;
 import io.github.HenriqueMichelini.craftalism.api.repository.BalanceRepository;
 import io.github.HenriqueMichelini.craftalism.api.repository.MarketItemRepository;
+import io.github.HenriqueMichelini.craftalism.api.repository.MarketQuoteRepository;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -42,17 +43,23 @@ class MarketServiceTest {
     @Mock
     private BalanceRepository balanceRepository;
 
+    @Mock
+    private MarketQuoteRepository marketQuoteRepository;
+
+    @Mock
     private MarketQuoteStore quoteStore;
+
     private MarketService marketService;
 
     @BeforeEach
     void setUp() {
-        quoteStore = new MarketQuoteStore();
         marketService = new MarketService(
             marketItemRepository,
             balanceRepository,
             quoteStore,
-            true
+            marketQuoteRepository,
+            true,
+            60L
         );
     }
 
@@ -86,7 +93,6 @@ class MarketServiceTest {
         when(marketItemRepository.count()).thenReturn(1L);
         when(marketItemRepository.findAllByOrderByCategoryIdAscDisplayNameAsc())
             .thenReturn(List.of(item));
-
         MarketQuoteResponseDTO quote = marketService.quote(
             authentication(),
             new MarketQuoteRequestDTO(
@@ -98,9 +104,25 @@ class MarketServiceTest {
         );
 
         Balance balance = new Balance(playerUuid(), 1_000L);
+        when(
+            quoteStore.getActive(eq(quote.quoteToken()))
+        ).thenReturn(
+            Optional.of(
+                new MarketQuoteStore.StoredQuote(
+                    quote.quoteToken(),
+                    playerUuid(),
+                    "wheat",
+                    MarketSide.BUY,
+                    10L,
+                    5L,
+                    50L,
+                    quote.snapshotVersion(),
+                    quote.expiresAt()
+                )
+            )
+        );
         when(marketItemRepository.findForUpdate("wheat")).thenReturn(Optional.of(item));
         when(balanceRepository.findForUpdate(playerUuid())).thenReturn(Optional.of(balance));
-
         MarketExecuteSuccessResponseDTO response = marketService.execute(
             authentication(),
             new MarketExecuteRequestDTO(
@@ -116,6 +138,8 @@ class MarketServiceTest {
         assertEquals(1_810L, item.getCurrentStock());
         assertEquals(950L, balance.getAmount());
         assertNotNull(response.updatedItem());
+        verify(quoteStore).put(any(MarketQuoteStore.StoredQuote.class));
+        verify(quoteStore).remove(quote.quoteToken());
         verify(balanceRepository).save(balance);
         verify(marketItemRepository).save(item);
     }
@@ -125,6 +149,7 @@ class MarketServiceTest {
         when(marketItemRepository.count()).thenReturn(1L);
         when(marketItemRepository.findAllByOrderByCategoryIdAscDisplayNameAsc())
             .thenReturn(List.of(marketItem()));
+        when(quoteStore.getActive("missing-token")).thenReturn(Optional.empty());
 
         MarketRejectionException exception = assertThrows(
             MarketRejectionException.class,

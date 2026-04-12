@@ -11,6 +11,7 @@ import io.github.HenriqueMichelini.craftalism.api.model.MarketItem;
 import io.github.HenriqueMichelini.craftalism.api.model.Player;
 import io.github.HenriqueMichelini.craftalism.api.repository.BalanceRepository;
 import io.github.HenriqueMichelini.craftalism.api.repository.MarketItemRepository;
+import io.github.HenriqueMichelini.craftalism.api.repository.MarketQuoteRepository;
 import io.github.HenriqueMichelini.craftalism.api.repository.PlayerRepository;
 import io.github.HenriqueMichelini.craftalism.api.security.WithMockJwt;
 import io.github.HenriqueMichelini.craftalism.api.service.MarketQuoteStore;
@@ -27,7 +28,7 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
-@SpringBootTest
+@SpringBootTest(properties = "craftalism.market.quote-ttl-seconds=1")
 @AutoConfigureMockMvc
 @ActiveProfiles("local")
 class MarketContractIntegrationTest {
@@ -46,6 +47,9 @@ class MarketContractIntegrationTest {
 
     @Autowired
     private MarketQuoteStore marketQuoteStore;
+
+    @Autowired
+    private MarketQuoteRepository marketQuoteRepository;
 
     private UUID playerUuid;
 
@@ -153,6 +157,7 @@ class MarketContractIntegrationTest {
         MarketItem item = marketItemRepository.findById("wheat").orElseThrow();
         assertEquals(950L, balance.getAmount());
         assertEquals(90L, item.getCurrentStock());
+        assertEquals(0L, marketQuoteRepository.count());
     }
 
     @Test
@@ -229,6 +234,127 @@ class MarketContractIntegrationTest {
             .andExpect(status().isUnprocessableEntity())
             .andExpect(jsonPath("$.status").value("REJECTED"))
             .andExpect(jsonPath("$.code").value("INSUFFICIENT_FUNDS"));
+
+        assertEquals(1L, marketQuoteRepository.count());
+    }
+
+    @Test
+    @WithMockJwt(playerUuid = "220e8400-e29b-41d4-a716-446655440000")
+    void execute_rejectsExpiredQuoteAndRemovesIt() throws Exception {
+        String snapshotVersion = snapshotVersion();
+
+        MvcResult quoteResult =
+            mockMvc
+                .perform(
+                    post("/api/market/quotes")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                            """
+                            {
+                              "itemId": "wheat",
+                              "side": "BUY",
+                              "quantity": 10,
+                              "snapshotVersion": "%s"
+                            }
+                            """.formatted(snapshotVersion)
+                        )
+                )
+                .andExpect(status().isOk())
+                .andReturn();
+
+        String quoteToken = jsonField(
+            quoteResult.getResponse().getContentAsString(),
+            "quoteToken"
+        );
+        String quotedSnapshotVersion = jsonField(
+            quoteResult.getResponse().getContentAsString(),
+            "snapshotVersion"
+        );
+
+        Thread.sleep(1_100L);
+
+        mockMvc
+            .perform(
+                post("/api/market/execute")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(
+                        """
+                        {
+                          "itemId": "wheat",
+                          "side": "BUY",
+                          "quantity": 10,
+                          "quoteToken": "%s",
+                          "snapshotVersion": "%s"
+                        }
+                        """.formatted(quoteToken, quotedSnapshotVersion)
+                    )
+            )
+            .andExpect(status().isConflict())
+            .andExpect(jsonPath("$.status").value("REJECTED"))
+            .andExpect(jsonPath("$.code").value("QUOTE_EXPIRED"));
+
+        assertEquals(0L, marketQuoteRepository.count());
+    }
+
+    @Test
+    @WithMockJwt(playerUuid = "220e8400-e29b-41d4-a716-446655440000")
+    void execute_rejectsStaleQuoteAfterMarketStateChanges() throws Exception {
+        String snapshotVersion = snapshotVersion();
+
+        MvcResult quoteResult =
+            mockMvc
+                .perform(
+                    post("/api/market/quotes")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                            """
+                            {
+                              "itemId": "wheat",
+                              "side": "BUY",
+                              "quantity": 10,
+                              "snapshotVersion": "%s"
+                            }
+                            """.formatted(snapshotVersion)
+                        )
+                )
+                .andExpect(status().isOk())
+                .andReturn();
+
+        String quoteToken = jsonField(
+            quoteResult.getResponse().getContentAsString(),
+            "quoteToken"
+        );
+        String quotedSnapshotVersion = jsonField(
+            quoteResult.getResponse().getContentAsString(),
+            "snapshotVersion"
+        );
+
+        MarketItem item = marketItemRepository.findById("wheat").orElseThrow();
+        item.setCurrentStock(95L);
+        item.setLastUpdatedAt(Instant.now().plusSeconds(5));
+        marketItemRepository.save(item);
+
+        mockMvc
+            .perform(
+                post("/api/market/execute")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(
+                        """
+                        {
+                          "itemId": "wheat",
+                          "side": "BUY",
+                          "quantity": 10,
+                          "quoteToken": "%s",
+                          "snapshotVersion": "%s"
+                        }
+                        """.formatted(quoteToken, quotedSnapshotVersion)
+                    )
+            )
+            .andExpect(status().isConflict())
+            .andExpect(jsonPath("$.status").value("REJECTED"))
+            .andExpect(jsonPath("$.code").value("STALE_QUOTE"));
+
+        assertEquals(0L, marketQuoteRepository.count());
     }
 
     @Test
