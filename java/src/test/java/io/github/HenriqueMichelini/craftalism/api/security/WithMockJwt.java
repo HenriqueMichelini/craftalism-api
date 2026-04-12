@@ -8,4 +8,6 @@ import org.springframework.security.test.context.support.WithSecurityContext;
 @WithSecurityContext(factory = MockJwtSecurityContextFactory.class)
 public @interface WithMockJwt {
     String[] scopes() default { "api:read", "api:write" };
+    String subject() default "minecraft-server";
+    String playerUuid() default "";
 }

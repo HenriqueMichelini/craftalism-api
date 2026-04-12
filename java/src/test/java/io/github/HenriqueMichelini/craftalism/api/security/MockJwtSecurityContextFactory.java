@@ -18,13 +18,16 @@ public class MockJwtSecurityContextFactory
 
     @Override
     public SecurityContext createSecurityContext(WithMockJwt annotation) {
-        Jwt jwt = Jwt.withTokenValue("mock-token")
+        Jwt.Builder jwtBuilder = Jwt.withTokenValue("mock-token")
             .header("alg", "RS256")
-            .claim("sub", "minecraft-server")
+            .claim("sub", annotation.subject())
             .claim("scope", String.join(" ", annotation.scopes()))
             .issuedAt(Instant.now())
-            .expiresAt(Instant.now().plusSeconds(300))
-            .build();
+            .expiresAt(Instant.now().plusSeconds(300));
+        if (!annotation.playerUuid().isBlank()) {
+            jwtBuilder.claim("player_uuid", annotation.playerUuid());
+        }
+        Jwt jwt = jwtBuilder.build();
 
         List<SimpleGrantedAuthority> authorities = Arrays.stream(
             annotation.scopes()

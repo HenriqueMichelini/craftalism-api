@@ -193,6 +193,16 @@ Base path: `/api`. Full interactive documentation is available at `http://localh
 | `GET` | `/transactions/to/{uuid}` | public | List incoming transactions for a player. |
 | `POST` | `/transactions` | `api:write` | Store a transaction record. Does not update balances. |
 
+### Market
+
+| Method | Path | Scope | Description |
+|---|---|---|---|
+| `GET` | `/market/snapshot` | public | Return the authoritative market snapshot with an opaque `snapshotVersion`. |
+| `POST` | `/market/quotes` | `api:write` | Create a quote-backed market trade for the authenticated player context. |
+| `POST` | `/market/execute` | `api:write` | Execute a trade using a required `quoteToken` and `snapshotVersion`. |
+
+Market prices are exposed as string-encoded whole-coin amounts. Business rejections use a stable JSON contract with machine-readable codes instead of free-form text.
+
 ### Transfer incidents (diagnostic)
 
 Incident records are persisted by the transfer workflow for failure/conflict diagnostics (for example idempotency conflicts and unexpected transfer failures). Records can be queried through:
