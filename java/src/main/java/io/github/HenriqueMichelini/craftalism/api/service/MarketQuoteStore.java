@@ -33,6 +33,10 @@ public class MarketQuoteStore {
         quotes.remove(quoteToken);
     }
 
+    public void clear() {
+        quotes.clear();
+    }
+
     public record StoredQuote(
         String quoteToken,
         UUID playerUuid,

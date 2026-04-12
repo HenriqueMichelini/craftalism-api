@@ -2,9 +2,12 @@ package io.github.HenriqueMichelini.craftalism.api.exceptions;
 
 import io.github.HenriqueMichelini.craftalism.api.dto.MarketRejectionResponseDTO;
 import org.springframework.http.ResponseEntity;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+@Order(Ordered.HIGHEST_PRECEDENCE)
 @RestControllerAdvice
 public class MarketExceptionHandler {
 
