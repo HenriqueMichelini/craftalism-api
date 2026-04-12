@@ -14,6 +14,13 @@ import java.util.UUID;
 @Table(name = "market_quotes")
 public class MarketQuote {
 
+    public enum Status {
+        ACTIVE,
+        CONSUMED,
+        EXPIRED,
+        INVALIDATED,
+    }
+
     @Id
     @Column(nullable = false, updatable = false)
     private String quoteToken;
@@ -45,6 +52,13 @@ public class MarketQuote {
 
     @Column(nullable = false)
     private Instant createdAt;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 16)
+    private Status status;
+
+    @Column
+    private Instant resolvedAt;
 
     public String getQuoteToken() {
         return quoteToken;
@@ -124,5 +138,21 @@ public class MarketQuote {
 
     public void setCreatedAt(Instant createdAt) {
         this.createdAt = createdAt;
+    }
+
+    public Status getStatus() {
+        return status;
+    }
+
+    public void setStatus(Status status) {
+        this.status = status;
+    }
+
+    public Instant getResolvedAt() {
+        return resolvedAt;
+    }
+
+    public void setResolvedAt(Instant resolvedAt) {
+        this.resolvedAt = resolvedAt;
     }
 }

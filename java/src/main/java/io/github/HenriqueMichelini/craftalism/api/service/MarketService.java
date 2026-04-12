@@ -175,7 +175,8 @@ public class MarketService {
                 unitPrice,
                 totalPrice,
                 currentSnapshotVersion,
-                expiresAt
+                expiresAt,
+                MarketQuote.Status.ACTIVE
             )
         );
 
@@ -204,7 +205,7 @@ public class MarketService {
 
         UUID playerUuid = resolvePlayerUuid(authentication);
         MarketQuoteStore.StoredQuote storedQuote = quoteStore
-            .getActive(request.quoteToken())
+            .get(request.quoteToken())
             .orElseThrow(() ->
                 rejection(
                     MarketRejectionCode.QUOTE_EXPIRED,
@@ -214,8 +215,26 @@ public class MarketService {
                 )
             );
 
+        if (storedQuote.status() == MarketQuote.Status.EXPIRED) {
+            throw rejection(
+                MarketRejectionCode.QUOTE_EXPIRED,
+                "Quote has expired.",
+                HttpStatus.CONFLICT,
+                currentSnapshotVersion()
+            );
+        }
+
+        if (storedQuote.status() != MarketQuote.Status.ACTIVE) {
+            throw rejection(
+                MarketRejectionCode.STALE_QUOTE,
+                "Quote is no longer valid.",
+                HttpStatus.CONFLICT,
+                currentSnapshotVersion()
+            );
+        }
+
         if (storedQuote.expiresAt().isBefore(Instant.now())) {
-            quoteStore.remove(request.quoteToken());
+            quoteStore.expire(request.quoteToken());
             throw rejection(
                 MarketRejectionCode.QUOTE_EXPIRED,
                 "Quote has expired.",
@@ -230,7 +249,7 @@ public class MarketService {
             storedQuote.side() != request.side() ||
             storedQuote.quantity() != request.quantity()
         ) {
-            quoteStore.remove(request.quoteToken());
+            quoteStore.invalidate(request.quoteToken());
             throw rejection(
                 MarketRejectionCode.STALE_QUOTE,
                 "Quote is no longer valid.",
@@ -240,7 +259,7 @@ public class MarketService {
         }
 
         if (!storedQuote.snapshotVersion().equals(request.snapshotVersion())) {
-            quoteStore.remove(request.quoteToken());
+            quoteStore.invalidate(request.quoteToken());
             throw rejection(
                 MarketRejectionCode.STALE_QUOTE,
                 "Quote is no longer valid.",
@@ -251,12 +270,21 @@ public class MarketService {
 
         String currentSnapshotVersion = currentSnapshotVersion();
         if (!currentSnapshotVersion.equals(storedQuote.snapshotVersion())) {
-            quoteStore.remove(request.quoteToken());
+            quoteStore.invalidate(request.quoteToken());
             throw rejection(
                 MarketRejectionCode.STALE_QUOTE,
                 "Quote is no longer valid.",
                 HttpStatus.CONFLICT,
                 currentSnapshotVersion
+            );
+        }
+
+        if (!quoteStore.consume(request.quoteToken())) {
+            throw rejection(
+                MarketRejectionCode.STALE_QUOTE,
+                "Quote is no longer valid.",
+                HttpStatus.CONFLICT,
+                currentSnapshotVersion()
             );
         }
 
@@ -273,7 +301,6 @@ public class MarketService {
 
         validateItemAvailability(item, currentSnapshotVersion);
         applyTrade(playerUuid, item, storedQuote);
-        quoteStore.remove(request.quoteToken());
 
         MarketSnapshotItemDTO updatedItem = toSnapshotItem(item);
         return new MarketExecuteSuccessResponseDTO(
@@ -451,13 +478,13 @@ public class MarketService {
 
     @Transactional
     public void deleteQuote(String quoteToken) {
-        quoteStore.remove(quoteToken);
+        quoteStore.invalidate(quoteToken);
     }
 
     @Transactional
     public long activeQuoteCount() {
-        quoteStore.deleteExpired();
-        return marketQuoteRepository.count();
+        quoteStore.expireActiveQuotes();
+        return marketQuoteRepository.countByStatus(MarketQuote.Status.ACTIVE);
     }
 
     private String snapshotVersion(List<MarketItem> items) {

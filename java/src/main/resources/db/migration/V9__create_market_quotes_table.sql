@@ -8,8 +8,11 @@ CREATE TABLE market_quotes (
     total_price BIGINT NOT NULL,
     snapshot_version VARCHAR(128) NOT NULL,
     expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+    status VARCHAR(16) NOT NULL,
+    resolved_at TIMESTAMP WITH TIME ZONE NULL
 );
 
 CREATE INDEX idx_market_quotes_expires_at ON market_quotes (expires_at);
 CREATE INDEX idx_market_quotes_player_uuid ON market_quotes (player_uuid);
+CREATE INDEX idx_market_quotes_status ON market_quotes (status);

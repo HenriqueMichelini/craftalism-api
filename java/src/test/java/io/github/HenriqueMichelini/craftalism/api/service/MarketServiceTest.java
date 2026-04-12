@@ -18,6 +18,7 @@ import io.github.HenriqueMichelini.craftalism.api.exceptions.MarketRejectionCode
 import io.github.HenriqueMichelini.craftalism.api.exceptions.MarketRejectionException;
 import io.github.HenriqueMichelini.craftalism.api.model.Balance;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketItem;
+import io.github.HenriqueMichelini.craftalism.api.model.MarketQuote;
 import io.github.HenriqueMichelini.craftalism.api.repository.BalanceRepository;
 import io.github.HenriqueMichelini.craftalism.api.repository.MarketItemRepository;
 import io.github.HenriqueMichelini.craftalism.api.repository.MarketQuoteRepository;
@@ -105,7 +106,7 @@ class MarketServiceTest {
 
         Balance balance = new Balance(playerUuid(), 1_000L);
         when(
-            quoteStore.getActive(eq(quote.quoteToken()))
+            quoteStore.get(eq(quote.quoteToken()))
         ).thenReturn(
             Optional.of(
                 new MarketQuoteStore.StoredQuote(
@@ -117,12 +118,14 @@ class MarketServiceTest {
                     5L,
                     50L,
                     quote.snapshotVersion(),
-                    quote.expiresAt()
+                    quote.expiresAt(),
+                    MarketQuote.Status.ACTIVE
                 )
             )
         );
         when(marketItemRepository.findForUpdate("wheat")).thenReturn(Optional.of(item));
         when(balanceRepository.findForUpdate(playerUuid())).thenReturn(Optional.of(balance));
+        when(quoteStore.consume(quote.quoteToken())).thenReturn(true);
         MarketExecuteSuccessResponseDTO response = marketService.execute(
             authentication(),
             new MarketExecuteRequestDTO(
@@ -139,7 +142,7 @@ class MarketServiceTest {
         assertEquals(950L, balance.getAmount());
         assertNotNull(response.updatedItem());
         verify(quoteStore).put(any(MarketQuoteStore.StoredQuote.class));
-        verify(quoteStore).remove(quote.quoteToken());
+        verify(quoteStore).consume(quote.quoteToken());
         verify(balanceRepository).save(balance);
         verify(marketItemRepository).save(item);
     }
@@ -149,7 +152,7 @@ class MarketServiceTest {
         when(marketItemRepository.count()).thenReturn(1L);
         when(marketItemRepository.findAllByOrderByCategoryIdAscDisplayNameAsc())
             .thenReturn(List.of(marketItem()));
-        when(quoteStore.getActive("missing-token")).thenReturn(Optional.empty());
+        when(quoteStore.get("missing-token")).thenReturn(Optional.empty());
 
         MarketRejectionException exception = assertThrows(
             MarketRejectionException.class,

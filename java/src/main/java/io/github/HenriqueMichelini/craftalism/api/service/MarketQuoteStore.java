@@ -21,7 +21,7 @@ public class MarketQuoteStore {
 
     @Transactional
     public void put(StoredQuote quote) {
-        deleteExpired();
+        expireActiveQuotes();
 
         MarketQuote entity = new MarketQuote();
         entity.setQuoteToken(quote.quoteToken());
@@ -34,21 +34,47 @@ public class MarketQuoteStore {
         entity.setSnapshotVersion(quote.snapshotVersion());
         entity.setExpiresAt(quote.expiresAt());
         entity.setCreatedAt(Instant.now());
+        entity.setStatus(MarketQuote.Status.ACTIVE);
         marketQuoteRepository.save(entity);
     }
 
     @Transactional
-    public Optional<StoredQuote> getActive(String quoteToken) {
-        Optional<MarketQuote> quote = marketQuoteRepository.findById(quoteToken);
-        if (quote.isEmpty()) {
-            return Optional.empty();
-        }
-        return Optional.of(toStoredQuote(quote.get()));
+    public Optional<StoredQuote> get(String quoteToken) {
+        expireActiveQuotes();
+        return marketQuoteRepository.findByQuoteToken(quoteToken).map(this::toStoredQuote);
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void remove(String quoteToken) {
-        marketQuoteRepository.deleteById(quoteToken);
+    public boolean consume(String quoteToken) {
+        expireActiveQuotes();
+        return (
+            marketQuoteRepository.transitionStatus(
+                quoteToken,
+                MarketQuote.Status.ACTIVE,
+                MarketQuote.Status.CONSUMED,
+                Instant.now()
+            ) == 1
+        );
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void invalidate(String quoteToken) {
+        marketQuoteRepository.transitionStatus(
+            quoteToken,
+            MarketQuote.Status.ACTIVE,
+            MarketQuote.Status.INVALIDATED,
+            Instant.now()
+        );
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void expire(String quoteToken) {
+        marketQuoteRepository.transitionStatus(
+            quoteToken,
+            MarketQuote.Status.ACTIVE,
+            MarketQuote.Status.EXPIRED,
+            Instant.now()
+        );
     }
 
     @Transactional
@@ -57,8 +83,14 @@ public class MarketQuoteStore {
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void deleteExpired() {
-        marketQuoteRepository.deleteExpired(Instant.now());
+    public void expireActiveQuotes() {
+        Instant now = Instant.now();
+        marketQuoteRepository.expireActiveQuotes(
+            now,
+            MarketQuote.Status.ACTIVE,
+            MarketQuote.Status.EXPIRED,
+            now
+        );
     }
 
     private StoredQuote toStoredQuote(MarketQuote quote) {
@@ -71,7 +103,8 @@ public class MarketQuoteStore {
             quote.getUnitPrice(),
             quote.getTotalPrice(),
             quote.getSnapshotVersion(),
-            quote.getExpiresAt()
+            quote.getExpiresAt(),
+            quote.getStatus()
         );
     }
 
@@ -84,6 +117,7 @@ public class MarketQuoteStore {
         long unitPrice,
         long totalPrice,
         String snapshotVersion,
-        Instant expiresAt
+        Instant expiresAt,
+        MarketQuote.Status status
     ) {}
 }
