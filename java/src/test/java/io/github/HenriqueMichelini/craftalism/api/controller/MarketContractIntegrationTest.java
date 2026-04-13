@@ -2,6 +2,7 @@ package io.github.HenriqueMichelini.craftalism.api.controller;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -19,13 +20,23 @@ import io.github.HenriqueMichelini.craftalism.api.security.WithMockJwt;
 import io.github.HenriqueMichelini.craftalism.api.service.MarketQuoteStore;
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.test.web.servlet.request.RequestPostProcessor;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
@@ -432,6 +443,96 @@ class MarketContractIntegrationTest {
     }
 
     @Test
+    void execute_concurrentRequestsOnlyConsumeQuoteOnce() throws Exception {
+        String snapshotVersion = snapshotVersion();
+
+        MvcResult quoteResult =
+            mockMvc
+                .perform(
+                    post("/api/market/quotes")
+                        .with(playerJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                            """
+                            {
+                              "itemId": "wheat",
+                              "side": "BUY",
+                              "quantity": 10,
+                              "snapshotVersion": "%s"
+                            }
+                            """.formatted(snapshotVersion)
+                        )
+                )
+                .andExpect(status().isOk())
+                .andReturn();
+
+        String quoteToken = jsonField(quoteResult.getResponse().getContentAsString(), "quoteToken");
+        String quotedSnapshotVersion = jsonField(
+            quoteResult.getResponse().getContentAsString(),
+            "snapshotVersion"
+        );
+        String executePayload =
+            """
+            {
+              "itemId": "wheat",
+              "side": "BUY",
+              "quantity": 10,
+              "quoteToken": "%s",
+              "snapshotVersion": "%s"
+            }
+            """.formatted(quoteToken, quotedSnapshotVersion);
+
+        CountDownLatch startGate = new CountDownLatch(1);
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            Callable<MvcResult> executeRequest = () -> {
+                startGate.await();
+                return mockMvc
+                    .perform(
+                        post("/api/market/execute")
+                            .with(playerJwt())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(executePayload)
+                    )
+                    .andReturn();
+            };
+
+            List<Future<MvcResult>> futures = new ArrayList<>();
+            futures.add(executor.submit(executeRequest));
+            futures.add(executor.submit(executeRequest));
+
+            startGate.countDown();
+
+            int successCount = 0;
+            int staleQuoteCount = 0;
+            for (Future<MvcResult> future : futures) {
+                MvcResult result = future.get();
+                int statusCode = result.getResponse().getStatus();
+                if (statusCode == 200) {
+                    successCount++;
+                } else if (statusCode == 409) {
+                    assertEquals("REJECTED", jsonField(result.getResponse().getContentAsString(), "status"));
+                    assertEquals("STALE_QUOTE", jsonField(result.getResponse().getContentAsString(), "code"));
+                    staleQuoteCount++;
+                }
+            }
+
+            assertEquals(1, successCount);
+            assertEquals(1, staleQuoteCount);
+        } finally {
+            executor.shutdownNow();
+            assertTrue(executor.awaitTermination(5, TimeUnit.SECONDS));
+        }
+
+        Balance balance = balanceRepository.findById(playerUuid).orElseThrow();
+        MarketItem item = marketItemRepository.findById("wheat").orElseThrow();
+        MarketQuote quote = marketQuoteRepository.findById(quoteToken).orElseThrow();
+        assertEquals(950L, balance.getAmount());
+        assertEquals(90L, item.getCurrentStock());
+        assertEquals(MarketQuote.Status.CONSUMED, quote.getStatus());
+    }
+
+    @Test
     @WithMockJwt(subject = "220e8400-e29b-41d4-a716-446655440000")
     void quote_acceptsUuidSubjectWhenPlayerUuidClaimMissing() throws Exception {
         String snapshotVersion = snapshotVersion();
@@ -458,6 +559,19 @@ class MarketContractIntegrationTest {
     private String snapshotVersion() throws Exception {
         MvcResult result = mockMvc.perform(get("/api/market/snapshot")).andReturn();
         return jsonField(result.getResponse().getContentAsString(), "snapshotVersion");
+    }
+
+    private RequestPostProcessor playerJwt() {
+        return jwt()
+            .jwt(jwt -> {
+                jwt.subject(playerUuid.toString());
+                jwt.claim("player_uuid", playerUuid.toString());
+                jwt.claim("scope", "api:read api:write");
+            })
+            .authorities(
+                new SimpleGrantedAuthority("SCOPE_api:read"),
+                new SimpleGrantedAuthority("SCOPE_api:write")
+            );
     }
 
     private String jsonField(String body, String field) {
