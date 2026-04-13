@@ -154,6 +154,14 @@
     }
   }
 
+  ## Required Semantics
+
+  - execute is single-use for a given `quoteToken`
+  - the first execute attempt claims the quote before final settlement checks run
+  - later retries with the same `quoteToken` must reject with `STALE_QUOTE`
+  - settlement is not retried once the quote has been claimed
+  - a quote may remain `CONSUMED` even when settlement returns a business rejection such as `INSUFFICIENT_FUNDS`
+
   ———
 
   ## Rejection Contract
@@ -223,6 +231,10 @@
   - Prices are encoded as strings containing authoritative whole-coin amounts.
   - `snapshotVersion` is a market-wide opaque token.
   - `quoteToken` is mandatory for every execute request.
+  - Execute is single-use per `quoteToken`.
+  - The first execute attempt claims the quote before final settlement checks run.
+  - Retries with the same `quoteToken` are not guaranteed to re-run settlement.
+  - A claimed quote may remain consumed even when settlement ends in a business rejection such as `INSUFFICIENT_FUNDS`.
   - `updatedItem` is always present on successful execute responses.
   - `blocked` and `operating` are both required:
     - `blocked` means the item is administratively unavailable.

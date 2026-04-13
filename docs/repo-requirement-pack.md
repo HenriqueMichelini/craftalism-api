@@ -7,6 +7,9 @@
 - `transfer-flow`
   - Own and enforce the canonical transfer endpoint and transfer semantics
   - Guarantee transfer atomicity and authoritative transfer behavior
+- `market-contract`
+  - Own and enforce canonical market snapshot, quote, execute, and quote lifecycle semantics
+  - Own authoritative market rejection codes and response shapes for consumers
 - `transaction-routes`
   - Own and enforce canonical transaction route structure and compatibility policy
 - `error-semantics`

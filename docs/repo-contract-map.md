@@ -4,6 +4,9 @@
 `craftalism-api` is the authoritative backend source of truth for the economy domain. It defines the canonical server-side behavior for balances, transactions, transfers, idempotency semantics, incident persistence, and API error behavior.
 
 ## Owned Contracts
+- `market-contract`
+  - Owns canonical market snapshot, quote, execute, and quote lifecycle behavior
+  - Owns authoritative market rejection/status semantics for consumers
 - `transfer-flow`
   - Owns the canonical transfer endpoint and transfer execution semantics
   - Owns atomicity guarantees for debit/credit/ledger behavior
