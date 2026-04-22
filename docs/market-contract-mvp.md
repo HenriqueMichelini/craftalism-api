@@ -255,5 +255,6 @@
   - The authenticated player actor is resolved from JWT `player_uuid` when present and valid, otherwise from a UUID-valued `sub` claim.
   - If neither JWT source provides a UUID, the configured trusted Minecraft server client may supply the Bukkit player UUID with request field `playerUuid` or header `X-Craftalism-Player-Uuid`.
   - The trusted Minecraft server client is currently `minecraft-server` and must authenticate with `api:write`.
+  - The API recognizes the trusted client from JWT `sub`, `client_id`, or `azp`.
   - Supplied player UUIDs are ignored for non-trusted clients.
   - Supplied player UUIDs must use valid UUID format.

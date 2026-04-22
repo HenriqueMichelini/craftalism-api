@@ -469,11 +469,17 @@ public class MarketService {
     }
 
     private boolean isTrustedMinecraftServer(JwtAuthenticationToken authentication) {
-        return trustedMinecraftServerClientId.equals(authentication.getName()) &&
+        return isTrustedClientIdentity(authentication) &&
             authentication
                 .getAuthorities()
                 .stream()
                 .anyMatch(authority -> WRITE_SCOPE_AUTHORITY.equals(authority.getAuthority()));
+    }
+
+    private boolean isTrustedClientIdentity(JwtAuthenticationToken authentication) {
+        return trustedMinecraftServerClientId.equals(authentication.getName()) ||
+            trustedMinecraftServerClientId.equals(authentication.getTokenAttributes().get("client_id")) ||
+            trustedMinecraftServerClientId.equals(authentication.getTokenAttributes().get("azp"));
     }
 
     private Optional<String> firstText(String first, String second) {

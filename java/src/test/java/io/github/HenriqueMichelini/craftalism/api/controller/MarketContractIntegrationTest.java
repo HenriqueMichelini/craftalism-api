@@ -235,6 +235,37 @@ class MarketContractIntegrationTest {
     }
 
     @Test
+    void quote_acceptsTrustedMinecraftServerHeaderPlayerUuidWithClientIdClaim() throws Exception {
+        String snapshotVersion = snapshotVersion();
+
+        MvcResult quoteResult =
+            mockMvc
+                .perform(
+                    post("/api/market/quotes")
+                        .with(minecraftServerClientJwt())
+                        .header("X-Craftalism-Player-Uuid", playerUuid.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                            """
+                            {
+                              "itemId": "wheat",
+                              "side": "BUY",
+                              "quantity": 10,
+                              "snapshotVersion": "%s"
+                            }
+                            """.formatted(snapshotVersion)
+                        )
+                )
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.quoteToken").isString())
+                .andReturn();
+
+        String quoteToken = jsonField(quoteResult.getResponse().getContentAsString(), "quoteToken");
+        MarketQuote persistedQuote = marketQuoteRepository.findById(quoteToken).orElseThrow();
+        assertEquals(playerUuid, persistedQuote.getPlayerUuid());
+    }
+
+    @Test
     @WithMockJwt(subject = "minecraft-server")
     void quote_rejectsWhenPlayerContextMissing() throws Exception {
         String snapshotVersion = snapshotVersion();
@@ -703,6 +734,19 @@ class MarketContractIntegrationTest {
             .jwt(jwt -> {
                 jwt.subject(playerUuid.toString());
                 jwt.claim("player_uuid", playerUuid.toString());
+                jwt.claim("scope", "api:read api:write");
+            })
+            .authorities(
+                new SimpleGrantedAuthority("SCOPE_api:read"),
+                new SimpleGrantedAuthority("SCOPE_api:write")
+            );
+    }
+
+    private RequestPostProcessor minecraftServerClientJwt() {
+        return jwt()
+            .jwt(jwt -> {
+                jwt.subject("service-account");
+                jwt.claim("client_id", "minecraft-server");
                 jwt.claim("scope", "api:read api:write");
             })
             .authorities(
