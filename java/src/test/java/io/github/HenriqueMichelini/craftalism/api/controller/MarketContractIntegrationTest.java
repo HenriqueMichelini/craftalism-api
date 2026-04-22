@@ -175,6 +175,143 @@ class MarketContractIntegrationTest {
     }
 
     @Test
+    @WithMockJwt(subject = "minecraft-server")
+    void quoteAndExecute_acceptsTrustedMinecraftServerSuppliedPlayerUuid() throws Exception {
+        String snapshotVersion = snapshotVersion();
+
+        MvcResult quoteResult =
+            mockMvc
+                .perform(
+                    post("/api/market/quotes")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                            """
+                            {
+                              "itemId": "wheat",
+                              "side": "BUY",
+                              "quantity": 10,
+                              "snapshotVersion": "%s",
+                              "playerUuid": "%s"
+                            }
+                            """.formatted(snapshotVersion, playerUuid)
+                        )
+                )
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.quoteToken").isString())
+                .andReturn();
+
+        String quoteToken = jsonField(quoteResult.getResponse().getContentAsString(), "quoteToken");
+        String quotedSnapshotVersion = jsonField(
+            quoteResult.getResponse().getContentAsString(),
+            "snapshotVersion"
+        );
+        MarketQuote persistedQuote = marketQuoteRepository.findById(quoteToken).orElseThrow();
+        assertEquals(playerUuid, persistedQuote.getPlayerUuid());
+
+        mockMvc
+            .perform(
+                post("/api/market/execute")
+                    .header("X-Craftalism-Player-Uuid", playerUuid.toString())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(
+                        """
+                        {
+                          "itemId": "wheat",
+                          "side": "BUY",
+                          "quantity": 10,
+                          "quoteToken": "%s",
+                          "snapshotVersion": "%s"
+                        }
+                        """.formatted(quoteToken, quotedSnapshotVersion)
+                    )
+            )
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.status").value("SUCCESS"));
+
+        Balance balance = balanceRepository.findById(playerUuid).orElseThrow();
+        MarketQuote consumedQuote = marketQuoteRepository.findById(quoteToken).orElseThrow();
+        assertEquals(950L, balance.getAmount());
+        assertEquals(MarketQuote.Status.CONSUMED, consumedQuote.getStatus());
+    }
+
+    @Test
+    @WithMockJwt(subject = "minecraft-server")
+    void quote_rejectsWhenPlayerContextMissing() throws Exception {
+        String snapshotVersion = snapshotVersion();
+
+        mockMvc
+            .perform(
+                post("/api/market/quotes")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(
+                        """
+                        {
+                          "itemId": "wheat",
+                          "side": "BUY",
+                          "quantity": 10,
+                          "snapshotVersion": "%s"
+                        }
+                        """.formatted(snapshotVersion)
+                    )
+            )
+            .andExpect(status().isServiceUnavailable())
+            .andExpect(jsonPath("$.status").value("REJECTED"))
+            .andExpect(jsonPath("$.code").value("API_UNAVAILABLE"));
+    }
+
+    @Test
+    @WithMockJwt(subject = "minecraft-server")
+    void quote_rejectsMalformedTrustedSuppliedPlayerUuid() throws Exception {
+        String snapshotVersion = snapshotVersion();
+
+        mockMvc
+            .perform(
+                post("/api/market/quotes")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(
+                        """
+                        {
+                          "itemId": "wheat",
+                          "side": "BUY",
+                          "quantity": 10,
+                          "snapshotVersion": "%s",
+                          "playerUuid": "not-a-uuid"
+                        }
+                        """.formatted(snapshotVersion)
+                    )
+            )
+            .andExpect(status().isServiceUnavailable())
+            .andExpect(jsonPath("$.status").value("REJECTED"))
+            .andExpect(jsonPath("$.code").value("API_UNAVAILABLE"));
+    }
+
+    @Test
+    @WithMockJwt(subject = "market-client")
+    void quote_rejectsNonTrustedClientSuppliedPlayerUuid() throws Exception {
+        String snapshotVersion = snapshotVersion();
+
+        mockMvc
+            .perform(
+                post("/api/market/quotes")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(
+                        """
+                        {
+                          "itemId": "wheat",
+                          "side": "BUY",
+                          "quantity": 10,
+                          "snapshotVersion": "%s",
+                          "playerUuid": "%s"
+                        }
+                        """.formatted(snapshotVersion, playerUuid)
+                    )
+            )
+            .andExpect(status().isServiceUnavailable())
+            .andExpect(jsonPath("$.status").value("REJECTED"))
+            .andExpect(jsonPath("$.code").value("API_UNAVAILABLE"));
+    }
+
+    @Test
     @WithMockJwt(playerUuid = "220e8400-e29b-41d4-a716-446655440000")
     void quote_rejectsStaleSnapshot() throws Exception {
         mockMvc

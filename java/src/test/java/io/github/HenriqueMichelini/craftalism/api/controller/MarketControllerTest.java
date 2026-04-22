@@ -47,13 +47,13 @@ class MarketControllerTest {
         JwtAuthenticationToken authentication = mock(JwtAuthenticationToken.class);
         MarketQuoteRequestDTO request = mock(MarketQuoteRequestDTO.class);
         MarketQuoteResponseDTO response = mock(MarketQuoteResponseDTO.class);
-        when(marketService.quote(authentication, request)).thenReturn(response);
+        when(marketService.quote(authentication, request, null)).thenReturn(response);
 
-        ResponseEntity<MarketQuoteResponseDTO> result = controller.quote(authentication, request);
+        ResponseEntity<MarketQuoteResponseDTO> result = controller.quote(authentication, null, request);
 
         assertEquals(HttpStatus.OK, result.getStatusCode());
         assertSame(response, result.getBody());
-        verify(marketService).quote(authentication, request);
+        verify(marketService).quote(authentication, request, null);
     }
 
     @Test
@@ -61,12 +61,12 @@ class MarketControllerTest {
         JwtAuthenticationToken authentication = mock(JwtAuthenticationToken.class);
         MarketExecuteRequestDTO request = mock(MarketExecuteRequestDTO.class);
         MarketExecuteSuccessResponseDTO response = mock(MarketExecuteSuccessResponseDTO.class);
-        when(marketService.execute(authentication, request)).thenReturn(response);
+        when(marketService.execute(authentication, request, null)).thenReturn(response);
 
-        ResponseEntity<MarketExecuteSuccessResponseDTO> result = controller.execute(authentication, request);
+        ResponseEntity<MarketExecuteSuccessResponseDTO> result = controller.execute(authentication, null, request);
 
         assertEquals(HttpStatus.OK, result.getStatusCode());
         assertSame(response, result.getBody());
-        verify(marketService).execute(authentication, request);
+        verify(marketService).execute(authentication, request, null);
     }
 }

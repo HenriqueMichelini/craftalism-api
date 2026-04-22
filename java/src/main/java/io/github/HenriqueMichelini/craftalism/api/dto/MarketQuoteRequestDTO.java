@@ -24,5 +24,11 @@ public record MarketQuoteRequestDTO(
         example = "market:9c8877"
     )
     @NotBlank(message = "Snapshot version is required")
-    String snapshotVersion
+    String snapshotVersion,
+
+    @Schema(
+        description = "Bukkit player UUID supplied by the trusted Minecraft server client",
+        example = "220e8400-e29b-41d4-a716-446655440000"
+    )
+    String playerUuid
 ) {}

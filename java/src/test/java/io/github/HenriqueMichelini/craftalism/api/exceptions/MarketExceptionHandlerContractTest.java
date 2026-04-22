@@ -42,7 +42,7 @@ class MarketExceptionHandlerContractTest {
 
     @Test
     void marketRejection_returnsContractBody() throws Exception {
-        when(marketService.quote(isNull(), any(MarketQuoteRequestDTO.class)))
+        when(marketService.quote(isNull(), any(MarketQuoteRequestDTO.class), isNull()))
             .thenThrow(
                 new MarketRejectionException(
                     MarketRejectionCode.STALE_QUOTE,

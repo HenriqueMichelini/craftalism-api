@@ -19,6 +19,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -73,13 +74,14 @@ public class MarketController {
     @PostMapping("/quotes")
     public ResponseEntity<MarketQuoteResponseDTO> quote(
         JwtAuthenticationToken authentication,
+        @RequestHeader(name = "X-Craftalism-Player-Uuid", required = false) String playerUuidHeader,
         @RequestBody(
             description = "Quote request payload",
             required = true,
             content = @Content(schema = @Schema(implementation = MarketQuoteRequestDTO.class))
         ) @Valid @org.springframework.web.bind.annotation.RequestBody MarketQuoteRequestDTO request
     ) {
-        return ResponseEntity.ok(marketService.quote(authentication, request));
+        return ResponseEntity.ok(marketService.quote(authentication, request, playerUuidHeader));
     }
 
     @Operation(
@@ -106,12 +108,13 @@ public class MarketController {
     @PostMapping("/execute")
     public ResponseEntity<MarketExecuteSuccessResponseDTO> execute(
         JwtAuthenticationToken authentication,
+        @RequestHeader(name = "X-Craftalism-Player-Uuid", required = false) String playerUuidHeader,
         @RequestBody(
             description = "Execution request payload",
             required = true,
             content = @Content(schema = @Schema(implementation = MarketExecuteRequestDTO.class))
         ) @Valid @org.springframework.web.bind.annotation.RequestBody MarketExecuteRequestDTO request
     ) {
-        return ResponseEntity.ok(marketService.execute(authentication, request));
+        return ResponseEntity.ok(marketService.execute(authentication, request, playerUuidHeader));
     }
 }

@@ -36,6 +36,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class MarketService {
 
     private static final long QUOTE_TTL_SECONDS = 60L;
+    private static final String WRITE_SCOPE_AUTHORITY = "SCOPE_api:write";
 
     private final MarketItemRepository marketItemRepository;
     private final BalanceRepository balanceRepository;
@@ -43,6 +44,7 @@ public class MarketService {
     private final MarketQuoteRepository marketQuoteRepository;
     private final boolean marketEnabled;
     private final long quoteTtlSeconds;
+    private final String trustedMinecraftServerClientId;
 
     public MarketService(
         MarketItemRepository marketItemRepository,
@@ -50,7 +52,8 @@ public class MarketService {
         MarketQuoteStore quoteStore,
         MarketQuoteRepository marketQuoteRepository,
         @Value("${craftalism.market.enabled:true}") boolean marketEnabled,
-        @Value("${craftalism.market.quote-ttl-seconds:60}") long quoteTtlSeconds
+        @Value("${craftalism.market.quote-ttl-seconds:60}") long quoteTtlSeconds,
+        @Value("${craftalism.market.trusted-minecraft-server-client-id:minecraft-server}") String trustedMinecraftServerClientId
     ) {
         this.marketItemRepository = marketItemRepository;
         this.balanceRepository = balanceRepository;
@@ -58,6 +61,7 @@ public class MarketService {
         this.marketQuoteRepository = marketQuoteRepository;
         this.marketEnabled = marketEnabled;
         this.quoteTtlSeconds = quoteTtlSeconds;
+        this.trustedMinecraftServerClientId = trustedMinecraftServerClientId;
     }
 
     @Transactional
@@ -107,12 +111,13 @@ public class MarketService {
     @Transactional
     public MarketQuoteResponseDTO quote(
         JwtAuthenticationToken authentication,
-        MarketQuoteRequestDTO request
+        MarketQuoteRequestDTO request,
+        String playerUuidHeader
     ) {
         initializeCatalogIfEmpty();
         ensureMarketOpen();
 
-        UUID playerUuid = resolvePlayerUuid(authentication);
+        UUID playerUuid = resolvePlayerUuid(authentication, request.playerUuid(), playerUuidHeader);
         List<MarketItem> items = marketItemRepository.findAllByOrderByCategoryIdAscDisplayNameAsc();
         String currentSnapshotVersion = snapshotVersion(items);
         if (!currentSnapshotVersion.equals(request.snapshotVersion())) {
@@ -198,12 +203,13 @@ public class MarketService {
     @Transactional
     public MarketExecuteSuccessResponseDTO execute(
         JwtAuthenticationToken authentication,
-        MarketExecuteRequestDTO request
+        MarketExecuteRequestDTO request,
+        String playerUuidHeader
     ) {
         initializeCatalogIfEmpty();
         ensureMarketOpen();
 
-        UUID playerUuid = resolvePlayerUuid(authentication);
+        UUID playerUuid = resolvePlayerUuid(authentication, request.playerUuid(), playerUuidHeader);
         MarketQuoteStore.StoredQuote storedQuote = quoteStore
             .get(request.quoteToken())
             .orElseThrow(() ->
@@ -414,7 +420,11 @@ public class MarketService {
         }
     }
 
-    private UUID resolvePlayerUuid(JwtAuthenticationToken authentication) {
+    private UUID resolvePlayerUuid(
+        JwtAuthenticationToken authentication,
+        String suppliedPlayerUuid,
+        String suppliedPlayerUuidHeader
+    ) {
         if (authentication == null) {
             throw rejection(
                 MarketRejectionCode.API_UNAVAILABLE,
@@ -437,6 +447,19 @@ public class MarketService {
             return subject.get();
         }
 
+        Optional<String> supplied = firstText(suppliedPlayerUuid, suppliedPlayerUuidHeader);
+        if (supplied.isPresent() && isTrustedMinecraftServer(authentication)) {
+            return tryParseUuid(supplied.get())
+                .orElseThrow(() ->
+                    rejection(
+                        MarketRejectionCode.API_UNAVAILABLE,
+                        "Authenticated player context is unavailable.",
+                        HttpStatus.SERVICE_UNAVAILABLE,
+                        currentSnapshotVersion()
+                    )
+                );
+        }
+
         throw rejection(
             MarketRejectionCode.API_UNAVAILABLE,
             "Authenticated player context is unavailable.",
@@ -445,9 +468,27 @@ public class MarketService {
         );
     }
 
+    private boolean isTrustedMinecraftServer(JwtAuthenticationToken authentication) {
+        return trustedMinecraftServerClientId.equals(authentication.getName()) &&
+            authentication
+                .getAuthorities()
+                .stream()
+                .anyMatch(authority -> WRITE_SCOPE_AUTHORITY.equals(authority.getAuthority()));
+    }
+
+    private Optional<String> firstText(String first, String second) {
+        if (first != null && !first.isBlank()) {
+            return Optional.of(first.trim());
+        }
+        if (second != null && !second.isBlank()) {
+            return Optional.of(second.trim());
+        }
+        return Optional.empty();
+    }
+
     private Optional<UUID> tryParseUuid(String value) {
         try {
-            return Optional.of(UUID.fromString(value));
+            return Optional.of(UUID.fromString(value.trim()));
         } catch (IllegalArgumentException ex) {
             return Optional.empty();
         }

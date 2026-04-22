@@ -84,8 +84,12 @@
     "itemId": "wheat",
     "side": "BUY",
     "quantity": 32,
-    "snapshotVersion": "opaque-version-token"
+    "snapshotVersion": "opaque-version-token",
+    "playerUuid": "220e8400-e29b-41d4-a716-446655440000"
   }
+
+  `playerUuid` is optional and is honored only for the configured trusted Minecraft server client.
+  Trusted clients may alternatively send the same value in `X-Craftalism-Player-Uuid`.
 
   ## Response
 
@@ -125,8 +129,12 @@
     "side": "BUY",
     "quantity": 32,
     "quoteToken": "opaque-quote-token",
-    "snapshotVersion": "opaque-version-token"
+    "snapshotVersion": "opaque-version-token",
+    "playerUuid": "220e8400-e29b-41d4-a716-446655440000"
   }
+
+  `playerUuid` is optional and is honored only for the configured trusted Minecraft server client.
+  Trusted clients may alternatively send the same value in `X-Craftalism-Player-Uuid`.
 
   ## Success Response
 
@@ -244,4 +252,8 @@
     - `422` for quantity, stock, and funds rejections
     - `404` for `UNKNOWN_ITEM`
     - `503` for `MARKET_CLOSED` and `API_UNAVAILABLE`
-  - The authenticated player actor is resolved from JWT `player_uuid` when present, otherwise from a UUID-valued `sub` claim.
+  - The authenticated player actor is resolved from JWT `player_uuid` when present and valid, otherwise from a UUID-valued `sub` claim.
+  - If neither JWT source provides a UUID, the configured trusted Minecraft server client may supply the Bukkit player UUID with request field `playerUuid` or header `X-Craftalism-Player-Uuid`.
+  - The trusted Minecraft server client is currently `minecraft-server` and must authenticate with `api:write`.
+  - Supplied player UUIDs are ignored for non-trusted clients.
+  - Supplied player UUIDs must use valid UUID format.

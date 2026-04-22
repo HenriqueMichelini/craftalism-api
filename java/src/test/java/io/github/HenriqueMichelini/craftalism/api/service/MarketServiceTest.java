@@ -60,7 +60,8 @@ class MarketServiceTest {
             quoteStore,
             marketQuoteRepository,
             true,
-            60L
+            60L,
+            "minecraft-server"
         );
     }
 
@@ -80,8 +81,10 @@ class MarketServiceTest {
                         "wheat",
                         MarketSide.BUY,
                         10L,
-                        "market:stale"
-                    )
+                        "market:stale",
+                        null
+                    ),
+                    null
                 )
         );
 
@@ -100,8 +103,10 @@ class MarketServiceTest {
                 "wheat",
                 MarketSide.BUY,
                 10L,
-                marketService.getSnapshot().snapshotVersion()
-            )
+                marketService.getSnapshot().snapshotVersion(),
+                null
+            ),
+            null
         );
 
         Balance balance = new Balance(playerUuid(), 1_000L);
@@ -133,8 +138,10 @@ class MarketServiceTest {
                 MarketSide.BUY,
                 10L,
                 quote.quoteToken(),
-                quote.snapshotVersion()
-            )
+                quote.snapshotVersion(),
+                null
+            ),
+            null
         );
 
         assertEquals("SUCCESS", response.status());
@@ -164,8 +171,10 @@ class MarketServiceTest {
                         MarketSide.BUY,
                         10L,
                         "missing-token",
-                        "market:any"
-                    )
+                        "market:any",
+                        null
+                    ),
+                    null
                 )
         );
 
