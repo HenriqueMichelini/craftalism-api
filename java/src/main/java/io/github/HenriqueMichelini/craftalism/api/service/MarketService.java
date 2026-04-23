@@ -31,12 +31,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+@Slf4j
 @Service
 public class MarketService {
 
@@ -85,9 +87,12 @@ public class MarketService {
 
     @Transactional
     public MarketSnapshotResponseDTO getSnapshot() {
-        List<MarketItem> items = regeneratedItems();
-        List<MarketSnapshotProjection> projections = snapshotProjections(items);
-        String snapshotVersion = snapshotVersion(projections);
+        long totalStartNanos = System.nanoTime();
+
+        MarketReadState readState = regeneratedItems();
+
+        long projectionStartNanos = System.nanoTime();
+        List<MarketSnapshotProjection> projections = snapshotProjections(readState.items());
         Instant generatedAt = projections
             .stream()
             .map(MarketSnapshotProjection::lastUpdatedAt)
@@ -107,6 +112,14 @@ public class MarketService {
             );
             category.items().add(toSnapshotItem(item));
         }
+        long projectionBuildNanos = System.nanoTime() - projectionStartNanos;
+
+        long hashStartNanos = System.nanoTime();
+        String snapshotVersion = snapshotVersion(projections);
+        long hashNanos = System.nanoTime() - hashStartNanos;
+
+        long totalNanos = System.nanoTime() - totalStartNanos;
+        logSnapshotTiming(readState, projections, projectionBuildNanos, hashNanos, totalNanos);
 
         return new MarketSnapshotResponseDTO(snapshotVersion, generatedAt, List.copyOf(categories.values()));
     }
@@ -120,7 +133,7 @@ public class MarketService {
         ensureMarketOpen();
 
         UUID playerUuid = resolvePlayerUuid(authentication, request.playerUuid(), playerUuidHeader);
-        List<MarketItem> items = regeneratedItems();
+        List<MarketItem> items = regeneratedItems().items();
         String currentSnapshotVersion = snapshotVersion(snapshotProjections(items));
         if (!currentSnapshotVersion.equals(request.snapshotVersion())) {
             throw rejection(
@@ -465,15 +478,22 @@ public class MarketService {
         return Math.floorDiv(Math.addExact(totalPrice, quantity - 1L), quantity);
     }
 
-    private List<MarketItem> regeneratedItems() {
+    private MarketReadState regeneratedItems() {
+        long fetchStartNanos = System.nanoTime();
         List<MarketItem> items = marketItemRepository.findAllForMarketRead();
+        long fetchNanos = System.nanoTime() - fetchStartNanos;
+
+        long regenerationStartNanos = System.nanoTime();
         Instant now = Instant.now();
+        int regeneratedItemCount = 0;
         for (MarketItem item : items) {
             if (regenerateItem(item, now)) {
+                regeneratedItemCount++;
                 marketItemRepository.save(item);
             }
         }
-        return items;
+        long regenerationNanos = System.nanoTime() - regenerationStartNanos;
+        return new MarketReadState(List.copyOf(items), fetchNanos, regenerationNanos, regeneratedItemCount);
     }
 
     private boolean regenerateItem(MarketItem item, Instant now) {
@@ -792,7 +812,7 @@ public class MarketService {
     }
 
     private String currentSnapshotVersion() {
-        return snapshotVersion(snapshotProjections(regeneratedItems()));
+        return snapshotVersion(snapshotProjections(regeneratedItems().items()));
     }
 
     @Transactional
@@ -884,6 +904,35 @@ public class MarketService {
         }
     }
 
+    private void logSnapshotTiming(
+        MarketReadState readState,
+        List<MarketSnapshotProjection> projections,
+        long projectionBuildNanos,
+        long hashNanos,
+        long totalNanos
+    ) {
+        long segmentCount = 0L;
+        for (MarketSnapshotProjection projection : projections) {
+            segmentCount += projection.segments().size();
+        }
+
+        log.info(
+            "market.snapshot.timing totalMs={} fetchMs={} regenerationMs={} projectionBuildMs={} hashMs={} items={} segments={} regeneratedItems={}",
+            nanosToMillis(totalNanos),
+            nanosToMillis(readState.fetchNanos()),
+            nanosToMillis(readState.regenerationNanos()),
+            nanosToMillis(projectionBuildNanos),
+            nanosToMillis(hashNanos),
+            projections.size(),
+            segmentCount,
+            readState.regeneratedItemCount()
+        );
+    }
+
+    private long nanosToMillis(long nanos) {
+        return nanos / 1_000_000L;
+    }
+
     private MarketItem seedItem(
         String itemId,
         String categoryId,
@@ -968,5 +1017,12 @@ public class MarketService {
         boolean operating,
         Instant lastUpdatedAt,
         List<MarketSegmentProjection> segments
+    ) {}
+
+    private record MarketReadState(
+        List<MarketItem> items,
+        long fetchNanos,
+        long regenerationNanos,
+        int regeneratedItemCount
     ) {}
 }
