@@ -85,24 +85,23 @@ public class MarketService {
 
     @Transactional
     public MarketSnapshotResponseDTO getSnapshot() {
-        initializeCatalogIfEmpty();
-
         List<MarketItem> items = regeneratedItems();
-        String snapshotVersion = snapshotVersion(items);
-        Instant generatedAt = items
+        List<MarketSnapshotProjection> projections = snapshotProjections(items);
+        String snapshotVersion = snapshotVersion(projections);
+        Instant generatedAt = projections
             .stream()
-            .map(MarketItem::getLastUpdatedAt)
+            .map(MarketSnapshotProjection::lastUpdatedAt)
             .max(Instant::compareTo)
             .orElse(Instant.now());
 
         Map<String, MarketSnapshotCategoryDTO> categories = new LinkedHashMap<>();
-        for (MarketItem item : items) {
+        for (MarketSnapshotProjection item : projections) {
             MarketSnapshotCategoryDTO category = categories.computeIfAbsent(
-                item.getCategoryId(),
+                item.categoryId(),
                 ignored ->
                     new MarketSnapshotCategoryDTO(
-                        item.getCategoryId(),
-                        item.getCategoryDisplayName(),
+                        item.categoryId(),
+                        item.categoryDisplayName(),
                         new ArrayList<>()
                     )
             );
@@ -118,12 +117,11 @@ public class MarketService {
         MarketQuoteRequestDTO request,
         String playerUuidHeader
     ) {
-        initializeCatalogIfEmpty();
         ensureMarketOpen();
 
         UUID playerUuid = resolvePlayerUuid(authentication, request.playerUuid(), playerUuidHeader);
         List<MarketItem> items = regeneratedItems();
-        String currentSnapshotVersion = snapshotVersion(items);
+        String currentSnapshotVersion = snapshotVersion(snapshotProjections(items));
         if (!currentSnapshotVersion.equals(request.snapshotVersion())) {
             throw rejection(
                 MarketRejectionCode.STALE_QUOTE,
@@ -199,7 +197,6 @@ public class MarketService {
         MarketExecuteRequestDTO request,
         String playerUuidHeader
     ) {
-        initializeCatalogIfEmpty();
         ensureMarketOpen();
 
         UUID playerUuid = resolvePlayerUuid(authentication, request.playerUuid(), playerUuidHeader);
@@ -469,7 +466,7 @@ public class MarketService {
     }
 
     private List<MarketItem> regeneratedItems() {
-        List<MarketItem> items = marketItemRepository.findAllByOrderByCategoryIdAscDisplayNameAsc();
+        List<MarketItem> items = marketItemRepository.findAllForMarketRead();
         Instant now = Instant.now();
         for (MarketItem item : items) {
             if (regenerateItem(item, now)) {
@@ -536,7 +533,7 @@ public class MarketService {
     }
 
     private void backfillMissingSegments() {
-        List<MarketItem> items = marketItemRepository.findAllByOrderByCategoryIdAscDisplayNameAsc();
+        List<MarketItem> items = marketItemRepository.findAllForMarketRead();
         boolean changed = false;
         for (MarketItem item : items) {
             if (!item.getSegments().isEmpty()) {
@@ -778,9 +775,24 @@ public class MarketService {
         );
     }
 
+    private MarketSnapshotItemDTO toSnapshotItem(MarketSnapshotProjection item) {
+        return new MarketSnapshotItemDTO(
+            item.itemId(),
+            item.displayName(),
+            item.iconKey(),
+            Long.toString(item.buyUnitEstimate()),
+            Long.toString(item.sellUnitEstimate()),
+            item.currency(),
+            item.currentStock(),
+            item.variationPercent(),
+            item.blocked(),
+            item.operating(),
+            item.lastUpdatedAt()
+        );
+    }
+
     private String currentSnapshotVersion() {
-        initializeCatalogIfEmpty();
-        return snapshotVersion(regeneratedItems());
+        return snapshotVersion(snapshotProjections(regeneratedItems()));
     }
 
     @Transactional
@@ -794,37 +806,73 @@ public class MarketService {
         return marketQuoteRepository.countByStatus(MarketQuote.Status.ACTIVE);
     }
 
-    private String snapshotVersion(List<MarketItem> items) {
-        StringBuilder payload = new StringBuilder("market");
+    private List<MarketSnapshotProjection> snapshotProjections(List<MarketItem> items) {
+        List<MarketSnapshotProjection> projections = new ArrayList<>(items.size());
         for (MarketItem item : items) {
             recomputeDerivedProjections(item);
+            projections.add(
+                new MarketSnapshotProjection(
+                    item.getItemId(),
+                    item.getCategoryId(),
+                    item.getCategoryDisplayName(),
+                    item.getDisplayName(),
+                    item.getIconKey(),
+                    item.getBuyUnitEstimate(),
+                    item.getSellUnitEstimate(),
+                    item.getCurrency(),
+                    item.getCurrentStock(),
+                    item.getMarketMomentum(),
+                    item.getVariationPercent().stripTrailingZeros().toPlainString(),
+                    item.isBlocked(),
+                    item.isOperating(),
+                    item.getLastUpdatedAt(),
+                    sortedSegments(item)
+                        .stream()
+                        .map(segment ->
+                            new MarketSegmentProjection(
+                                segment.getSegmentIndex(),
+                                segment.getMaxCapacity(),
+                                segment.getRemainingCapacity(),
+                                segment.getUnitPrice()
+                            )
+                        )
+                        .toList()
+                )
+            );
+        }
+        return List.copyOf(projections);
+    }
+
+    private String snapshotVersion(List<MarketSnapshotProjection> items) {
+        StringBuilder payload = new StringBuilder("market");
+        for (MarketSnapshotProjection item : items) {
             payload
                 .append('|')
-                .append(item.getItemId())
+                .append(item.itemId())
                 .append(':')
-                .append(item.getCurrentStock())
+                .append(item.currentStock())
                 .append(':')
-                .append(item.getBuyUnitEstimate())
+                .append(item.buyUnitEstimate())
                 .append(':')
-                .append(item.getSellUnitEstimate())
+                .append(item.sellUnitEstimate())
                 .append(':')
-                .append(item.getMarketMomentum())
+                .append(item.marketMomentum())
                 .append(':')
-                .append(item.isBlocked())
+                .append(item.blocked())
                 .append(':')
-                .append(item.isOperating())
+                .append(item.operating())
                 .append(':')
-                .append(item.getLastUpdatedAt());
-            for (MarketSegment segment : sortedSegments(item)) {
+                .append(item.lastUpdatedAt());
+            for (MarketSegmentProjection segment : item.segments()) {
                 payload
                     .append(':')
-                    .append(segment.getSegmentIndex())
+                    .append(segment.segmentIndex())
                     .append(',')
-                    .append(segment.getMaxCapacity())
+                    .append(segment.maxCapacity())
                     .append(',')
-                    .append(segment.getRemainingCapacity())
+                    .append(segment.remainingCapacity())
                     .append(',')
-                    .append(segment.getUnitPrice());
+                    .append(segment.unitPrice());
             }
         }
         try {
@@ -901,4 +949,24 @@ public class MarketService {
     ) {}
 
     private record AppliedTrade(long executedQuantity, long unitPrice, long totalPrice) {}
+
+    private record MarketSegmentProjection(long segmentIndex, long maxCapacity, long remainingCapacity, long unitPrice) {}
+
+    private record MarketSnapshotProjection(
+        String itemId,
+        String categoryId,
+        String categoryDisplayName,
+        String displayName,
+        String iconKey,
+        long buyUnitEstimate,
+        long sellUnitEstimate,
+        String currency,
+        long currentStock,
+        long marketMomentum,
+        String variationPercent,
+        boolean blocked,
+        boolean operating,
+        Instant lastUpdatedAt,
+        List<MarketSegmentProjection> segments
+    ) {}
 }

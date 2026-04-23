@@ -4,7 +4,6 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
@@ -59,9 +58,13 @@ public class MarketItem {
     @Column(nullable = false)
     private Instant lastUpdatedAt;
 
-    @OneToMany(fetch = FetchType.LAZY, cascade = jakarta.persistence.CascadeType.ALL, orphanRemoval = true)
-    @JoinColumn(name = "item_id")
-    @jakarta.persistence.OrderBy("segmentIndex ASC")
+    @OneToMany(
+        mappedBy = "item",
+        fetch = FetchType.LAZY,
+        cascade = jakarta.persistence.CascadeType.ALL,
+        orphanRemoval = true
+    )
+    @jakarta.persistence.OrderBy("id.segmentIndex ASC")
     private List<MarketSegment> segments = new ArrayList<>();
 
     public String getItemId() {
@@ -191,7 +194,7 @@ public class MarketItem {
     }
 
     public void addSegment(MarketSegment segment) {
-        segment.setItemId(this.itemId);
+        segment.setItem(this);
         this.segments.add(segment);
     }
 }

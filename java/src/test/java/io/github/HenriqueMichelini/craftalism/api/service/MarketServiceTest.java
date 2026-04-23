@@ -68,8 +68,7 @@ class MarketServiceTest {
     @Test
     void quote_rejectsStaleSnapshotVersion() {
         MarketItem item = marketItem(37, 20L, 5L);
-        when(marketItemRepository.count()).thenReturn(1L);
-        when(marketItemRepository.findAllByOrderByCategoryIdAscDisplayNameAsc()).thenReturn(java.util.List.of(item));
+        when(marketItemRepository.findAllForMarketRead()).thenReturn(java.util.List.of(item));
 
         MarketRejectionException exception = assertThrows(
             MarketRejectionException.class,
@@ -87,8 +86,7 @@ class MarketServiceTest {
     @Test
     void execute_buyUpdatesBalanceAndStock() {
         MarketItem item = marketItem(37, 20L, 5L);
-        when(marketItemRepository.count()).thenReturn(1L);
-        when(marketItemRepository.findAllByOrderByCategoryIdAscDisplayNameAsc()).thenReturn(java.util.List.of(item));
+        when(marketItemRepository.findAllForMarketRead()).thenReturn(java.util.List.of(item));
 
         MarketQuoteResponseDTO quote = marketService.quote(
             authentication(),
@@ -135,8 +133,7 @@ class MarketServiceTest {
     @Test
     void quote_buyTraversesSegmentsProgressively() {
         MarketItem item = marketItem(2, 50L, 5L);
-        when(marketItemRepository.count()).thenReturn(1L);
-        when(marketItemRepository.findAllByOrderByCategoryIdAscDisplayNameAsc()).thenReturn(java.util.List.of(item));
+        when(marketItemRepository.findAllForMarketRead()).thenReturn(java.util.List.of(item));
 
         MarketQuoteResponseDTO quote = marketService.quote(
             authentication(),
@@ -152,8 +149,7 @@ class MarketServiceTest {
     @Test
     void execute_buyAcrossSegments_updatesExecutedQuantityAndDerivedProjections() {
         MarketItem item = marketItem(2, 50L, 5L);
-        when(marketItemRepository.count()).thenReturn(1L);
-        when(marketItemRepository.findAllByOrderByCategoryIdAscDisplayNameAsc()).thenReturn(java.util.List.of(item));
+        when(marketItemRepository.findAllForMarketRead()).thenReturn(java.util.List.of(item));
         String snapshotVersion = marketService.getSnapshot().snapshotVersion();
 
         Balance balance = new Balance(playerUuid(), 1_000L);
@@ -195,8 +191,7 @@ class MarketServiceTest {
     @Test
     void execute_buyExactlyExhaustingAvailableStock_leavesZeroStock() {
         MarketItem item = marketItem(1, 50L, 5L);
-        when(marketItemRepository.count()).thenReturn(1L);
-        when(marketItemRepository.findAllByOrderByCategoryIdAscDisplayNameAsc()).thenReturn(java.util.List.of(item));
+        when(marketItemRepository.findAllForMarketRead()).thenReturn(java.util.List.of(item));
         String snapshotVersion = marketService.getSnapshot().snapshotVersion();
 
         Balance balance = new Balance(playerUuid(), 1_000L);
@@ -236,8 +231,7 @@ class MarketServiceTest {
     @Test
     void quote_buyRejectsWhenQuantityExceedsAvailableStock() {
         MarketItem item = marketItem(1, 40L, 5L);
-        when(marketItemRepository.count()).thenReturn(1L);
-        when(marketItemRepository.findAllByOrderByCategoryIdAscDisplayNameAsc()).thenReturn(java.util.List.of(item));
+        when(marketItemRepository.findAllForMarketRead()).thenReturn(java.util.List.of(item));
 
         MarketRejectionException exception = assertThrows(
             MarketRejectionException.class,
@@ -262,8 +256,7 @@ class MarketServiceTest {
         item.setDisplayName("Iron Ingot");
         item.setIconKey("IRON_INGOT");
         item.setVariationPercent(new BigDecimal("1.1"));
-        when(marketItemRepository.count()).thenReturn(1L);
-        when(marketItemRepository.findAllByOrderByCategoryIdAscDisplayNameAsc()).thenReturn(java.util.List.of(item));
+        when(marketItemRepository.findAllForMarketRead()).thenReturn(java.util.List.of(item));
         String snapshotVersion = marketService.getSnapshot().snapshotVersion();
 
         when(quoteStore.get("iron-quote")).thenReturn(
@@ -304,8 +297,7 @@ class MarketServiceTest {
 
     @Test
     void execute_rejectsExpiredQuote() {
-        when(marketItemRepository.count()).thenReturn(1L);
-        when(marketItemRepository.findAllByOrderByCategoryIdAscDisplayNameAsc())
+        when(marketItemRepository.findAllForMarketRead())
             .thenReturn(java.util.List.of(marketItem(2, 50L, 5L)));
         when(quoteStore.get("missing-token")).thenReturn(Optional.empty());
 

@@ -13,8 +13,12 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface MarketItemRepository extends JpaRepository<MarketItem, String> {
-    @EntityGraph(attributePaths = "segments")
-    List<MarketItem> findAllByOrderByCategoryIdAscDisplayNameAsc();
+    @Query(
+        "SELECT DISTINCT m FROM market_items m " +
+        "LEFT JOIN FETCH m.segments " +
+        "ORDER BY m.categoryId ASC, m.displayName ASC"
+    )
+    List<MarketItem> findAllForMarketRead();
 
     @EntityGraph(attributePaths = "segments")
     Optional<MarketItem> findByItemId(String itemId);
