@@ -37,6 +37,9 @@ public class MarketService {
 
     private static final long QUOTE_TTL_SECONDS = 60L;
     private static final String WRITE_SCOPE_AUTHORITY = "SCOPE_api:write";
+    private static final long SEGMENT_CAPACITY = 50L;
+    private static final long STOCK_REGEN_SPEED_SECONDS = 60L;
+    private static final long BASE_STOCK_REGEN_QUANTITY = 1L;
 
     private final MarketItemRepository marketItemRepository;
     private final BalanceRepository balanceRepository;
@@ -79,7 +82,7 @@ public class MarketService {
     public MarketSnapshotResponseDTO getSnapshot() {
         initializeCatalogIfEmpty();
 
-        List<MarketItem> items = marketItemRepository.findAllByOrderByCategoryIdAscDisplayNameAsc();
+        List<MarketItem> items = regeneratedItems();
         String snapshotVersion = snapshotVersion(items);
         Instant generatedAt = items
             .stream()
@@ -118,7 +121,7 @@ public class MarketService {
         ensureMarketOpen();
 
         UUID playerUuid = resolvePlayerUuid(authentication, request.playerUuid(), playerUuidHeader);
-        List<MarketItem> items = marketItemRepository.findAllByOrderByCategoryIdAscDisplayNameAsc();
+        List<MarketItem> items = regeneratedItems();
         String currentSnapshotVersion = snapshotVersion(items);
         if (!currentSnapshotVersion.equals(request.snapshotVersion())) {
             throw rejection(
@@ -153,20 +156,7 @@ public class MarketService {
                 currentSnapshotVersion
             );
         }
-        if (
-            request.side() == MarketSide.BUY &&
-            item.getCurrentStock() < quantity
-        ) {
-            throw rejection(
-                MarketRejectionCode.INSUFFICIENT_STOCK,
-                "Item does not have enough stock for that quantity.",
-                HttpStatus.UNPROCESSABLE_ENTITY,
-                currentSnapshotVersion
-            );
-        }
-
-        long unitPrice = quoteUnitPrice(item, request.side(), quantity);
-        long totalPrice = Math.multiplyExact(unitPrice, quantity);
+        MarketPriceQuote priceQuote = quotePrice(item, request.side(), quantity);
         Instant expiresAt = Instant.now().plusSeconds(quoteTtlSeconds);
         String quoteToken = UUID.randomUUID().toString();
 
@@ -177,8 +167,8 @@ public class MarketService {
                 item.getItemId(),
                 request.side(),
                 quantity,
-                unitPrice,
-                totalPrice,
+                priceQuote.unitPrice(),
+                priceQuote.totalPrice(),
                 currentSnapshotVersion,
                 expiresAt,
                 MarketQuote.Status.ACTIVE
@@ -189,8 +179,8 @@ public class MarketService {
             item.getItemId(),
             request.side(),
             quantity,
-            Long.toString(unitPrice),
-            Long.toString(totalPrice),
+            Long.toString(priceQuote.unitPrice()),
+            Long.toString(priceQuote.totalPrice()),
             item.getCurrency(),
             quoteToken,
             currentSnapshotVersion,
@@ -328,14 +318,8 @@ public class MarketService {
         MarketQuoteStore.StoredQuote quote
     ) {
         if (quote.side() == MarketSide.BUY) {
-            if (item.getCurrentStock() < quote.quantity()) {
-                throw rejection(
-                    MarketRejectionCode.INSUFFICIENT_STOCK,
-                    "Item does not have enough stock for that quantity.",
-                    HttpStatus.UNPROCESSABLE_ENTITY,
-                    currentSnapshotVersion()
-                );
-            }
+            long baseBuyPrice = baseBuyPrice(item);
+            long baseSellPrice = baseSellPrice(item);
             Balance balance = balanceRepository
                 .findForUpdate(playerUuid)
                 .orElseThrow(() ->
@@ -357,10 +341,13 @@ public class MarketService {
             balance.setAmount(balance.getAmount() - quote.totalPrice());
             balanceRepository.save(balance);
             item.setCurrentStock(item.getCurrentStock() - quote.quantity());
-            item.setBuyUnitEstimate(item.getBuyUnitEstimate() + marketStep(quote.quantity(), 50L));
-            item.setSellUnitEstimate(Math.max(1L, item.getSellUnitEstimate() + marketStep(quote.quantity(), 100L)));
+            item.setMarketMomentum(Math.addExact(item.getMarketMomentum(), quote.quantity()));
+            item.setBuyUnitEstimate(buyUnitPrice(baseBuyPrice, currentSegment(item.getMarketMomentum())));
+            item.setSellUnitEstimate(sellUnitPrice(baseSellPrice, currentSegment(item.getMarketMomentum())));
             item.setVariationPercent(item.getVariationPercent().add(java.math.BigDecimal.valueOf(0.6)));
         } else {
+            long baseBuyPrice = baseBuyPrice(item);
+            long baseSellPrice = baseSellPrice(item);
             Balance balance = balanceRepository
                 .findForUpdate(playerUuid)
                 .orElseGet(() -> new Balance(playerUuid, 0L));
@@ -368,8 +355,9 @@ public class MarketService {
             balance.setAmount(balance.getAmount() + quote.totalPrice());
             balanceRepository.save(balance);
             item.setCurrentStock(item.getCurrentStock() + quote.quantity());
-            item.setBuyUnitEstimate(Math.max(1L, item.getBuyUnitEstimate() - marketStep(quote.quantity(), 75L)));
-            item.setSellUnitEstimate(Math.max(1L, item.getSellUnitEstimate() - marketStep(quote.quantity(), 50L)));
+            item.setMarketMomentum(Math.max(0L, item.getMarketMomentum() - quote.quantity()));
+            item.setBuyUnitEstimate(buyUnitPrice(baseBuyPrice, currentSegment(item.getMarketMomentum())));
+            item.setSellUnitEstimate(sellUnitPrice(baseSellPrice, currentSegment(item.getMarketMomentum())));
             item.setVariationPercent(item.getVariationPercent().subtract(java.math.BigDecimal.valueOf(0.6)));
         }
 
@@ -377,14 +365,158 @@ public class MarketService {
         marketItemRepository.save(item);
     }
 
-    private long quoteUnitPrice(MarketItem item, MarketSide side, long quantity) {
-        return side == MarketSide.BUY
-            ? item.getBuyUnitEstimate() + ((quantity - 1) / 50L)
-            : Math.max(1L, item.getSellUnitEstimate() - ((quantity - 1) / 100L));
+    private MarketPriceQuote quotePrice(MarketItem item, MarketSide side, long quantity) {
+        long totalPrice = side == MarketSide.BUY
+            ? progressiveBuyTotal(item, quantity)
+            : progressiveSellTotal(item, quantity);
+        return new MarketPriceQuote(effectiveUnitPrice(totalPrice, quantity), totalPrice);
     }
 
-    private long marketStep(long quantity, long divisor) {
-        return Math.max(1L, quantity / divisor);
+    private long progressiveBuyTotal(MarketItem item, long quantity) {
+        long remaining = quantity;
+        long momentumCursor = item.getMarketMomentum();
+        long totalPrice = 0L;
+
+        while (remaining > 0L) {
+            MarketPriceSegment segment = buySegment(item, currentSegment(momentumCursor));
+            long segmentRemaining = segment.capacity() - segmentOffset(momentumCursor);
+            long take = Math.min(segmentRemaining, remaining);
+            totalPrice = Math.addExact(
+                totalPrice,
+                Math.multiplyExact(take, segment.unitPrice())
+            );
+            remaining -= take;
+            momentumCursor = Math.addExact(momentumCursor, take);
+        }
+
+        return totalPrice;
+    }
+
+    private long progressiveSellTotal(MarketItem item, long quantity) {
+        long remaining = quantity;
+        long momentumCursor = item.getMarketMomentum();
+        long totalPrice = 0L;
+
+        while (remaining > 0L) {
+            MarketPriceSegment segment = sellSegment(item, currentSegment(momentumCursor));
+            long segmentDepth = momentumCursor == 0L
+                ? segment.capacity()
+                : Math.max(1L, segmentOffset(momentumCursor));
+            long take = Math.min(segmentDepth, remaining);
+            totalPrice = Math.addExact(
+                totalPrice,
+                Math.multiplyExact(take, segment.unitPrice())
+            );
+            remaining -= take;
+            momentumCursor = Math.max(0L, momentumCursor - take);
+        }
+
+        return totalPrice;
+    }
+
+    private long effectiveUnitPrice(long totalPrice, long quantity) {
+        return Math.floorDiv(Math.addExact(totalPrice, quantity - 1L), quantity);
+    }
+
+    private long currentSegment(long momentum) {
+        return Math.floorDiv(momentum, SEGMENT_CAPACITY);
+    }
+
+    private long segmentOffset(long momentum) {
+        return Math.floorMod(momentum, SEGMENT_CAPACITY);
+    }
+
+    private MarketPriceSegment buySegment(MarketItem item, long segment) {
+        return new MarketPriceSegment(SEGMENT_CAPACITY, buyUnitPrice(item, segment));
+    }
+
+    private MarketPriceSegment sellSegment(MarketItem item, long segment) {
+        return new MarketPriceSegment(SEGMENT_CAPACITY, sellUnitPrice(item, segment));
+    }
+
+    private long buyUnitPrice(MarketItem item, long segment) {
+        return buyUnitPrice(baseBuyPrice(item), segment);
+    }
+
+    private long sellUnitPrice(MarketItem item, long segment) {
+        return sellUnitPrice(baseSellPrice(item), segment);
+    }
+
+    private long buyUnitPrice(long basePrice, long segment) {
+        return Math.addExact(basePrice, segment);
+    }
+
+    private long sellUnitPrice(long basePrice, long segment) {
+        return Math.max(1L, Math.addExact(basePrice, segment));
+    }
+
+    private long baseBuyPrice(MarketItem item) {
+        return Math.max(1L, item.getBuyUnitEstimate() - currentSegment(item.getMarketMomentum()));
+    }
+
+    private long baseSellPrice(MarketItem item) {
+        return Math.max(1L, item.getSellUnitEstimate() - currentSegment(item.getMarketMomentum()));
+    }
+
+    private List<MarketItem> regeneratedItems() {
+        List<MarketItem> items = marketItemRepository.findAllByOrderByCategoryIdAscDisplayNameAsc();
+        Instant now = Instant.now();
+        for (MarketItem item : items) {
+            if (regenerateItem(item, now)) {
+                marketItemRepository.save(item);
+            }
+        }
+        return items;
+    }
+
+    private boolean regenerateItem(MarketItem item, Instant now) {
+        if (item.getMarketMomentum() <= 0L || !now.isAfter(item.getLastUpdatedAt())) {
+            return false;
+        }
+
+        long ticks = java.time.Duration.between(item.getLastUpdatedAt(), now)
+            .getSeconds() / STOCK_REGEN_SPEED_SECONDS;
+        if (ticks <= 0L) {
+            return false;
+        }
+
+        long regenQuantity = Math.multiplyExact(
+            ticks,
+            Math.addExact(BASE_STOCK_REGEN_QUANTITY, currentSegment(item.getMarketMomentum()))
+        );
+        long baseBuyPrice = baseBuyPrice(item);
+        long baseSellPrice = baseSellPrice(item);
+        long restored = applySegmentRegeneration(item, regenQuantity);
+        if (restored <= 0L) {
+            return false;
+        }
+
+        item.setCurrentStock(Math.addExact(item.getCurrentStock(), restored));
+        item.setBuyUnitEstimate(buyUnitPrice(baseBuyPrice, currentSegment(item.getMarketMomentum())));
+        item.setSellUnitEstimate(sellUnitPrice(baseSellPrice, currentSegment(item.getMarketMomentum())));
+        item.setLastUpdatedAt(now);
+        return true;
+    }
+
+    private long applySegmentRegeneration(MarketItem item, long regenQuantity) {
+        long remaining = regenQuantity;
+        long restored = 0L;
+        long momentumCursor = item.getMarketMomentum();
+
+        while (remaining > 0L && momentumCursor > 0L) {
+            long segmentRestorable = segmentOffset(momentumCursor);
+            if (segmentRestorable == 0L) {
+                segmentRestorable = SEGMENT_CAPACITY;
+            }
+
+            long take = Math.min(segmentRestorable, remaining);
+            momentumCursor -= take;
+            restored += take;
+            remaining -= take;
+        }
+
+        item.setMarketMomentum(momentumCursor);
+        return restored;
     }
 
     private void validateItemAvailability(
@@ -519,7 +651,7 @@ public class MarketService {
     private String currentSnapshotVersion() {
         initializeCatalogIfEmpty();
         return snapshotVersion(
-            marketItemRepository.findAllByOrderByCategoryIdAscDisplayNameAsc()
+            regeneratedItems()
         );
     }
 
@@ -546,6 +678,8 @@ public class MarketService {
                 .append(item.getBuyUnitEstimate())
                 .append(':')
                 .append(item.getSellUnitEstimate())
+                .append(':')
+                .append(item.getMarketMomentum())
                 .append(':')
                 .append(item.isBlocked())
                 .append(':')
@@ -585,6 +719,7 @@ public class MarketService {
         item.setSellUnitEstimate(sellUnitEstimate);
         item.setCurrency("coins");
         item.setCurrentStock(currentStock);
+        item.setMarketMomentum(0L);
         item.setVariationPercent(new java.math.BigDecimal(variationPercent));
         item.setBlocked(false);
         item.setOperating(true);
@@ -600,4 +735,8 @@ public class MarketService {
     ) {
         return new MarketRejectionException(code, message, status, snapshotVersion);
     }
+
+    private record MarketPriceQuote(long unitPrice, long totalPrice) {}
+
+    private record MarketPriceSegment(long capacity, long unitPrice) {}
 }

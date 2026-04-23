@@ -155,6 +155,84 @@ class MarketServiceTest {
     }
 
     @Test
+    void quote_buyTraversesSegmentsProgressively() {
+        MarketItem item = marketItem();
+        when(marketItemRepository.count()).thenReturn(1L);
+        when(marketItemRepository.findAllByOrderByCategoryIdAscDisplayNameAsc())
+            .thenReturn(List.of(item));
+
+        MarketQuoteResponseDTO quote = marketService.quote(
+            authentication(),
+            new MarketQuoteRequestDTO(
+                "wheat",
+                MarketSide.BUY,
+                60L,
+                marketService.getSnapshot().snapshotVersion(),
+                null
+            ),
+            null
+        );
+
+        assertEquals("6", quote.unitPrice());
+        assertEquals("310", quote.totalPrice());
+        verify(quoteStore).put(any(MarketQuoteStore.StoredQuote.class));
+    }
+
+    @Test
+    void execute_buyCanProgressPastDisplayedStock() {
+        MarketItem item = marketItem();
+        when(marketItemRepository.count()).thenReturn(1L);
+        when(marketItemRepository.findAllByOrderByCategoryIdAscDisplayNameAsc())
+            .thenReturn(List.of(item));
+        String snapshotVersion = marketService.getSnapshot().snapshotVersion();
+
+        Balance balance = new Balance(playerUuid(), 2_000L);
+        when(
+            quoteStore.get("quote-token")
+        ).thenReturn(
+            Optional.of(
+                new MarketQuoteStore.StoredQuote(
+                    "quote-token",
+                    playerUuid(),
+                    "wheat",
+                    MarketSide.BUY,
+                    1_900L,
+                    43L,
+                    80_750L,
+                    snapshotVersion,
+                    Instant.now().plusSeconds(60L),
+                    MarketQuote.Status.ACTIVE
+                )
+            )
+        );
+        balance.setAmount(100_000L);
+        when(marketItemRepository.findForUpdate("wheat")).thenReturn(Optional.of(item));
+        when(balanceRepository.findForUpdate(playerUuid())).thenReturn(Optional.of(balance));
+        when(quoteStore.consume("quote-token")).thenReturn(true);
+
+        MarketExecuteSuccessResponseDTO response = marketService.execute(
+            authentication(),
+            new MarketExecuteRequestDTO(
+                "wheat",
+                MarketSide.BUY,
+                1_900L,
+                "quote-token",
+                snapshotVersion,
+                null
+            ),
+            null
+        );
+
+        assertEquals("SUCCESS", response.status());
+        assertEquals(-80L, item.getCurrentStock());
+        assertEquals(1_900L, item.getMarketMomentum());
+        assertEquals(43L, item.getBuyUnitEstimate());
+        assertEquals(42L, item.getSellUnitEstimate());
+        verify(balanceRepository).save(balance);
+        verify(marketItemRepository).save(item);
+    }
+
+    @Test
     void execute_rejectsExpiredQuote() {
         when(marketItemRepository.count()).thenReturn(1L);
         when(marketItemRepository.findAllByOrderByCategoryIdAscDisplayNameAsc())

@@ -39,6 +39,9 @@ public class MarketItem {
     @Column(nullable = false)
     private long currentStock;
 
+    @Column(nullable = false)
+    private long marketMomentum;
+
     @Column(nullable = false, precision = 7, scale = 2)
     private BigDecimal variationPercent;
 
@@ -121,6 +124,14 @@ public class MarketItem {
 
     public void setCurrentStock(long currentStock) {
         this.currentStock = currentStock;
+    }
+
+    public long getMarketMomentum() {
+        return marketMomentum;
+    }
+
+    public void setMarketMomentum(long marketMomentum) {
+        this.marketMomentum = marketMomentum;
     }
 
     public BigDecimal getVariationPercent() {
