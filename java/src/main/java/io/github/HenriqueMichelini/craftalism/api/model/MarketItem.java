@@ -2,10 +2,15 @@ package io.github.HenriqueMichelini.craftalism.api.model;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity(name = "market_items")
 @Table(name = "market_items")
@@ -53,6 +58,11 @@ public class MarketItem {
 
     @Column(nullable = false)
     private Instant lastUpdatedAt;
+
+    @OneToMany(fetch = FetchType.LAZY, cascade = jakarta.persistence.CascadeType.ALL, orphanRemoval = true)
+    @JoinColumn(name = "item_id")
+    @jakarta.persistence.OrderBy("segmentIndex ASC")
+    private List<MarketSegment> segments = new ArrayList<>();
 
     public String getItemId() {
         return itemId;
@@ -164,5 +174,24 @@ public class MarketItem {
 
     public void setLastUpdatedAt(Instant lastUpdatedAt) {
         this.lastUpdatedAt = lastUpdatedAt;
+    }
+
+    public List<MarketSegment> getSegments() {
+        return segments;
+    }
+
+    public void setSegments(List<MarketSegment> segments) {
+        this.segments.clear();
+        if (segments == null) {
+            return;
+        }
+        for (MarketSegment segment : segments) {
+            addSegment(segment);
+        }
+    }
+
+    public void addSegment(MarketSegment segment) {
+        segment.setItemId(this.itemId);
+        this.segments.add(segment);
     }
 }

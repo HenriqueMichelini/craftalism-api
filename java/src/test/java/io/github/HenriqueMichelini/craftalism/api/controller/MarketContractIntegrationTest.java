@@ -11,10 +11,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import io.github.HenriqueMichelini.craftalism.api.model.Balance;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketItem;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketQuote;
+import io.github.HenriqueMichelini.craftalism.api.model.MarketSegment;
 import io.github.HenriqueMichelini.craftalism.api.model.Player;
 import io.github.HenriqueMichelini.craftalism.api.repository.BalanceRepository;
 import io.github.HenriqueMichelini.craftalism.api.repository.MarketItemRepository;
 import io.github.HenriqueMichelini.craftalism.api.repository.MarketQuoteRepository;
+import io.github.HenriqueMichelini.craftalism.api.repository.MarketSegmentRepository;
 import io.github.HenriqueMichelini.craftalism.api.repository.PlayerRepository;
 import io.github.HenriqueMichelini.craftalism.api.security.WithMockJwt;
 import io.github.HenriqueMichelini.craftalism.api.service.MarketQuoteStore;
@@ -64,6 +66,9 @@ class MarketContractIntegrationTest {
     @Autowired
     private MarketQuoteRepository marketQuoteRepository;
 
+    @Autowired
+    private MarketSegmentRepository marketSegmentRepository;
+
     private UUID playerUuid;
 
     @BeforeEach
@@ -71,6 +76,7 @@ class MarketContractIntegrationTest {
         marketQuoteStore.clear();
         balanceRepository.deleteAll();
         playerRepository.deleteAll();
+        marketSegmentRepository.deleteAll();
         marketItemRepository.deleteAll();
 
         playerUuid = UUID.fromString("220e8400-e29b-41d4-a716-446655440000");
@@ -515,8 +521,8 @@ class MarketContractIntegrationTest {
             "snapshotVersion"
         );
 
-        MarketItem item = marketItemRepository.findById("wheat").orElseThrow();
-        item.setCurrentStock(95L);
+        MarketItem item = marketItemRepository.findByItemId("wheat").orElseThrow();
+        item.getSegments().get(0).setRemainingCapacity(45L);
         item.setLastUpdatedAt(Instant.now().plusSeconds(5));
         marketItemRepository.save(item);
 
@@ -608,6 +614,118 @@ class MarketContractIntegrationTest {
 
         MarketQuote quote = marketQuoteRepository.findById(quoteToken).orElseThrow();
         assertEquals(MarketQuote.Status.CONSUMED, quote.getStatus());
+    }
+
+    @Test
+    @WithMockJwt(playerUuid = "220e8400-e29b-41d4-a716-446655440000")
+    void quoteAndExecute_sellSuccess_restoresCapacityAndCreditsBalance() throws Exception {
+        MarketItem item = marketItemRepository.findByItemId("wheat").orElseThrow();
+        consume(item, 60L);
+        item.setLastUpdatedAt(Instant.now());
+        marketItemRepository.save(item);
+
+        String snapshotVersion = snapshotVersion();
+
+        MvcResult quoteResult =
+            mockMvc
+                .perform(
+                    post("/api/market/quotes")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                            """
+                            {
+                              "itemId": "wheat",
+                              "side": "SELL",
+                              "quantity": 10,
+                              "snapshotVersion": "%s"
+                            }
+                            """.formatted(snapshotVersion)
+                        )
+                )
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.unitPrice").value("6"))
+                .andExpect(jsonPath("$.totalPrice").value("60"))
+                .andReturn();
+
+        String quoteToken = jsonField(quoteResult.getResponse().getContentAsString(), "quoteToken");
+        String quotedSnapshotVersion = jsonField(
+            quoteResult.getResponse().getContentAsString(),
+            "snapshotVersion"
+        );
+
+        mockMvc
+            .perform(
+                post("/api/market/execute")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(
+                        """
+                        {
+                          "itemId": "wheat",
+                          "side": "SELL",
+                          "quantity": 10,
+                          "quoteToken": "%s",
+                          "snapshotVersion": "%s"
+                        }
+                        """.formatted(quoteToken, quotedSnapshotVersion)
+                    )
+            )
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.executedQuantity").value(10))
+            .andExpect(jsonPath("$.updatedItem.currentStock").value(50));
+
+        Balance balance = balanceRepository.findById(playerUuid).orElseThrow();
+        MarketItem updatedItem = marketItemRepository.findByItemId("wheat").orElseThrow();
+        assertEquals(1_060L, balance.getAmount());
+        assertEquals(50L, updatedItem.getCurrentStock());
+        assertEquals(50L, updatedItem.getSegments().get(1).getRemainingCapacity());
+    }
+
+    @Test
+    @WithMockJwt(playerUuid = "220e8400-e29b-41d4-a716-446655440000")
+    void quote_rejectsSellOverflowWhenRestorableCapacityIsInsufficient() throws Exception {
+        MarketItem item = marketItemRepository.findByItemId("wheat").orElseThrow();
+        consume(item, 10L);
+        item.setLastUpdatedAt(Instant.now());
+        marketItemRepository.save(item);
+
+        String snapshotVersion = snapshotVersion();
+
+        mockMvc
+            .perform(
+                post("/api/market/quotes")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(
+                        """
+                        {
+                          "itemId": "wheat",
+                          "side": "SELL",
+                          "quantity": 11,
+                          "snapshotVersion": "%s"
+                        }
+                        """.formatted(snapshotVersion)
+                    )
+            )
+            .andExpect(status().isUnprocessableEntity())
+            .andExpect(jsonPath("$.status").value("REJECTED"))
+            .andExpect(jsonPath("$.code").value("INSUFFICIENT_STOCK"));
+    }
+
+    @Test
+    void snapshot_regenerationRestoresAcrossSegmentBoundary() throws Exception {
+        MarketItem item = marketItemRepository.findByItemId("wheat").orElseThrow();
+        consume(item, 55L);
+        item.setLastUpdatedAt(Instant.now().minusSeconds(5 * 60L));
+        marketItemRepository.save(item);
+
+        mockMvc
+            .perform(get("/api/market/snapshot"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.categories[0].items[0].currentStock").value(55));
+
+        MarketItem regenerated = marketItemRepository.findByItemId("wheat").orElseThrow();
+        assertEquals(55L, regenerated.getCurrentStock());
+        assertEquals(5L, regenerated.getSegments().get(0).getRemainingCapacity());
+        assertEquals(50L, regenerated.getSegments().get(1).getRemainingCapacity());
     }
 
     @Test
@@ -774,13 +892,41 @@ class MarketContractIntegrationTest {
         item.setDisplayName("Wheat");
         item.setIconKey("WHEAT");
         item.setBuyUnitEstimate(5L);
-        item.setSellUnitEstimate(4L);
+        item.setSellUnitEstimate(5L);
         item.setCurrency("coins");
         item.setCurrentStock(100L);
+        item.setMarketMomentum(-1L);
         item.setVariationPercent(new BigDecimal("2.3"));
         item.setBlocked(false);
         item.setOperating(true);
         item.setLastUpdatedAt(Instant.parse("2026-04-12T18:29:42Z"));
+        item.addSegment(segment(0L, 50L, 50L, 5L));
+        item.addSegment(segment(1L, 50L, 50L, 6L));
         return item;
+    }
+
+    private MarketSegment segment(long index, long maxCapacity, long remainingCapacity, long unitPrice) {
+        MarketSegment segment = new MarketSegment();
+        segment.setSegmentIndex(index);
+        segment.setMaxCapacity(maxCapacity);
+        segment.setRemainingCapacity(remainingCapacity);
+        segment.setUnitPrice(unitPrice);
+        return segment;
+    }
+
+    private void consume(MarketItem item, long quantity) {
+        long remaining = quantity;
+        for (MarketSegment segment : item.getSegments()) {
+            if (remaining <= 0L) {
+                break;
+            }
+            long take = Math.min(remaining, segment.getRemainingCapacity());
+            segment.setRemainingCapacity(segment.getRemainingCapacity() - take);
+            remaining -= take;
+        }
+        if (remaining != 0L) {
+            throw new IllegalArgumentException("Cannot consume more than available fixture capacity.");
+        }
+        item.setCurrentStock(item.getSegments().stream().mapToLong(MarketSegment::getRemainingCapacity).sum());
     }
 }

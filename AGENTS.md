@@ -14,6 +14,7 @@ This repository owns authoritative backend behavior for economy operations, incl
 - Prefer the smallest correct change
 - Maintain senior-level quality in code, design, and security
 - Improve performance only if correctness and stability are preserved
+- Follow docs/system/market/aggregate-dynamic-pricing.md strictly. Do not simplify or reinterpret.
 
 ---
 
