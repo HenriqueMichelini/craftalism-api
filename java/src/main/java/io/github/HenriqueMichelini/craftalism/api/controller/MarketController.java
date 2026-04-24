@@ -66,8 +66,18 @@ public class MarketController {
             content = @Content(schema = @Schema(implementation = MarketRejectionResponseDTO.class))
         ),
         @ApiResponse(
+            responseCode = "404",
+            description = "Quote rejected because the market item does not exist",
+            content = @Content(schema = @Schema(implementation = MarketRejectionResponseDTO.class))
+        ),
+        @ApiResponse(
             responseCode = "422",
             description = "Quote rejected due to business constraints",
+            content = @Content(schema = @Schema(implementation = MarketRejectionResponseDTO.class))
+        ),
+        @ApiResponse(
+            responseCode = "503",
+            description = "Quote rejected because the market is closed or authenticated player context is unavailable",
             content = @Content(schema = @Schema(implementation = MarketRejectionResponseDTO.class))
         ),
     })
@@ -100,8 +110,18 @@ public class MarketController {
             content = @Content(schema = @Schema(implementation = MarketRejectionResponseDTO.class))
         ),
         @ApiResponse(
+            responseCode = "404",
+            description = "Execution rejected because the market item does not exist",
+            content = @Content(schema = @Schema(implementation = MarketRejectionResponseDTO.class))
+        ),
+        @ApiResponse(
             responseCode = "422",
             description = "Execution rejected due to business constraints",
+            content = @Content(schema = @Schema(implementation = MarketRejectionResponseDTO.class))
+        ),
+        @ApiResponse(
+            responseCode = "503",
+            description = "Execution rejected because the market is closed or authenticated player context is unavailable",
             content = @Content(schema = @Schema(implementation = MarketRejectionResponseDTO.class))
         ),
     })

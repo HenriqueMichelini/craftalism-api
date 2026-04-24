@@ -14,7 +14,7 @@ The Craftalism API is the central data service for the economy platform. It expo
 - Balance lifecycle management: create, deposit, withdraw, set, and rank.
 - Transaction record storage between players.
 - JWT scope-based authorization for protected write endpoints.
-- Standardized RFC 9457 `ProblemDetail` error responses.
+- Standardized error responses, including RFC 9457 `ProblemDetail` for general API errors and a stable rejection payload for market business rejections.
 - Interactive API documentation via Swagger UI (local profile).
 
 > **Important:** `POST /api/transactions` stores a transaction record only. It does **not** transfer balances. Use `POST /api/balances/transfer` for atomic balance movement **with transaction persistence and idempotency key support**.
@@ -104,7 +104,7 @@ Public paths (no token required): `GET /actuator/health`, `/swagger-ui/**`, `/v3
 
 ### Error contract
 
-All errors are returned as RFC 9457 `ProblemDetail` with these additional fields:
+General API errors are returned as RFC 9457 `ProblemDetail` with these additional fields:
 
 | Field | Description |
 |---|---|
@@ -114,6 +114,15 @@ All errors are returned as RFC 9457 `ProblemDetail` with these additional fields
 | `timestamp` | ISO 8601 timestamp. |
 | `path` | Request path. |
 | `errors` | Field-level validation map (validation errors only). |
+
+Market quote and execute business rejections use the owned market rejection JSON contract instead of `ProblemDetail`:
+
+| Field | Description |
+|---|---|
+| `status` | Rejection status, always `REJECTED`. |
+| `code` | Stable machine-readable rejection code. |
+| `message` | Human-readable rejection message. |
+| `snapshotVersion` | Latest authoritative market snapshot token. |
 
 ### Troubleshooting quick checks
 

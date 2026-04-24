@@ -27,7 +27,7 @@ import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 @RequestMapping("/api/transactions")
 @Tag(
     name = "Transactions",
-    description = "Operations for managing transfers between player balances"
+    description = "Operations for storing and querying transaction records"
 )
 @Validated
 public class TransactionController {
@@ -182,7 +182,7 @@ public class TransactionController {
 
     @Operation(
         summary = "Create transaction",
-        description = "Creates a new transaction transferring an amount from one player balance to another."
+        description = "Creates a new transaction record without mutating player balances."
     )
     @ApiResponses(
         {
@@ -208,7 +208,7 @@ public class TransactionController {
     @PostMapping
     public ResponseEntity<TransactionResponseDTO> createTransaction(
         @RequestBody(
-            description = "Transaction data including sender UUID, receiver UUID and transfer amount",
+            description = "Transaction record data including sender UUID, receiver UUID and amount",
             required = true,
             content = @Content(
                 schema = @Schema(implementation = TransactionRequestDTO.class)
