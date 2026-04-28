@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -25,11 +26,13 @@ import io.github.HenriqueMichelini.craftalism.api.repository.MarketItemRepositor
 import io.github.HenriqueMichelini.craftalism.api.repository.MarketQuoteRepository;
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -293,6 +296,29 @@ class MarketServiceTest {
         assertEquals(-1L, item.getMarketMomentum());
         verify(balanceRepository, never()).save(any());
         verify(marketItemRepository, never()).save(item);
+    }
+
+    @Test
+    void initializeCatalogIfEmpty_seedsCarrotFullStockAtMinimumPrice() {
+        when(marketItemRepository.count()).thenReturn(0L);
+
+        marketService.initializeCatalogIfEmpty();
+
+        ArgumentCaptor<MarketItem> itemCaptor = ArgumentCaptor.forClass(MarketItem.class);
+        verify(marketItemRepository, times(3)).save(itemCaptor.capture());
+
+        MarketItem carrot = itemCaptor
+            .getAllValues()
+            .stream()
+            .filter(item -> item.getItemId().equals("carrot"))
+            .findFirst()
+            .orElseThrow();
+        List<MarketSegment> carrotSegments = carrot.getSegments();
+
+        assertEquals(1_450L, carrot.getCurrentStock());
+        assertEquals(1L, carrot.getBuyUnitEstimate());
+        assertEquals(1L, carrotSegments.get(0).getUnitPrice());
+        assertEquals(29L, carrotSegments.get(28).getUnitPrice());
     }
 
     @Test

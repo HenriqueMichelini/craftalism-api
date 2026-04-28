@@ -77,7 +77,7 @@ public class MarketService {
     public void initializeCatalogIfEmpty() {
         if (marketItemRepository.count() == 0) {
             marketItemRepository.save(seedItem("wheat", "farming", "Farming", "Wheat", "WHEAT", "2.3", 5L, 37));
-            marketItemRepository.save(seedItem("carrot", "farming", "Farming", "Carrot", "CARROT", "-1.4", 6L, 29));
+            marketItemRepository.save(seedItem("carrot", "farming", "Farming", "Carrot", "CARROT", "-1.4", 1L, 29));
             marketItemRepository.save(seedItem("iron_ingot", "mining", "Mining", "Iron Ingot", "IRON_INGOT", "1.1", 14L, 13));
             return;
         }
