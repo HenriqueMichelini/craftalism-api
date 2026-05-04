@@ -8,13 +8,11 @@ import io.github.HenriqueMichelini.craftalism.api.dto.MarketSide;
 import io.github.HenriqueMichelini.craftalism.api.dto.MarketSnapshotResponseDTO;
 import io.github.HenriqueMichelini.craftalism.api.exceptions.MarketRejectionCode;
 import io.github.HenriqueMichelini.craftalism.api.exceptions.MarketRejectionException;
-import io.github.HenriqueMichelini.craftalism.api.model.Balance;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketItem;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketQuote;
 import io.github.HenriqueMichelini.craftalism.api.repository.BalanceRepository;
 import io.github.HenriqueMichelini.craftalism.api.repository.MarketItemRepository;
 import io.github.HenriqueMichelini.craftalism.api.repository.MarketQuoteRepository;
-import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -39,6 +37,7 @@ public class MarketService {
     private final MarketPlayerResolver playerResolver;
     private final MarketCatalogInitializer catalogInitializer;
     private final MarketReadService marketReadService;
+    private final MarketTradeExecutor tradeExecutor;
     private final boolean marketEnabled;
     private final long quoteTtlSeconds;
 
@@ -71,6 +70,11 @@ public class MarketService {
             tradePlanner
         );
         this.marketReadService = new MarketReadService(
+            marketItemRepository,
+            tradePlanner
+        );
+        this.tradeExecutor = new MarketTradeExecutor(
+            balanceRepository,
             marketItemRepository,
             tradePlanner
         );
@@ -317,12 +321,14 @@ public class MarketService {
             );
 
         validateItemAvailability(item, currentSnapshotVersion);
-        AppliedTrade appliedTrade = applyTrade(
-            playerUuid,
-            item,
-            storedQuote,
-            currentSnapshotVersion
-        );
+        MarketTradeExecutor.AppliedTrade appliedTrade =
+            tradeExecutor.applyTrade(
+                playerUuid,
+                item,
+                storedQuote,
+                currentSnapshotVersion,
+                this::currentSnapshotVersion
+            );
 
         return new MarketExecuteSuccessResponseDTO(
             "SUCCESS",
@@ -335,101 +341,6 @@ public class MarketService {
             currentSnapshotVersion(),
             snapshotProjector.toSnapshotItem(item)
         );
-    }
-
-    private AppliedTrade applyTrade(
-        UUID playerUuid,
-        MarketItem item,
-        MarketQuoteStore.StoredQuote quote,
-        String snapshotVersion
-    ) {
-        tradePlanner.recomputeDerivedProjections(item);
-        if (quote.side() == MarketSide.BUY) {
-            MarketTradePlanner.TradePlan plan = requireFullBuyPlan(
-                item,
-                quote.quantity(),
-                snapshotVersion
-            );
-            Balance balance = balanceRepository
-                .findForUpdate(playerUuid)
-                .orElseThrow(() ->
-                    rejection(
-                        MarketRejectionCode.INSUFFICIENT_FUNDS,
-                        "Player does not have enough funds.",
-                        HttpStatus.UNPROCESSABLE_ENTITY,
-                        currentSnapshotVersion()
-                    )
-                );
-            verifyQuotedExecution(
-                plan,
-                quote,
-                "Quoted buy execution no longer matches the authoritative segment traversal."
-            );
-            if (balance.getAmount() < plan.totalPrice()) {
-                throw rejection(
-                    MarketRejectionCode.INSUFFICIENT_FUNDS,
-                    "Player does not have enough funds.",
-                    HttpStatus.UNPROCESSABLE_ENTITY,
-                    currentSnapshotVersion()
-                );
-            }
-            balance.setAmount(balance.getAmount() - plan.totalPrice());
-            balanceRepository.save(balance);
-            tradePlanner.applyConsumption(plan);
-            item.setVariationPercent(
-                item.getVariationPercent().add(BigDecimal.valueOf(0.6))
-            );
-            item.setLastUpdatedAt(Instant.now());
-            tradePlanner.recomputeDerivedProjections(item);
-            marketItemRepository.save(item);
-            return new AppliedTrade(
-                plan.executedQuantity(),
-                plan.unitPrice(),
-                plan.totalPrice()
-            );
-        }
-
-        MarketTradePlanner.TradePlan plan = requireFullSellPlan(
-            item,
-            quote.quantity(),
-            snapshotVersion
-        );
-        Balance balance = balanceRepository
-            .findForUpdate(playerUuid)
-            .orElseGet(() -> new Balance(playerUuid, 0L));
-        verifyQuotedExecution(
-            plan,
-            quote,
-            "Quoted sell execution no longer matches the authoritative segment traversal."
-        );
-        balance.setUuid(playerUuid);
-        balance.setAmount(balance.getAmount() + plan.totalPrice());
-        balanceRepository.save(balance);
-        tradePlanner.applyRestoration(plan);
-        item.setVariationPercent(
-            item.getVariationPercent().subtract(BigDecimal.valueOf(0.6))
-        );
-        item.setLastUpdatedAt(Instant.now());
-        tradePlanner.recomputeDerivedProjections(item);
-        marketItemRepository.save(item);
-        return new AppliedTrade(
-            plan.executedQuantity(),
-            plan.unitPrice(),
-            plan.totalPrice()
-        );
-    }
-
-    private void verifyQuotedExecution(
-        MarketTradePlanner.TradePlan plan,
-        MarketQuoteStore.StoredQuote quote,
-        String message
-    ) {
-        if (
-            plan.totalPrice() != quote.totalPrice() ||
-            plan.unitPrice() != quote.unitPrice()
-        ) {
-            throw new IllegalStateException(message);
-        }
     }
 
     private MarketTradePlanner.TradePlan requireFullBuyPlan(
@@ -568,11 +479,5 @@ public class MarketService {
             snapshotVersion
         );
     }
-
-    private record AppliedTrade(
-        long executedQuantity,
-        long unitPrice,
-        long totalPrice
-    ) {}
 
 }
