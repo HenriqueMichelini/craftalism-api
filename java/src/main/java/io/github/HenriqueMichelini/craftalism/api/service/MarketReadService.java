@@ -1,9 +1,11 @@
 package io.github.HenriqueMichelini.craftalism.api.service;
 
 import io.github.HenriqueMichelini.craftalism.api.model.MarketItem;
+import io.github.HenriqueMichelini.craftalism.api.model.MarketSegment;
 import io.github.HenriqueMichelini.craftalism.api.repository.MarketItemRepository;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 
 final class MarketReadService {
@@ -24,16 +26,26 @@ final class MarketReadService {
 
     MarketReadState regeneratedItems() {
         long fetchStartNanos = System.nanoTime();
-        List<MarketItem> items = marketItemRepository.findAllForMarketRead();
+        List<MarketItem> items = new ArrayList<>(
+            marketItemRepository.findAllForMarketRead()
+        );
         long fetchNanos = System.nanoTime() - fetchStartNanos;
 
         long regenerationStartNanos = System.nanoTime();
         Instant now = Instant.now();
         int regeneratedItemCount = 0;
-        for (MarketItem item : items) {
-            if (regenerateItem(item, now)) {
+        for (int index = 0; index < items.size(); index++) {
+            MarketItem item = items.get(index);
+            if (!shouldAttemptRegeneration(item, now)) {
+                continue;
+            }
+            MarketItem lockedItem = marketItemRepository
+                .findForUpdate(item.getItemId())
+                .orElse(null);
+            if (lockedItem != null && regenerateItem(lockedItem, now)) {
                 regeneratedItemCount++;
-                marketItemRepository.save(item);
+                marketItemRepository.save(lockedItem);
+                items.set(index, lockedItem);
             }
         }
         long regenerationNanos = System.nanoTime() - regenerationStartNanos;
@@ -43,6 +55,33 @@ final class MarketReadService {
             regenerationNanos,
             regeneratedItemCount
         );
+    }
+
+    private boolean shouldAttemptRegeneration(MarketItem item, Instant now) {
+        if (
+            restoreFrontier(item) == -1L ||
+            !now.isAfter(item.getLastUpdatedAt())
+        ) {
+            return false;
+        }
+
+        long ticks =
+            Duration.between(item.getLastUpdatedAt(), now).getSeconds() /
+            STOCK_REGEN_SPEED_SECONDS;
+        return ticks > 0L;
+    }
+
+    private long restoreFrontier(MarketItem item) {
+        long restoreFrontier = -1L;
+        for (MarketSegment segment : item.getSegments()) {
+            if (segment.getRemainingCapacity() < segment.getMaxCapacity()) {
+                restoreFrontier = Math.max(
+                    restoreFrontier,
+                    segment.getSegmentIndex()
+                );
+            }
+        }
+        return restoreFrontier;
     }
 
     private boolean regenerateItem(MarketItem item, Instant now) {

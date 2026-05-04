@@ -58,23 +58,20 @@ final class MarketCatalogInitializer {
     }
 
     private List<MarketSegment> legacyBackfillSegments(MarketItem item) {
-        long consumedQuantity =
-            item.getMarketMomentum() < 0L ? 0L : item.getMarketMomentum();
-        long totalCapacity = Math.addExact(
-            item.getCurrentStock(),
-            consumedQuantity
-        );
-        long segmentCount = Math.max(
-            1L,
-            divideRoundUp(Math.max(totalCapacity, 1L), LEGACY_SEGMENT_CAPACITY)
-        );
-        long legacyBasePrice = Math.max(
-            1L,
-            item.getBuyUnitEstimate() -
-                Math.floorDiv(consumedQuantity, LEGACY_SEGMENT_CAPACITY)
-        );
-        long remainingConsumed = consumedQuantity;
-        long remainingCapacityBudget = totalCapacity;
+        if (item.getCurrentStock() < 0L || item.getMarketMomentum() < -1L) {
+            throw new IllegalStateException(
+                "Legacy market state could not be deterministically backfilled into segments."
+            );
+        }
+        if (item.getMarketMomentum() == -1L && item.getCurrentStock() <= 0L) {
+            throw new IllegalStateException(
+                "Legacy market state could not be deterministically backfilled into segments."
+            );
+        }
+
+        long segmentCount = legacySegmentCount(item);
+        long frontierRemainingCapacity = legacyFrontierRemainingCapacity(item);
+        long legacyBasePrice = legacyBasePrice(item, frontierRemainingCapacity);
         List<MarketSegment> segments = new ArrayList<>();
 
         for (
@@ -82,31 +79,116 @@ final class MarketCatalogInitializer {
             segmentIndex < segmentCount;
             segmentIndex++
         ) {
-            long capacity = Math.min(
-                LEGACY_SEGMENT_CAPACITY,
-                Math.max(remainingCapacityBudget, 1L)
+            long capacity = legacySegmentCapacity(
+                item,
+                segmentIndex,
+                segmentCount
             );
-            long consumedInSegment = Math.min(capacity, remainingConsumed);
             MarketSegment segment = new MarketSegment();
             segment.setSegmentIndex(segmentIndex);
             segment.setMaxCapacity(capacity);
-            segment.setRemainingCapacity(capacity - consumedInSegment);
+            segment.setRemainingCapacity(
+                legacyRemainingCapacity(
+                    item,
+                    segmentIndex,
+                    frontierRemainingCapacity,
+                    capacity
+                )
+            );
             segment.setUnitPrice(Math.addExact(legacyBasePrice, segmentIndex));
             segments.add(segment);
-            remainingConsumed -= consumedInSegment;
-            remainingCapacityBudget = Math.max(
-                0L,
-                remainingCapacityBudget - capacity
-            );
-        }
-
-        if (remainingConsumed != 0L) {
-            throw new IllegalStateException(
-                "Legacy market state could not be deterministically backfilled into segments."
-            );
         }
 
         return segments;
+    }
+
+    private long legacySegmentCount(MarketItem item) {
+        if (item.getMarketMomentum() == -1L) {
+            return Math.max(
+                1L,
+                divideRoundUp(
+                    Math.max(item.getCurrentStock(), 1L),
+                    LEGACY_SEGMENT_CAPACITY
+                )
+            );
+        }
+        return Math.addExact(
+            Math.addExact(item.getMarketMomentum(), 1L),
+            Math.floorDiv(item.getCurrentStock(), LEGACY_SEGMENT_CAPACITY)
+        );
+    }
+
+    private long legacyFrontierRemainingCapacity(MarketItem item) {
+        if (item.getMarketMomentum() == -1L) {
+            return LEGACY_SEGMENT_CAPACITY;
+        }
+        return Math.floorMod(
+            item.getCurrentStock(),
+            LEGACY_SEGMENT_CAPACITY
+        );
+    }
+
+    private long legacyBasePrice(
+        MarketItem item,
+        long frontierRemainingCapacity
+    ) {
+        long legacyBuyFrontier = legacyBuyFrontier(
+            item,
+            frontierRemainingCapacity
+        );
+        return Math.max(1L, item.getBuyUnitEstimate() - legacyBuyFrontier);
+    }
+
+    private long legacyBuyFrontier(
+        MarketItem item,
+        long frontierRemainingCapacity
+    ) {
+        if (item.getMarketMomentum() == -1L) {
+            return 0L;
+        }
+        if (item.getCurrentStock() == 0L || frontierRemainingCapacity > 0L) {
+            return item.getMarketMomentum();
+        }
+        return Math.addExact(item.getMarketMomentum(), 1L);
+    }
+
+    private long legacySegmentCapacity(
+        MarketItem item,
+        long segmentIndex,
+        long segmentCount
+    ) {
+        if (
+            item.getMarketMomentum() == -1L &&
+            segmentIndex == segmentCount - 1L &&
+            item.getCurrentStock() > 0L
+        ) {
+            long remainder = Math.floorMod(
+                item.getCurrentStock(),
+                LEGACY_SEGMENT_CAPACITY
+            );
+            if (remainder > 0L) {
+                return remainder;
+            }
+        }
+        return LEGACY_SEGMENT_CAPACITY;
+    }
+
+    private long legacyRemainingCapacity(
+        MarketItem item,
+        long segmentIndex,
+        long frontierRemainingCapacity,
+        long capacity
+    ) {
+        if (item.getMarketMomentum() == -1L) {
+            return capacity;
+        }
+        if (segmentIndex < item.getMarketMomentum()) {
+            return 0L;
+        }
+        if (segmentIndex == item.getMarketMomentum()) {
+            return frontierRemainingCapacity;
+        }
+        return capacity;
     }
 
     private long divideRoundUp(long numerator, long denominator) {

@@ -52,12 +52,13 @@ class MarketCatalogInitializerTest {
         List<MarketSegment> segments = savedItem.getSegments();
 
         assertEquals(80L, savedItem.getCurrentStock());
-        assertEquals(0L, savedItem.getMarketMomentum());
-        assertEquals(2, segments.size());
-        assertEquals(30L, segments.get(0).getRemainingCapacity());
-        assertEquals(5L, segments.get(0).getUnitPrice());
-        assertEquals(50L, segments.get(1).getRemainingCapacity());
-        assertEquals(6L, segments.get(1).getUnitPrice());
+        assertEquals(20L, savedItem.getMarketMomentum());
+        assertEquals(22, segments.size());
+        assertEquals(0L, segments.get(19).getRemainingCapacity());
+        assertEquals(30L, segments.get(20).getRemainingCapacity());
+        assertEquals(25L, segments.get(20).getUnitPrice());
+        assertEquals(50L, segments.get(21).getRemainingCapacity());
+        assertEquals(26L, segments.get(21).getUnitPrice());
     }
 
     private MarketItem legacyItem() {
@@ -67,8 +68,8 @@ class MarketCatalogInitializerTest {
         item.setCategoryDisplayName("Farming");
         item.setDisplayName("Wheat");
         item.setIconKey("WHEAT");
-        item.setBuyUnitEstimate(5L);
-        item.setSellUnitEstimate(5L);
+        item.setBuyUnitEstimate(25L);
+        item.setSellUnitEstimate(25L);
         item.setCurrency("coins");
         item.setCurrentStock(80L);
         item.setMarketMomentum(20L);

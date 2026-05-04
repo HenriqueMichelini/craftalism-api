@@ -11,6 +11,7 @@ import io.github.HenriqueMichelini.craftalism.api.repository.MarketItemRepositor
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -33,6 +34,9 @@ class MarketReadServiceTest {
         );
         when(marketItemRepository.findAllForMarketRead()).thenReturn(
             List.of(item)
+        );
+        when(marketItemRepository.findForUpdate("wheat")).thenReturn(
+            Optional.of(item)
         );
 
         MarketReadService service = new MarketReadService(
