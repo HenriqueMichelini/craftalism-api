@@ -20,7 +20,6 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -33,7 +32,6 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class MarketService {
 
-    private static final String WRITE_SCOPE_AUTHORITY = "SCOPE_api:write";
     private static final long LEGACY_SEGMENT_CAPACITY = 50L;
     private static final long STOCK_REGEN_SPEED_SECONDS = 60L;
     private static final long BASE_STOCK_REGEN_QUANTITY = 1L;
@@ -46,9 +44,9 @@ public class MarketService {
     private final MarketTradePlanner tradePlanner = new MarketTradePlanner();
     private final MarketSnapshotProjector snapshotProjector =
         new MarketSnapshotProjector(tradePlanner);
+    private final MarketPlayerResolver playerResolver;
     private final boolean marketEnabled;
     private final long quoteTtlSeconds;
-    private final String trustedMinecraftServerClientId;
 
     public MarketService(
         MarketItemRepository marketItemRepository,
@@ -71,7 +69,9 @@ public class MarketService {
         this.defaultMarketCatalog = defaultMarketCatalog;
         this.marketEnabled = marketEnabled;
         this.quoteTtlSeconds = quoteTtlSeconds;
-        this.trustedMinecraftServerClientId = trustedMinecraftServerClientId;
+        this.playerResolver = new MarketPlayerResolver(
+            trustedMinecraftServerClientId
+        );
     }
 
     @Transactional
@@ -127,10 +127,11 @@ public class MarketService {
     ) {
         ensureMarketOpen();
 
-        UUID playerUuid = resolvePlayerUuid(
+        UUID playerUuid = playerResolver.resolvePlayerUuid(
             authentication,
             request.playerUuid(),
-            playerUuidHeader
+            playerUuidHeader,
+            this::currentSnapshotVersion
         );
         List<MarketItem> items = regeneratedItems().items();
         String currentSnapshotVersion = snapshotProjector.snapshotVersion(
@@ -222,10 +223,11 @@ public class MarketService {
     ) {
         ensureMarketOpen();
 
-        UUID playerUuid = resolvePlayerUuid(
+        UUID playerUuid = playerResolver.resolvePlayerUuid(
             authentication,
             request.playerUuid(),
-            playerUuidHeader
+            playerUuidHeader,
+            this::currentSnapshotVersion
         );
         MarketQuoteStore.StoredQuote storedQuote = quoteStore
             .get(request.quoteToken())
@@ -645,104 +647,6 @@ public class MarketService {
             Math.addExact(numerator, denominator - 1L),
             denominator
         );
-    }
-
-    private UUID resolvePlayerUuid(
-        JwtAuthenticationToken authentication,
-        String suppliedPlayerUuid,
-        String suppliedPlayerUuidHeader
-    ) {
-        if (authentication == null) {
-            throw rejection(
-                MarketRejectionCode.API_UNAVAILABLE,
-                "Authenticated player context is unavailable.",
-                HttpStatus.SERVICE_UNAVAILABLE,
-                currentSnapshotVersion()
-            );
-        }
-
-        Object playerUuidClaim = authentication
-            .getTokenAttributes()
-            .get("player_uuid");
-        if (playerUuidClaim instanceof String claimValue) {
-            Optional<UUID> parsed = tryParseUuid(claimValue);
-            if (parsed.isPresent()) {
-                return parsed.get();
-            }
-        }
-
-        Optional<UUID> subject = tryParseUuid(authentication.getName());
-        if (subject.isPresent()) {
-            return subject.get();
-        }
-
-        Optional<String> supplied = firstText(
-            suppliedPlayerUuid,
-            suppliedPlayerUuidHeader
-        );
-        if (supplied.isPresent() && isTrustedMinecraftServer(authentication)) {
-            return tryParseUuid(supplied.get()).orElseThrow(() ->
-                rejection(
-                    MarketRejectionCode.API_UNAVAILABLE,
-                    "Authenticated player context is unavailable.",
-                    HttpStatus.SERVICE_UNAVAILABLE,
-                    currentSnapshotVersion()
-                )
-            );
-        }
-
-        throw rejection(
-            MarketRejectionCode.API_UNAVAILABLE,
-            "Authenticated player context is unavailable.",
-            HttpStatus.SERVICE_UNAVAILABLE,
-            currentSnapshotVersion()
-        );
-    }
-
-    private boolean isTrustedMinecraftServer(
-        JwtAuthenticationToken authentication
-    ) {
-        return (
-            isTrustedClientIdentity(authentication) &&
-            authentication
-                .getAuthorities()
-                .stream()
-                .anyMatch(authority ->
-                    WRITE_SCOPE_AUTHORITY.equals(authority.getAuthority())
-                )
-        );
-    }
-
-    private boolean isTrustedClientIdentity(
-        JwtAuthenticationToken authentication
-    ) {
-        return (
-            trustedMinecraftServerClientId.equals(authentication.getName()) ||
-            trustedMinecraftServerClientId.equals(
-                authentication.getTokenAttributes().get("client_id")
-            ) ||
-            trustedMinecraftServerClientId.equals(
-                authentication.getTokenAttributes().get("azp")
-            )
-        );
-    }
-
-    private Optional<String> firstText(String first, String second) {
-        if (first != null && !first.isBlank()) {
-            return Optional.of(first.trim());
-        }
-        if (second != null && !second.isBlank()) {
-            return Optional.of(second.trim());
-        }
-        return Optional.empty();
-    }
-
-    private Optional<UUID> tryParseUuid(String value) {
-        try {
-            return Optional.of(UUID.fromString(value.trim()));
-        } catch (IllegalArgumentException ex) {
-            return Optional.empty();
-        }
     }
 
     private String currentSnapshotVersion() {
