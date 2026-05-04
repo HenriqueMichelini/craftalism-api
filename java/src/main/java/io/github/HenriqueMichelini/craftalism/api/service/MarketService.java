@@ -51,6 +51,7 @@ public class MarketService {
     private final BalanceRepository balanceRepository;
     private final MarketQuoteStore quoteStore;
     private final MarketQuoteRepository marketQuoteRepository;
+    private final DefaultMarketCatalog defaultMarketCatalog;
     private final boolean marketEnabled;
     private final long quoteTtlSeconds;
     private final String trustedMinecraftServerClientId;
@@ -60,14 +61,20 @@ public class MarketService {
         BalanceRepository balanceRepository,
         MarketQuoteStore quoteStore,
         MarketQuoteRepository marketQuoteRepository,
+        DefaultMarketCatalog defaultMarketCatalog,
         @Value("${craftalism.market.enabled:true}") boolean marketEnabled,
-        @Value("${craftalism.market.quote-ttl-seconds:60}") long quoteTtlSeconds,
-        @Value("${craftalism.market.trusted-minecraft-server-client-id:minecraft-server}") String trustedMinecraftServerClientId
+        @Value(
+            "${craftalism.market.quote-ttl-seconds:60}"
+        ) long quoteTtlSeconds,
+        @Value(
+            "${craftalism.market.trusted-minecraft-server-client-id:minecraft-server}"
+        ) String trustedMinecraftServerClientId
     ) {
         this.marketItemRepository = marketItemRepository;
         this.balanceRepository = balanceRepository;
         this.quoteStore = quoteStore;
         this.marketQuoteRepository = marketQuoteRepository;
+        this.defaultMarketCatalog = defaultMarketCatalog;
         this.marketEnabled = marketEnabled;
         this.quoteTtlSeconds = quoteTtlSeconds;
         this.trustedMinecraftServerClientId = trustedMinecraftServerClientId;
@@ -76,9 +83,13 @@ public class MarketService {
     @Transactional
     public void initializeCatalogIfEmpty() {
         if (marketItemRepository.count() == 0) {
-            marketItemRepository.save(seedItem("wheat", "farming", "Farming", "Wheat", "WHEAT", "2.3", 5L, 37));
-            marketItemRepository.save(seedItem("carrot", "farming", "Farming", "Carrot", "CARROT", "-1.4", 1L, 29));
-            marketItemRepository.save(seedItem("iron_ingot", "mining", "Mining", "Iron Ingot", "IRON_INGOT", "1.1", 14L, 13));
+            marketItemRepository.saveAll(
+                defaultMarketCatalog
+                    .items()
+                    .stream()
+                    .map(this::seedItem)
+                    .toList()
+            );
             return;
         }
 
@@ -92,14 +103,17 @@ public class MarketService {
         MarketReadState readState = regeneratedItems();
 
         long projectionStartNanos = System.nanoTime();
-        List<MarketSnapshotProjection> projections = snapshotProjections(readState.items());
+        List<MarketSnapshotProjection> projections = snapshotProjections(
+            readState.items()
+        );
         Instant generatedAt = projections
             .stream()
             .map(MarketSnapshotProjection::lastUpdatedAt)
             .max(Instant::compareTo)
             .orElse(Instant.now());
 
-        Map<String, MarketSnapshotCategoryDTO> categories = new LinkedHashMap<>();
+        Map<String, MarketSnapshotCategoryDTO> categories =
+            new LinkedHashMap<>();
         for (MarketSnapshotProjection item : projections) {
             MarketSnapshotCategoryDTO category = categories.computeIfAbsent(
                 item.categoryId(),
@@ -119,9 +133,19 @@ public class MarketService {
         long hashNanos = System.nanoTime() - hashStartNanos;
 
         long totalNanos = System.nanoTime() - totalStartNanos;
-        logSnapshotTiming(readState, projections, projectionBuildNanos, hashNanos, totalNanos);
+        logSnapshotTiming(
+            readState,
+            projections,
+            projectionBuildNanos,
+            hashNanos,
+            totalNanos
+        );
 
-        return new MarketSnapshotResponseDTO(snapshotVersion, generatedAt, List.copyOf(categories.values()));
+        return new MarketSnapshotResponseDTO(
+            snapshotVersion,
+            generatedAt,
+            List.copyOf(categories.values())
+        );
     }
 
     @Transactional
@@ -132,9 +156,15 @@ public class MarketService {
     ) {
         ensureMarketOpen();
 
-        UUID playerUuid = resolvePlayerUuid(authentication, request.playerUuid(), playerUuidHeader);
+        UUID playerUuid = resolvePlayerUuid(
+            authentication,
+            request.playerUuid(),
+            playerUuidHeader
+        );
         List<MarketItem> items = regeneratedItems().items();
-        String currentSnapshotVersion = snapshotVersion(snapshotProjections(items));
+        String currentSnapshotVersion = snapshotVersion(
+            snapshotProjections(items)
+        );
         if (!currentSnapshotVersion.equals(request.snapshotVersion())) {
             throw rejection(
                 MarketRejectionCode.STALE_QUOTE,
@@ -167,9 +197,18 @@ public class MarketService {
             );
         }
 
-        TradePlan plan = request.side() == MarketSide.BUY
-            ? requireFullBuyPlan(item, request.quantity(), currentSnapshotVersion)
-            : requireFullSellPlan(item, request.quantity(), currentSnapshotVersion);
+        TradePlan plan =
+            request.side() == MarketSide.BUY
+                ? requireFullBuyPlan(
+                      item,
+                      request.quantity(),
+                      currentSnapshotVersion
+                  )
+                : requireFullSellPlan(
+                      item,
+                      request.quantity(),
+                      currentSnapshotVersion
+                  );
 
         Instant expiresAt = Instant.now().plusSeconds(quoteTtlSeconds);
         String quoteToken = UUID.randomUUID().toString();
@@ -212,7 +251,11 @@ public class MarketService {
     ) {
         ensureMarketOpen();
 
-        UUID playerUuid = resolvePlayerUuid(authentication, request.playerUuid(), playerUuidHeader);
+        UUID playerUuid = resolvePlayerUuid(
+            authentication,
+            request.playerUuid(),
+            playerUuidHeader
+        );
         MarketQuoteStore.StoredQuote storedQuote = quoteStore
             .get(request.quoteToken())
             .orElseThrow(() ->
@@ -309,7 +352,12 @@ public class MarketService {
             );
 
         validateItemAvailability(item, currentSnapshotVersion);
-        AppliedTrade appliedTrade = applyTrade(playerUuid, item, storedQuote, currentSnapshotVersion);
+        AppliedTrade appliedTrade = applyTrade(
+            playerUuid,
+            item,
+            storedQuote,
+            currentSnapshotVersion
+        );
 
         return new MarketExecuteSuccessResponseDTO(
             "SUCCESS",
@@ -332,7 +380,11 @@ public class MarketService {
     ) {
         recomputeDerivedProjections(item);
         if (quote.side() == MarketSide.BUY) {
-            TradePlan plan = requireFullBuyPlan(item, quote.quantity(), snapshotVersion);
+            TradePlan plan = requireFullBuyPlan(
+                item,
+                quote.quantity(),
+                snapshotVersion
+            );
             Balance balance = balanceRepository
                 .findForUpdate(playerUuid)
                 .orElseThrow(() ->
@@ -343,7 +395,11 @@ public class MarketService {
                         currentSnapshotVersion()
                     )
                 );
-            verifyQuotedExecution(plan, quote, "Quoted buy execution no longer matches the authoritative segment traversal.");
+            verifyQuotedExecution(
+                plan,
+                quote,
+                "Quoted buy execution no longer matches the authoritative segment traversal."
+            );
             if (balance.getAmount() < plan.totalPrice()) {
                 throw rejection(
                     MarketRejectionCode.INSUFFICIENT_FUNDS,
@@ -355,36 +411,67 @@ public class MarketService {
             balance.setAmount(balance.getAmount() - plan.totalPrice());
             balanceRepository.save(balance);
             applyConsumption(plan);
-            item.setVariationPercent(item.getVariationPercent().add(BigDecimal.valueOf(0.6)));
+            item.setVariationPercent(
+                item.getVariationPercent().add(BigDecimal.valueOf(0.6))
+            );
             item.setLastUpdatedAt(Instant.now());
             recomputeDerivedProjections(item);
             marketItemRepository.save(item);
-            return new AppliedTrade(plan.executedQuantity(), plan.unitPrice(), plan.totalPrice());
+            return new AppliedTrade(
+                plan.executedQuantity(),
+                plan.unitPrice(),
+                plan.totalPrice()
+            );
         }
 
-        TradePlan plan = requireFullSellPlan(item, quote.quantity(), snapshotVersion);
+        TradePlan plan = requireFullSellPlan(
+            item,
+            quote.quantity(),
+            snapshotVersion
+        );
         Balance balance = balanceRepository
             .findForUpdate(playerUuid)
             .orElseGet(() -> new Balance(playerUuid, 0L));
-        verifyQuotedExecution(plan, quote, "Quoted sell execution no longer matches the authoritative segment traversal.");
+        verifyQuotedExecution(
+            plan,
+            quote,
+            "Quoted sell execution no longer matches the authoritative segment traversal."
+        );
         balance.setUuid(playerUuid);
         balance.setAmount(balance.getAmount() + plan.totalPrice());
         balanceRepository.save(balance);
         applyRestoration(plan);
-        item.setVariationPercent(item.getVariationPercent().subtract(BigDecimal.valueOf(0.6)));
+        item.setVariationPercent(
+            item.getVariationPercent().subtract(BigDecimal.valueOf(0.6))
+        );
         item.setLastUpdatedAt(Instant.now());
         recomputeDerivedProjections(item);
         marketItemRepository.save(item);
-        return new AppliedTrade(plan.executedQuantity(), plan.unitPrice(), plan.totalPrice());
+        return new AppliedTrade(
+            plan.executedQuantity(),
+            plan.unitPrice(),
+            plan.totalPrice()
+        );
     }
 
-    private void verifyQuotedExecution(TradePlan plan, MarketQuoteStore.StoredQuote quote, String message) {
-        if (plan.totalPrice() != quote.totalPrice() || plan.unitPrice() != quote.unitPrice()) {
+    private void verifyQuotedExecution(
+        TradePlan plan,
+        MarketQuoteStore.StoredQuote quote,
+        String message
+    ) {
+        if (
+            plan.totalPrice() != quote.totalPrice() ||
+            plan.unitPrice() != quote.unitPrice()
+        ) {
             throw invariantViolation(message);
         }
     }
 
-    private TradePlan requireFullBuyPlan(MarketItem item, long requestedQuantity, String snapshotVersion) {
+    private TradePlan requireFullBuyPlan(
+        MarketItem item,
+        long requestedQuantity,
+        String snapshotVersion
+    ) {
         TradePlan plan = buyPlan(item, requestedQuantity);
         if (plan.executedQuantity() != requestedQuantity) {
             throw rejection(
@@ -397,7 +484,11 @@ public class MarketService {
         return plan;
     }
 
-    private TradePlan requireFullSellPlan(MarketItem item, long requestedQuantity, String snapshotVersion) {
+    private TradePlan requireFullSellPlan(
+        MarketItem item,
+        long requestedQuantity,
+        String snapshotVersion
+    ) {
         TradePlan plan = sellPlan(item, requestedQuantity);
         if (plan.executedQuantity() != requestedQuantity) {
             throw rejection(
@@ -425,15 +516,30 @@ public class MarketService {
             if (segment.getRemainingCapacity() <= 0L) {
                 continue;
             }
-            long take = Math.min(remainingRequest, segment.getRemainingCapacity());
-            totalPrice = Math.addExact(totalPrice, Math.multiplyExact(take, segment.getUnitPrice()));
+            long take = Math.min(
+                remainingRequest,
+                segment.getRemainingCapacity()
+            );
+            totalPrice = Math.addExact(
+                totalPrice,
+                Math.multiplyExact(take, segment.getUnitPrice())
+            );
             executedQuantity = Math.addExact(executedQuantity, take);
             remainingRequest -= take;
             deltas.add(new SegmentDelta(segment, take));
         }
 
-        long unitPrice = executedQuantity == 0L ? 0L : effectiveUnitPrice(totalPrice, executedQuantity);
-        return new TradePlan(executedQuantity, unitPrice, totalPrice, totalAvailableQuantity, deltas);
+        long unitPrice =
+            executedQuantity == 0L
+                ? 0L
+                : effectiveUnitPrice(totalPrice, executedQuantity);
+        return new TradePlan(
+            executedQuantity,
+            unitPrice,
+            totalPrice,
+            totalAvailableQuantity,
+            deltas
+        );
     }
 
     private TradePlan sellPlan(MarketItem item, long requestedQuantity) {
@@ -445,37 +551,65 @@ public class MarketService {
         List<SegmentDelta> deltas = new ArrayList<>();
 
         List<MarketSegment> segments = sortedSegments(item);
-        for (int index = segments.size() - 1; index >= 0 && remainingRequest > 0L; index--) {
+        for (
+            int index = segments.size() - 1;
+            index >= 0 && remainingRequest > 0L;
+            index--
+        ) {
             MarketSegment segment = segments.get(index);
-            long restorable = segment.getMaxCapacity() - segment.getRemainingCapacity();
+            long restorable =
+                segment.getMaxCapacity() - segment.getRemainingCapacity();
             if (restorable <= 0L) {
                 continue;
             }
             long take = Math.min(remainingRequest, restorable);
-            totalPrice = Math.addExact(totalPrice, Math.multiplyExact(take, segment.getUnitPrice()));
+            totalPrice = Math.addExact(
+                totalPrice,
+                Math.multiplyExact(take, segment.getUnitPrice())
+            );
             executedQuantity = Math.addExact(executedQuantity, take);
             remainingRequest -= take;
             deltas.add(new SegmentDelta(segment, take));
         }
 
-        long unitPrice = executedQuantity == 0L ? 0L : effectiveUnitPrice(totalPrice, executedQuantity);
-        return new TradePlan(executedQuantity, unitPrice, totalPrice, totalAvailableQuantity, deltas);
+        long unitPrice =
+            executedQuantity == 0L
+                ? 0L
+                : effectiveUnitPrice(totalPrice, executedQuantity);
+        return new TradePlan(
+            executedQuantity,
+            unitPrice,
+            totalPrice,
+            totalAvailableQuantity,
+            deltas
+        );
     }
 
     private void applyConsumption(TradePlan plan) {
         for (SegmentDelta delta : plan.deltas()) {
-            delta.segment().setRemainingCapacity(delta.segment().getRemainingCapacity() - delta.quantity());
+            delta
+                .segment()
+                .setRemainingCapacity(
+                    delta.segment().getRemainingCapacity() - delta.quantity()
+                );
         }
     }
 
     private void applyRestoration(TradePlan plan) {
         for (SegmentDelta delta : plan.deltas()) {
-            delta.segment().setRemainingCapacity(delta.segment().getRemainingCapacity() + delta.quantity());
+            delta
+                .segment()
+                .setRemainingCapacity(
+                    delta.segment().getRemainingCapacity() + delta.quantity()
+                );
         }
     }
 
     private long effectiveUnitPrice(long totalPrice, long quantity) {
-        return Math.floorDiv(Math.addExact(totalPrice, quantity - 1L), quantity);
+        return Math.floorDiv(
+            Math.addExact(totalPrice, quantity - 1L),
+            quantity
+        );
     }
 
     private MarketReadState regeneratedItems() {
@@ -493,23 +627,36 @@ public class MarketService {
             }
         }
         long regenerationNanos = System.nanoTime() - regenerationStartNanos;
-        return new MarketReadState(List.copyOf(items), fetchNanos, regenerationNanos, regeneratedItemCount);
+        return new MarketReadState(
+            List.copyOf(items),
+            fetchNanos,
+            regenerationNanos,
+            regeneratedItemCount
+        );
     }
 
     private boolean regenerateItem(MarketItem item, Instant now) {
         recomputeDerivedProjections(item);
-        if (item.getMarketMomentum() == -1L || !now.isAfter(item.getLastUpdatedAt())) {
+        if (
+            item.getMarketMomentum() == -1L ||
+            !now.isAfter(item.getLastUpdatedAt())
+        ) {
             return false;
         }
 
-        long ticks = Duration.between(item.getLastUpdatedAt(), now).getSeconds() / STOCK_REGEN_SPEED_SECONDS;
+        long ticks =
+            Duration.between(item.getLastUpdatedAt(), now).getSeconds() /
+            STOCK_REGEN_SPEED_SECONDS;
         if (ticks <= 0L) {
             return false;
         }
 
         long regenQuantity = Math.multiplyExact(
             ticks,
-            Math.addExact(BASE_STOCK_REGEN_QUANTITY, Math.max(item.getMarketMomentum(), 0L))
+            Math.addExact(
+                BASE_STOCK_REGEN_QUANTITY,
+                Math.max(item.getMarketMomentum(), 0L)
+            )
         );
         TradePlan plan = sellPlan(item, regenQuantity);
         if (plan.executedQuantity() <= 0L) {
@@ -522,7 +669,10 @@ public class MarketService {
         return true;
     }
 
-    private void validateItemAvailability(MarketItem item, String snapshotVersion) {
+    private void validateItemAvailability(
+        MarketItem item,
+        String snapshotVersion
+    ) {
         if (item.isBlocked()) {
             throw rejection(
                 MarketRejectionCode.ITEM_BLOCKED,
@@ -570,19 +720,34 @@ public class MarketService {
     }
 
     private List<MarketSegment> legacyBackfillSegments(MarketItem item) {
-        long consumedQuantity = item.getMarketMomentum() < 0L ? 0L : item.getMarketMomentum();
-        long totalCapacity = Math.addExact(item.getCurrentStock(), consumedQuantity);
-        long segmentCount = Math.max(1L, divideRoundUp(Math.max(totalCapacity, 1L), LEGACY_SEGMENT_CAPACITY));
+        long consumedQuantity =
+            item.getMarketMomentum() < 0L ? 0L : item.getMarketMomentum();
+        long totalCapacity = Math.addExact(
+            item.getCurrentStock(),
+            consumedQuantity
+        );
+        long segmentCount = Math.max(
+            1L,
+            divideRoundUp(Math.max(totalCapacity, 1L), LEGACY_SEGMENT_CAPACITY)
+        );
         long legacyBasePrice = Math.max(
             1L,
-            item.getBuyUnitEstimate() - Math.floorDiv(consumedQuantity, LEGACY_SEGMENT_CAPACITY)
+            item.getBuyUnitEstimate() -
+                Math.floorDiv(consumedQuantity, LEGACY_SEGMENT_CAPACITY)
         );
         long remainingConsumed = consumedQuantity;
         long remainingCapacityBudget = totalCapacity;
         List<MarketSegment> segments = new ArrayList<>();
 
-        for (long segmentIndex = 0L; segmentIndex < segmentCount; segmentIndex++) {
-            long capacity = Math.min(LEGACY_SEGMENT_CAPACITY, Math.max(remainingCapacityBudget, 1L));
+        for (
+            long segmentIndex = 0L;
+            segmentIndex < segmentCount;
+            segmentIndex++
+        ) {
+            long capacity = Math.min(
+                LEGACY_SEGMENT_CAPACITY,
+                Math.max(remainingCapacityBudget, 1L)
+            );
             long consumedInSegment = Math.min(capacity, remainingConsumed);
             MarketSegment segment = new MarketSegment();
             segment.setSegmentIndex(segmentIndex);
@@ -591,24 +756,34 @@ public class MarketService {
             segment.setUnitPrice(Math.addExact(legacyBasePrice, segmentIndex));
             segments.add(segment);
             remainingConsumed -= consumedInSegment;
-            remainingCapacityBudget = Math.max(0L, remainingCapacityBudget - capacity);
+            remainingCapacityBudget = Math.max(
+                0L,
+                remainingCapacityBudget - capacity
+            );
         }
 
         if (remainingConsumed != 0L) {
-            throw invariantViolation("Legacy market state could not be deterministically backfilled into segments.");
+            throw invariantViolation(
+                "Legacy market state could not be deterministically backfilled into segments."
+            );
         }
 
         return segments;
     }
 
     private long divideRoundUp(long numerator, long denominator) {
-        return Math.floorDiv(Math.addExact(numerator, denominator - 1L), denominator);
+        return Math.floorDiv(
+            Math.addExact(numerator, denominator - 1L),
+            denominator
+        );
     }
 
     private void recomputeDerivedProjections(MarketItem item) {
         List<MarketSegment> segments = sortedSegments(item);
         if (segments.isEmpty()) {
-            throw invariantViolation("Market item must have at least one segment.");
+            throw invariantViolation(
+                "Market item must have at least one segment."
+            );
         }
 
         long expectedIndex = 0L;
@@ -620,19 +795,33 @@ public class MarketService {
 
         for (MarketSegment segment : segments) {
             if (segment.getSegmentIndex() != expectedIndex) {
-                throw invariantViolation("Segment indexes must be contiguous and start at zero.");
+                throw invariantViolation(
+                    "Segment indexes must be contiguous and start at zero."
+                );
             }
             if (segment.getMaxCapacity() <= 0L) {
-                throw invariantViolation("Segment max capacity must be positive.");
+                throw invariantViolation(
+                    "Segment max capacity must be positive."
+                );
             }
             if (segment.getUnitPrice() <= 0L) {
-                throw invariantViolation("Segment unit price must be positive.");
+                throw invariantViolation(
+                    "Segment unit price must be positive."
+                );
             }
-            if (segment.getRemainingCapacity() < 0L || segment.getRemainingCapacity() > segment.getMaxCapacity()) {
-                throw invariantViolation("Segment remaining capacity must stay within bounds.");
+            if (
+                segment.getRemainingCapacity() < 0L ||
+                segment.getRemainingCapacity() > segment.getMaxCapacity()
+            ) {
+                throw invariantViolation(
+                    "Segment remaining capacity must stay within bounds."
+                );
             }
 
-            currentStock = Math.addExact(currentStock, segment.getRemainingCapacity());
+            currentStock = Math.addExact(
+                currentStock,
+                segment.getRemainingCapacity()
+            );
             if (segment.getRemainingCapacity() > 0L && buyFrontier == -1L) {
                 buyFrontier = segment.getSegmentIndex();
             }
@@ -644,13 +833,17 @@ public class MarketService {
             if (state == SegmentState.PARTIAL) {
                 partialSegments++;
                 if (partialSegments > 1 || phase == SegmentState.UNTOUCHED) {
-                    throw invariantViolation("There must be at most one partially consumed segment and no gaps.");
+                    throw invariantViolation(
+                        "There must be at most one partially consumed segment and no gaps."
+                    );
                 }
                 phase = SegmentState.PARTIAL;
             } else if (state == SegmentState.UNTOUCHED) {
                 phase = SegmentState.UNTOUCHED;
             } else if (phase != SegmentState.CONSUMED) {
-                throw invariantViolation("Consumed segments cannot appear after partial or untouched segments.");
+                throw invariantViolation(
+                    "Consumed segments cannot appear after partial or untouched segments."
+                );
             }
 
             expectedIndex++;
@@ -658,11 +851,27 @@ public class MarketService {
 
         item.setCurrentStock(currentStock);
         item.setMarketMomentum(restoreFrontier);
-        item.setBuyUnitEstimate(frontierUnitPrice(segments, buyFrontier, segments.get(segments.size() - 1).getUnitPrice()));
-        item.setSellUnitEstimate(frontierUnitPrice(segments, restoreFrontier, segments.get(0).getUnitPrice()));
+        item.setBuyUnitEstimate(
+            frontierUnitPrice(
+                segments,
+                buyFrontier,
+                segments.get(segments.size() - 1).getUnitPrice()
+            )
+        );
+        item.setSellUnitEstimate(
+            frontierUnitPrice(
+                segments,
+                restoreFrontier,
+                segments.get(0).getUnitPrice()
+            )
+        );
     }
 
-    private long frontierUnitPrice(List<MarketSegment> segments, long frontier, long fallback) {
+    private long frontierUnitPrice(
+        List<MarketSegment> segments,
+        long frontier,
+        long fallback
+    ) {
         if (frontier < 0L) {
             return fallback;
         }
@@ -682,13 +891,17 @@ public class MarketService {
     private long totalRestorableCapacity(MarketItem item) {
         long total = 0L;
         for (MarketSegment segment : item.getSegments()) {
-            total = Math.addExact(total, segment.getMaxCapacity() - segment.getRemainingCapacity());
+            total = Math.addExact(
+                total,
+                segment.getMaxCapacity() - segment.getRemainingCapacity()
+            );
         }
         return total;
     }
 
     private List<MarketSegment> sortedSegments(MarketItem item) {
-        return item.getSegments()
+        return item
+            .getSegments()
             .stream()
             .sorted(Comparator.comparingLong(MarketSegment::getSegmentIndex))
             .toList();
@@ -712,7 +925,9 @@ public class MarketService {
             );
         }
 
-        Object playerUuidClaim = authentication.getTokenAttributes().get("player_uuid");
+        Object playerUuidClaim = authentication
+            .getTokenAttributes()
+            .get("player_uuid");
         if (playerUuidClaim instanceof String claimValue) {
             Optional<UUID> parsed = tryParseUuid(claimValue);
             if (parsed.isPresent()) {
@@ -725,17 +940,19 @@ public class MarketService {
             return subject.get();
         }
 
-        Optional<String> supplied = firstText(suppliedPlayerUuid, suppliedPlayerUuidHeader);
+        Optional<String> supplied = firstText(
+            suppliedPlayerUuid,
+            suppliedPlayerUuidHeader
+        );
         if (supplied.isPresent() && isTrustedMinecraftServer(authentication)) {
-            return tryParseUuid(supplied.get())
-                .orElseThrow(() ->
-                    rejection(
-                        MarketRejectionCode.API_UNAVAILABLE,
-                        "Authenticated player context is unavailable.",
-                        HttpStatus.SERVICE_UNAVAILABLE,
-                        currentSnapshotVersion()
-                    )
-                );
+            return tryParseUuid(supplied.get()).orElseThrow(() ->
+                rejection(
+                    MarketRejectionCode.API_UNAVAILABLE,
+                    "Authenticated player context is unavailable.",
+                    HttpStatus.SERVICE_UNAVAILABLE,
+                    currentSnapshotVersion()
+                )
+            );
         }
 
         throw rejection(
@@ -746,18 +963,32 @@ public class MarketService {
         );
     }
 
-    private boolean isTrustedMinecraftServer(JwtAuthenticationToken authentication) {
-        return isTrustedClientIdentity(authentication) &&
+    private boolean isTrustedMinecraftServer(
+        JwtAuthenticationToken authentication
+    ) {
+        return (
+            isTrustedClientIdentity(authentication) &&
             authentication
                 .getAuthorities()
                 .stream()
-                .anyMatch(authority -> WRITE_SCOPE_AUTHORITY.equals(authority.getAuthority()));
+                .anyMatch(authority ->
+                    WRITE_SCOPE_AUTHORITY.equals(authority.getAuthority())
+                )
+        );
     }
 
-    private boolean isTrustedClientIdentity(JwtAuthenticationToken authentication) {
-        return trustedMinecraftServerClientId.equals(authentication.getName()) ||
-            trustedMinecraftServerClientId.equals(authentication.getTokenAttributes().get("client_id")) ||
-            trustedMinecraftServerClientId.equals(authentication.getTokenAttributes().get("azp"));
+    private boolean isTrustedClientIdentity(
+        JwtAuthenticationToken authentication
+    ) {
+        return (
+            trustedMinecraftServerClientId.equals(authentication.getName()) ||
+            trustedMinecraftServerClientId.equals(
+                authentication.getTokenAttributes().get("client_id")
+            ) ||
+            trustedMinecraftServerClientId.equals(
+                authentication.getTokenAttributes().get("azp")
+            )
+        );
     }
 
     private Optional<String> firstText(String first, String second) {
@@ -795,7 +1026,9 @@ public class MarketService {
         );
     }
 
-    private MarketSnapshotItemDTO toSnapshotItem(MarketSnapshotProjection item) {
+    private MarketSnapshotItemDTO toSnapshotItem(
+        MarketSnapshotProjection item
+    ) {
         return new MarketSnapshotItemDTO(
             item.itemId(),
             item.displayName(),
@@ -826,8 +1059,12 @@ public class MarketService {
         return marketQuoteRepository.countByStatus(MarketQuote.Status.ACTIVE);
     }
 
-    private List<MarketSnapshotProjection> snapshotProjections(List<MarketItem> items) {
-        List<MarketSnapshotProjection> projections = new ArrayList<>(items.size());
+    private List<MarketSnapshotProjection> snapshotProjections(
+        List<MarketItem> items
+    ) {
+        List<MarketSnapshotProjection> projections = new ArrayList<>(
+            items.size()
+        );
         for (MarketItem item : items) {
             recomputeDerivedProjections(item);
             projections.add(
@@ -842,7 +1079,10 @@ public class MarketService {
                     item.getCurrency(),
                     item.getCurrentStock(),
                     item.getMarketMomentum(),
-                    item.getVariationPercent().stripTrailingZeros().toPlainString(),
+                    item
+                        .getVariationPercent()
+                        .stripTrailingZeros()
+                        .toPlainString(),
                     item.isBlocked(),
                     item.isOperating(),
                     item.getLastUpdatedAt(),
@@ -897,10 +1137,15 @@ public class MarketService {
         }
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] hash = digest.digest(payload.toString().getBytes(StandardCharsets.UTF_8));
+            byte[] hash = digest.digest(
+                payload.toString().getBytes(StandardCharsets.UTF_8)
+            );
             return "market:" + HexFormat.of().formatHex(hash).substring(0, 16);
         } catch (NoSuchAlgorithmException ex) {
-            throw new IllegalStateException("SHA-256 digest is not available", ex);
+            throw new IllegalStateException(
+                "SHA-256 digest is not available",
+                ex
+            );
         }
     }
 
@@ -933,33 +1178,29 @@ public class MarketService {
         return nanos / 1_000_000L;
     }
 
-    private MarketItem seedItem(
-        String itemId,
-        String categoryId,
-        String categoryDisplayName,
-        String displayName,
-        String iconKey,
-        String variationPercent,
-        long baseUnitPrice,
-        int segmentCount
-    ) {
+    private MarketItem seedItem(MarketSeedItem seed) {
         MarketItem item = new MarketItem();
-        item.setItemId(itemId);
-        item.setCategoryId(categoryId);
-        item.setCategoryDisplayName(categoryDisplayName);
-        item.setDisplayName(displayName);
-        item.setIconKey(iconKey);
+        item.setItemId(seed.itemId());
+        item.setCategoryId(seed.categoryId());
+        item.setCategoryDisplayName(seed.categoryDisplayName());
+        item.setDisplayName(seed.displayName());
+        item.setIconKey(seed.iconKey());
         item.setCurrency("coins");
-        item.setVariationPercent(new BigDecimal(variationPercent));
+        item.setVariationPercent(seed.variationPercent());
         item.setBlocked(false);
         item.setOperating(true);
         item.setLastUpdatedAt(Instant.now());
-        item.setSegments(explicitSeedSegments(baseUnitPrice, segmentCount));
+        item.setSegments(
+            explicitSeedSegments(seed.baseUnitPrice(), seed.segmentCount())
+        );
         recomputeDerivedProjections(item);
         return item;
     }
 
-    private List<MarketSegment> explicitSeedSegments(long baseUnitPrice, int segmentCount) {
+    private List<MarketSegment> explicitSeedSegments(
+        long baseUnitPrice,
+        int segmentCount
+    ) {
         List<MarketSegment> segments = new ArrayList<>();
         for (int index = 0; index < segmentCount; index++) {
             MarketSegment segment = new MarketSegment();
@@ -978,13 +1219,18 @@ public class MarketService {
         HttpStatus status,
         String snapshotVersion
     ) {
-        return new MarketRejectionException(code, message, status, snapshotVersion);
+        return new MarketRejectionException(
+            code,
+            message,
+            status,
+            snapshotVersion
+        );
     }
 
     private enum SegmentState {
         CONSUMED,
         PARTIAL,
-        UNTOUCHED
+        UNTOUCHED,
     }
 
     private record SegmentDelta(MarketSegment segment, long quantity) {}
@@ -997,9 +1243,18 @@ public class MarketService {
         List<SegmentDelta> deltas
     ) {}
 
-    private record AppliedTrade(long executedQuantity, long unitPrice, long totalPrice) {}
+    private record AppliedTrade(
+        long executedQuantity,
+        long unitPrice,
+        long totalPrice
+    ) {}
 
-    private record MarketSegmentProjection(long segmentIndex, long maxCapacity, long remainingCapacity, long unitPrice) {}
+    private record MarketSegmentProjection(
+        long segmentIndex,
+        long maxCapacity,
+        long remainingCapacity,
+        long unitPrice
+    ) {}
 
     private record MarketSnapshotProjection(
         String itemId,

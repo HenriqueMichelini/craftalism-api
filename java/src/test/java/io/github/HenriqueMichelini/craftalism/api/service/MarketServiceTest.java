@@ -6,7 +6,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -62,6 +61,7 @@ class MarketServiceTest {
             balanceRepository,
             quoteStore,
             marketQuoteRepository,
+            new DefaultMarketCatalog(),
             true,
             60L,
             "minecraft-server"
@@ -299,16 +299,21 @@ class MarketServiceTest {
     }
 
     @Test
-    void initializeCatalogIfEmpty_seedsCarrotFullStockAtMinimumPrice() {
+    void initializeCatalogIfEmpty_seedsCarrotFromDefaultCatalog() {
         when(marketItemRepository.count()).thenReturn(0L);
 
         marketService.initializeCatalogIfEmpty();
 
-        ArgumentCaptor<MarketItem> itemCaptor = ArgumentCaptor.forClass(MarketItem.class);
-        verify(marketItemRepository, times(3)).save(itemCaptor.capture());
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Iterable<MarketItem>> itemCaptor = ArgumentCaptor.forClass(
+            Iterable.class
+        );
+        verify(marketItemRepository).saveAll(itemCaptor.capture());
 
-        MarketItem carrot = itemCaptor
-            .getAllValues()
+        List<MarketItem> savedItems = new java.util.ArrayList<>();
+        itemCaptor.getValue().forEach(savedItems::add);
+
+        MarketItem carrot = savedItems
             .stream()
             .filter(item -> item.getItemId().equals("carrot"))
             .findFirst()
@@ -316,9 +321,9 @@ class MarketServiceTest {
         List<MarketSegment> carrotSegments = carrot.getSegments();
 
         assertEquals(1_450L, carrot.getCurrentStock());
-        assertEquals(1L, carrot.getBuyUnitEstimate());
-        assertEquals(1L, carrotSegments.get(0).getUnitPrice());
-        assertEquals(29L, carrotSegments.get(28).getUnitPrice());
+        assertEquals(10_000L, carrot.getBuyUnitEstimate());
+        assertEquals(10_000L, carrotSegments.get(0).getUnitPrice());
+        assertEquals(10_028L, carrotSegments.get(28).getUnitPrice());
     }
 
     @Test

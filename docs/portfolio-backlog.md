@@ -9,8 +9,8 @@ portfolio-grade as the canonical backend contract owner.
 
 Source:
 
-- [portfolio-evolution-roadmap.md](/home/henriquemichelini/IdeaProjects/craftalism/docs/portfolio-evolution-roadmap.md)
-- [repo-requirement-pack.md](/home/henriquemichelini/IdeaProjects/craftalism-api/docs/repo-requirement-pack.md)
+- [portfolio-evolution-roadmap.md](../craftalism/docs/portfolio-evolution-roadmap.md)
+- [repo-requirement-pack.md](repo-requirement-pack.md)
 
 ## Now
 
