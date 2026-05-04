@@ -5,8 +5,6 @@ import io.github.HenriqueMichelini.craftalism.api.dto.MarketExecuteSuccessRespon
 import io.github.HenriqueMichelini.craftalism.api.dto.MarketQuoteRequestDTO;
 import io.github.HenriqueMichelini.craftalism.api.dto.MarketQuoteResponseDTO;
 import io.github.HenriqueMichelini.craftalism.api.dto.MarketSide;
-import io.github.HenriqueMichelini.craftalism.api.dto.MarketSnapshotCategoryDTO;
-import io.github.HenriqueMichelini.craftalism.api.dto.MarketSnapshotItemDTO;
 import io.github.HenriqueMichelini.craftalism.api.dto.MarketSnapshotResponseDTO;
 import io.github.HenriqueMichelini.craftalism.api.exceptions.MarketRejectionCode;
 import io.github.HenriqueMichelini.craftalism.api.exceptions.MarketRejectionException;
@@ -18,16 +16,10 @@ import io.github.HenriqueMichelini.craftalism.api.repository.BalanceRepository;
 import io.github.HenriqueMichelini.craftalism.api.repository.MarketItemRepository;
 import io.github.HenriqueMichelini.craftalism.api.repository.MarketQuoteRepository;
 import java.math.BigDecimal;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.HexFormat;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
@@ -52,6 +44,8 @@ public class MarketService {
     private final MarketQuoteRepository marketQuoteRepository;
     private final DefaultMarketCatalog defaultMarketCatalog;
     private final MarketTradePlanner tradePlanner = new MarketTradePlanner();
+    private final MarketSnapshotProjector snapshotProjector =
+        new MarketSnapshotProjector(tradePlanner);
     private final boolean marketEnabled;
     private final long quoteTtlSeconds;
     private final String trustedMinecraftServerClientId;
@@ -103,33 +97,14 @@ public class MarketService {
         MarketReadState readState = regeneratedItems();
 
         long projectionStartNanos = System.nanoTime();
-        List<MarketSnapshotProjection> projections = snapshotProjections(
-            readState.items()
-        );
-        Instant generatedAt = projections
-            .stream()
-            .map(MarketSnapshotProjection::lastUpdatedAt)
-            .max(Instant::compareTo)
-            .orElse(Instant.now());
-
-        Map<String, MarketSnapshotCategoryDTO> categories =
-            new LinkedHashMap<>();
-        for (MarketSnapshotProjection item : projections) {
-            MarketSnapshotCategoryDTO category = categories.computeIfAbsent(
-                item.categoryId(),
-                ignored ->
-                    new MarketSnapshotCategoryDTO(
-                        item.categoryId(),
-                        item.categoryDisplayName(),
-                        new ArrayList<>()
-                    )
-            );
-            category.items().add(toSnapshotItem(item));
-        }
+        List<MarketSnapshotProjector.MarketSnapshotProjection> projections =
+            snapshotProjector.projections(readState.items());
         long projectionBuildNanos = System.nanoTime() - projectionStartNanos;
 
         long hashStartNanos = System.nanoTime();
-        String snapshotVersion = snapshotVersion(projections);
+        String snapshotVersion = snapshotProjector.snapshotVersion(
+            projections
+        );
         long hashNanos = System.nanoTime() - hashStartNanos;
 
         long totalNanos = System.nanoTime() - totalStartNanos;
@@ -141,11 +116,7 @@ public class MarketService {
             totalNanos
         );
 
-        return new MarketSnapshotResponseDTO(
-            snapshotVersion,
-            generatedAt,
-            List.copyOf(categories.values())
-        );
+        return snapshotProjector.response(projections, snapshotVersion);
     }
 
     @Transactional
@@ -162,8 +133,8 @@ public class MarketService {
             playerUuidHeader
         );
         List<MarketItem> items = regeneratedItems().items();
-        String currentSnapshotVersion = snapshotVersion(
-            snapshotProjections(items)
+        String currentSnapshotVersion = snapshotProjector.snapshotVersion(
+            snapshotProjector.projections(items)
         );
         if (!currentSnapshotVersion.equals(request.snapshotVersion())) {
             throw rejection(
@@ -368,7 +339,7 @@ public class MarketService {
             Long.toString(appliedTrade.totalPrice()),
             item.getCurrency(),
             currentSnapshotVersion(),
-            toSnapshotItem(item)
+            snapshotProjector.toSnapshotItem(item)
         );
     }
 
@@ -774,43 +745,10 @@ public class MarketService {
         }
     }
 
-    private MarketSnapshotItemDTO toSnapshotItem(MarketItem item) {
-        tradePlanner.recomputeDerivedProjections(item);
-        return new MarketSnapshotItemDTO(
-            item.getItemId(),
-            item.getDisplayName(),
-            item.getIconKey(),
-            Long.toString(item.getBuyUnitEstimate()),
-            Long.toString(item.getSellUnitEstimate()),
-            item.getCurrency(),
-            item.getCurrentStock(),
-            item.getVariationPercent().stripTrailingZeros().toPlainString(),
-            item.isBlocked(),
-            item.isOperating(),
-            item.getLastUpdatedAt()
-        );
-    }
-
-    private MarketSnapshotItemDTO toSnapshotItem(
-        MarketSnapshotProjection item
-    ) {
-        return new MarketSnapshotItemDTO(
-            item.itemId(),
-            item.displayName(),
-            item.iconKey(),
-            Long.toString(item.buyUnitEstimate()),
-            Long.toString(item.sellUnitEstimate()),
-            item.currency(),
-            item.currentStock(),
-            item.variationPercent(),
-            item.blocked(),
-            item.operating(),
-            item.lastUpdatedAt()
-        );
-    }
-
     private String currentSnapshotVersion() {
-        return snapshotVersion(snapshotProjections(regeneratedItems().items()));
+        return snapshotProjector.snapshotVersion(
+            snapshotProjector.projections(regeneratedItems().items())
+        );
     }
 
     @Transactional
@@ -824,106 +762,17 @@ public class MarketService {
         return marketQuoteRepository.countByStatus(MarketQuote.Status.ACTIVE);
     }
 
-    private List<MarketSnapshotProjection> snapshotProjections(
-        List<MarketItem> items
-    ) {
-        List<MarketSnapshotProjection> projections = new ArrayList<>(
-            items.size()
-        );
-        for (MarketItem item : items) {
-            tradePlanner.recomputeDerivedProjections(item);
-            projections.add(
-                new MarketSnapshotProjection(
-                    item.getItemId(),
-                    item.getCategoryId(),
-                    item.getCategoryDisplayName(),
-                    item.getDisplayName(),
-                    item.getIconKey(),
-                    item.getBuyUnitEstimate(),
-                    item.getSellUnitEstimate(),
-                    item.getCurrency(),
-                    item.getCurrentStock(),
-                    item.getMarketMomentum(),
-                    item
-                        .getVariationPercent()
-                        .stripTrailingZeros()
-                        .toPlainString(),
-                    item.isBlocked(),
-                    item.isOperating(),
-                    item.getLastUpdatedAt(),
-                    tradePlanner
-                        .sortedSegments(item)
-                        .stream()
-                        .map(segment ->
-                            new MarketSegmentProjection(
-                                segment.getSegmentIndex(),
-                                segment.getMaxCapacity(),
-                                segment.getRemainingCapacity(),
-                                segment.getUnitPrice()
-                            )
-                        )
-                        .toList()
-                )
-            );
-        }
-        return List.copyOf(projections);
-    }
-
-    private String snapshotVersion(List<MarketSnapshotProjection> items) {
-        StringBuilder payload = new StringBuilder("market");
-        for (MarketSnapshotProjection item : items) {
-            payload
-                .append('|')
-                .append(item.itemId())
-                .append(':')
-                .append(item.currentStock())
-                .append(':')
-                .append(item.buyUnitEstimate())
-                .append(':')
-                .append(item.sellUnitEstimate())
-                .append(':')
-                .append(item.marketMomentum())
-                .append(':')
-                .append(item.blocked())
-                .append(':')
-                .append(item.operating())
-                .append(':')
-                .append(item.lastUpdatedAt());
-            for (MarketSegmentProjection segment : item.segments()) {
-                payload
-                    .append(':')
-                    .append(segment.segmentIndex())
-                    .append(',')
-                    .append(segment.maxCapacity())
-                    .append(',')
-                    .append(segment.remainingCapacity())
-                    .append(',')
-                    .append(segment.unitPrice());
-            }
-        }
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] hash = digest.digest(
-                payload.toString().getBytes(StandardCharsets.UTF_8)
-            );
-            return "market:" + HexFormat.of().formatHex(hash).substring(0, 16);
-        } catch (NoSuchAlgorithmException ex) {
-            throw new IllegalStateException(
-                "SHA-256 digest is not available",
-                ex
-            );
-        }
-    }
-
     private void logSnapshotTiming(
         MarketReadState readState,
-        List<MarketSnapshotProjection> projections,
+        List<MarketSnapshotProjector.MarketSnapshotProjection> projections,
         long projectionBuildNanos,
         long hashNanos,
         long totalNanos
     ) {
         long segmentCount = 0L;
-        for (MarketSnapshotProjection projection : projections) {
+        for (
+            MarketSnapshotProjector.MarketSnapshotProjection projection : projections
+        ) {
             segmentCount += projection.segments().size();
         }
 
@@ -997,31 +846,6 @@ public class MarketService {
         long executedQuantity,
         long unitPrice,
         long totalPrice
-    ) {}
-
-    private record MarketSegmentProjection(
-        long segmentIndex,
-        long maxCapacity,
-        long remainingCapacity,
-        long unitPrice
-    ) {}
-
-    private record MarketSnapshotProjection(
-        String itemId,
-        String categoryId,
-        String categoryDisplayName,
-        String displayName,
-        String iconKey,
-        long buyUnitEstimate,
-        long sellUnitEstimate,
-        String currency,
-        long currentStock,
-        long marketMomentum,
-        String variationPercent,
-        boolean blocked,
-        boolean operating,
-        Instant lastUpdatedAt,
-        List<MarketSegmentProjection> segments
     ) {}
 
     private record MarketReadState(
