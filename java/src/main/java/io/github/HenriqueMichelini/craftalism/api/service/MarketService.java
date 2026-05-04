@@ -15,7 +15,6 @@ import io.github.HenriqueMichelini.craftalism.api.repository.BalanceRepository;
 import io.github.HenriqueMichelini.craftalism.api.repository.MarketItemRepository;
 import io.github.HenriqueMichelini.craftalism.api.repository.MarketQuoteRepository;
 import java.math.BigDecimal;
-import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -30,9 +29,6 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class MarketService {
 
-    private static final long STOCK_REGEN_SPEED_SECONDS = 60L;
-    private static final long BASE_STOCK_REGEN_QUANTITY = 1L;
-
     private final MarketItemRepository marketItemRepository;
     private final BalanceRepository balanceRepository;
     private final MarketQuoteStore quoteStore;
@@ -42,6 +38,7 @@ public class MarketService {
         new MarketSnapshotProjector(tradePlanner);
     private final MarketPlayerResolver playerResolver;
     private final MarketCatalogInitializer catalogInitializer;
+    private final MarketReadService marketReadService;
     private final boolean marketEnabled;
     private final long quoteTtlSeconds;
 
@@ -73,6 +70,10 @@ public class MarketService {
             defaultMarketCatalog,
             tradePlanner
         );
+        this.marketReadService = new MarketReadService(
+            marketItemRepository,
+            tradePlanner
+        );
     }
 
     @Transactional
@@ -84,7 +85,8 @@ public class MarketService {
     public MarketSnapshotResponseDTO getSnapshot() {
         long totalStartNanos = System.nanoTime();
 
-        MarketReadState readState = regeneratedItems();
+        MarketReadService.MarketReadState readState =
+            marketReadService.regeneratedItems();
 
         long projectionStartNanos = System.nanoTime();
         List<MarketSnapshotProjector.MarketSnapshotProjection> projections =
@@ -123,7 +125,7 @@ public class MarketService {
             playerUuidHeader,
             this::currentSnapshotVersion
         );
-        List<MarketItem> items = regeneratedItems().items();
+        List<MarketItem> items = marketReadService.regeneratedItems().items();
         String currentSnapshotVersion = snapshotProjector.snapshotVersion(
             snapshotProjector.projections(items)
         );
@@ -470,66 +472,6 @@ public class MarketService {
         return plan;
     }
 
-    private MarketReadState regeneratedItems() {
-        long fetchStartNanos = System.nanoTime();
-        List<MarketItem> items = marketItemRepository.findAllForMarketRead();
-        long fetchNanos = System.nanoTime() - fetchStartNanos;
-
-        long regenerationStartNanos = System.nanoTime();
-        Instant now = Instant.now();
-        int regeneratedItemCount = 0;
-        for (MarketItem item : items) {
-            if (regenerateItem(item, now)) {
-                regeneratedItemCount++;
-                marketItemRepository.save(item);
-            }
-        }
-        long regenerationNanos = System.nanoTime() - regenerationStartNanos;
-        return new MarketReadState(
-            List.copyOf(items),
-            fetchNanos,
-            regenerationNanos,
-            regeneratedItemCount
-        );
-    }
-
-    private boolean regenerateItem(MarketItem item, Instant now) {
-        tradePlanner.recomputeDerivedProjections(item);
-        if (
-            item.getMarketMomentum() == -1L ||
-            !now.isAfter(item.getLastUpdatedAt())
-        ) {
-            return false;
-        }
-
-        long ticks =
-            Duration.between(item.getLastUpdatedAt(), now).getSeconds() /
-            STOCK_REGEN_SPEED_SECONDS;
-        if (ticks <= 0L) {
-            return false;
-        }
-
-        long regenQuantity = Math.multiplyExact(
-            ticks,
-            Math.addExact(
-                BASE_STOCK_REGEN_QUANTITY,
-                Math.max(item.getMarketMomentum(), 0L)
-            )
-        );
-        MarketTradePlanner.TradePlan plan = tradePlanner.sellPlan(
-            item,
-            regenQuantity
-        );
-        if (plan.executedQuantity() <= 0L) {
-            return false;
-        }
-
-        tradePlanner.applyRestoration(plan);
-        item.setLastUpdatedAt(now);
-        tradePlanner.recomputeDerivedProjections(item);
-        return true;
-    }
-
     private void validateItemAvailability(
         MarketItem item,
         String snapshotVersion
@@ -565,7 +507,9 @@ public class MarketService {
 
     private String currentSnapshotVersion() {
         return snapshotProjector.snapshotVersion(
-            snapshotProjector.projections(regeneratedItems().items())
+            snapshotProjector.projections(
+                marketReadService.regeneratedItems().items()
+            )
         );
     }
 
@@ -581,7 +525,7 @@ public class MarketService {
     }
 
     private void logSnapshotTiming(
-        MarketReadState readState,
+        MarketReadService.MarketReadState readState,
         List<MarketSnapshotProjector.MarketSnapshotProjection> projections,
         long projectionBuildNanos,
         long hashNanos,
@@ -631,10 +575,4 @@ public class MarketService {
         long totalPrice
     ) {}
 
-    private record MarketReadState(
-        List<MarketItem> items,
-        long fetchNanos,
-        long regenerationNanos,
-        int regeneratedItemCount
-    ) {}
 }
