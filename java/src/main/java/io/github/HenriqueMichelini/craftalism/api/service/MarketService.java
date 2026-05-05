@@ -98,9 +98,7 @@ public class MarketService {
         long projectionBuildNanos = System.nanoTime() - projectionStartNanos;
 
         long hashStartNanos = System.nanoTime();
-        String snapshotVersion = snapshotProjector.snapshotVersion(
-            projections
-        );
+        String snapshotVersion = snapshotProjector.snapshotVersion(projections);
         long hashNanos = System.nanoTime() - hashStartNanos;
 
         long totalNanos = System.nanoTime() - totalStartNanos;
@@ -443,9 +441,7 @@ public class MarketService {
         long totalNanos
     ) {
         long segmentCount = 0L;
-        for (
-            MarketSnapshotProjector.MarketSnapshotProjection projection : projections
-        ) {
+        for (MarketSnapshotProjector.MarketSnapshotProjection projection : projections) {
             segmentCount += projection.segments().size();
         }
 
@@ -479,5 +475,4 @@ public class MarketService {
             snapshotVersion
         );
     }
-
 }

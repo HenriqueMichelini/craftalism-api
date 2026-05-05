@@ -1,20 +1,20 @@
-# Market Pressure Ladder — Sigmoid Pricing Proposal
+# Market Pressure Ladder — Sigmoid Pricing Implementation Plan
 
 ## Purpose
 
-This document describes a proposed replacement for the current bounded segment-capacity market aggregate.
+This document is the implementation plan for replacing the bounded segment-capacity market aggregate with a pressure ladder centered on segment `0`.
 
-The goal is to keep the existing API contract shape (`snapshot -> quote -> execute`) while changing the internal pricing model from finite positive segments into an unbounded pressure ladder centered on segment `0`.
+`craftalism-api` owns this behavior because pricing, quotes, execution, stock semantics, stale detection, regeneration, and durable market state are authoritative backend responsibilities.
 
-`craftalism-api` owns this behavior because pricing, quotes, execution, stock semantics, stale detection, and durable market state are authoritative backend responsibilities.
+`craftalism-market` consumes snapshots, requests quotes, and executes quote-backed trades. It must not reimplement price logic locally.
 
-`craftalism-market` must continue to consume snapshots, request quotes, and execute quote-backed trades without reimplementing price logic locally.
+This plan supersedes `docs/aggregate-dynamic-pricing.md`.
 
 ---
 
-## Current Model Summary
+## Implementation Position
 
-The current aggregate uses finite segments:
+The current implementation uses finite persisted segments:
 
 - segment indexes start at `0`
 - each segment has `maxCapacity`
@@ -23,11 +23,13 @@ The current aggregate uses finite segments:
 - sells restore capacity from high consumed indexes downward
 - maximum stock is bounded by `sum(maxCapacity)`
 
-This works for bounded supply, but it makes oversupply impossible once all capacity is restored.
+The new implementation removes bounded stock as the normal market constraint. It uses signed market pressure as the authoritative mutable pricing state.
+
+This is a breaking market contract change for clients that interpret `currentStock` as available inventory.
 
 ---
 
-## Proposed Model
+## Target Model
 
 Replace finite capacity layers with a pressure ladder:
 
@@ -41,7 +43,7 @@ Segment meaning:
 - negative segments represent oversupply and depreciated price
 - positive segments represent demand pressure and overvalued price
 
-Stock means the number of items represented by one segment.
+`segmentSize` is the number of pressure units represented by one segment.
 
 Example:
 
@@ -55,23 +57,31 @@ segment  1 covers 50 items of demand pressure
 segment  2 covers 50 items of demand pressure
 ```
 
-The market should not persist infinite segment rows. It should persist compact aggregate state and derive segment traversal deterministically.
+The market must not persist infinite segment rows. It persists compact aggregate state and derives virtual segment traversal deterministically.
 
 ---
 
 ## Authoritative State
 
-The proposed aggregate root remains `MarketItem`, but the authoritative mutable pricing state changes.
+The aggregate root remains `MarketItem`.
 
-Suggested fields:
+Required authoritative fields:
 
 - `itemId`
+- `categoryId`
+- `categoryDisplayName`
+- `displayName`
+- `iconKey`
+- `currency`
 - `baseUnitPrice`
 - `minUnitPrice`
 - `maxUnitPrice`
 - `segmentSize`
 - `priceSensitivity`
+- `baseRegenQuantity`
 - `netPosition`
+- `minNetPosition`
+- `maxNetPosition`
 - `lastUpdatedAt`
 - `blocked`
 - `operating`
@@ -81,9 +91,12 @@ Field meaning:
 - `baseUnitPrice`: price at segment `0`
 - `minUnitPrice`: lower saturation bound
 - `maxUnitPrice`: upper saturation bound
-- `segmentSize`: number of items per segment
+- `segmentSize`: pressure units per segment
 - `priceSensitivity`: curve steepness
+- `baseRegenQuantity`: deterministic pressure recovery amount per regeneration tick
 - `netPosition`: signed pressure position
+- `minNetPosition`: optional hard lower pressure bound
+- `maxNetPosition`: optional hard upper pressure bound
 - `lastUpdatedAt`: regeneration timestamp
 
 `netPosition` is the key execution state:
@@ -94,7 +107,7 @@ netPosition > 0      demand pressure / overvalued
 netPosition < 0      oversupply pressure / depreciated
 ```
 
-Buy and sell direction:
+Trade direction:
 
 ```text
 BUY  increases netPosition
@@ -103,27 +116,58 @@ SELL decreases netPosition
 
 ---
 
+## Public Snapshot Contract
+
+The endpoint shape remains unchanged:
+
+```text
+GET /api/market/snapshot
+POST /api/market/quotes
+POST /api/market/execute
+```
+
+The item snapshot contract changes.
+
+Replace `currentStock` with pressure fields:
+
+```text
+marketPressure: signed long
+marketSegment: signed long
+pressureMagnitude: non-negative long
+```
+
+Meanings:
+
+- `marketPressure`: the signed `netPosition`
+- `marketSegment`: `floorDiv(netPosition, segmentSize)`
+- `pressureMagnitude`: `abs(netPosition)` for display, sorting, or filtering
+
+Do not silently redefine `currentStock`.
+
+Recommended transition:
+
+1. Remove `currentStock` from the market snapshot DTO if all clients can migrate in the same release.
+2. Otherwise keep `currentStock` only as deprecated compatibility output and document that it is not authoritative.
+3. Clients must migrate to `marketPressure`, `marketSegment`, and `pressureMagnitude`.
+
+Clients must still treat prices, quote totals, quote tokens, and snapshot versions as backend-owned opaque values. Clients must not compute trade totals locally.
+
+---
+
 ## Derived Projections
 
 Stored projections may remain for snapshot convenience, but they must be derived from authoritative state.
 
-Suggested projections:
+Required derived values:
 
-- `currentStock`
-- `marketMomentum`
-- `buyUnitEstimate`
-- `sellUnitEstimate`
-- `variationPercent`
+- `marketPressure = netPosition`
+- `marketSegment = floorDiv(netPosition, segmentSize)`
+- `pressureMagnitude = abs(netPosition)`
+- `buyUnitEstimate = price for the next buy unit`
+- `sellUnitEstimate = price for the next sell unit`
+- `variationPercent = price movement from baseUnitPrice`
 
-Recommended meanings:
-
-- `currentStock`: derived display value representing market pressure or available market stock, not a hard bounded inventory cap
-- `marketMomentum`: current signed segment index
-- `buyUnitEstimate`: price for the next buy unit
-- `sellUnitEstimate`: price for the next sell unit
-- `variationPercent`: price movement from `baseUnitPrice`
-
-The implementation must clearly document the public meaning of `currentStock`, because under this model it is not the same as the old bounded stock total.
+`marketMomentum` may be removed or kept as an internal alias for `marketSegment` during migration. Public clients should use `marketSegment`.
 
 ---
 
@@ -149,19 +193,20 @@ netPosition = -50    segment -1
 netPosition = -51    segment -2
 ```
 
-This mapping makes segment `0` cover `[0, segmentSize - 1]`, while negative pressure immediately enters depreciated segment `-1`.
+This mapping is intentional:
 
-That behavior should be confirmed before implementation.
+- segment `0` covers `[0, segmentSize - 1]`
+- negative pressure immediately enters depreciated segment `-1`
 
 ---
 
 ## Price Curve
 
-Use a bounded sigmoid-like saturation curve anchored at the base price.
+Use a bounded anchored saturation curve.
 
-Avoid a raw logistic sigmoid for the first implementation because raw logistic math naturally places segment `0` at the midpoint between `minUnitPrice` and `maxUnitPrice`, which may not equal the desired base price.
+Do not use a raw logistic sigmoid for the first implementation because raw logistic math naturally places segment `0` at the midpoint between `minUnitPrice` and `maxUnitPrice`, which may not equal `baseUnitPrice`.
 
-Recommended anchored saturation:
+Anchored pressure:
 
 ```text
 pressure(n) = 1 - exp(-priceSensitivity * n)
@@ -191,13 +236,13 @@ After calculation:
 unitPrice = clamp(round(price), minUnitPrice, maxUnitPrice)
 ```
 
-Properties:
+Required properties:
 
-- segment `0` always equals `baseUnitPrice`
+- segment `0` equals `baseUnitPrice`
 - extreme buying approaches `maxUnitPrice`
 - extreme selling approaches `minUnitPrice`
-- price never reaches zero or negative unless explicitly configured incorrectly
-- volatility is bounded
+- unit price stays within `[minUnitPrice, maxUnitPrice]`
+- unit price never reaches zero or negative because `minUnitPrice > 0`
 
 ---
 
@@ -205,25 +250,29 @@ Properties:
 
 Quotes remain quantity-sensitive.
 
-The planner must walk through virtual segments instead of persisted segment rows.
+The planner must walk virtual segments instead of persisted segment rows.
 
 For a buy:
 
 1. Start at current `netPosition`.
-2. Traverse upward for `quantity` units.
-3. Split the quantity by segment boundaries.
-4. Price each slice using the segment price.
-5. Sum the total.
-6. Return effective unit price as `ceil(totalPrice / quantity)`.
+2. Validate `netPosition + quantity` does not overflow.
+3. Validate the result does not exceed `maxNetPosition` when configured.
+4. Traverse upward for `quantity` units.
+5. Split quantity by segment boundaries.
+6. Price each slice using the segment price.
+7. Sum the total.
+8. Return effective unit price as `ceil(totalPrice / quantity)`.
 
 For a sell:
 
 1. Start at current `netPosition`.
-2. Traverse downward for `quantity` units.
-3. Split the quantity by segment boundaries.
-4. Price each slice using the segment price.
-5. Sum the total.
-6. Return effective unit price as `ceil(totalPrice / quantity)`.
+2. Validate `netPosition - quantity` does not overflow.
+3. Validate the result does not go below `minNetPosition` when configured.
+4. Traverse downward for `quantity` units.
+5. Split quantity by segment boundaries.
+6. Price each slice using the segment price.
+7. Sum the total.
+8. Return effective unit price as `ceil(totalPrice / quantity)`.
 
 The quote must include:
 
@@ -236,13 +285,11 @@ The quote must include:
 - quote token
 - expiry
 
-Clients still must not compute totals locally.
-
 ---
 
 ## Execution
 
-Execution keeps the existing quote-backed flow:
+Execution keeps the quote-backed flow:
 
 1. Resolve player.
 2. Load quote.
@@ -267,13 +314,15 @@ SELL netPosition -= quantity
 
 The execute operation must remain single-use per `quoteToken`.
 
+Failed settlement must not mutate market pressure.
+
 ---
 
 ## Regeneration
 
-Regeneration should move `netPosition` toward `0`.
+Regeneration moves `netPosition` toward `0`.
 
-Suggested deterministic rule:
+Deterministic rule:
 
 ```text
 regenQuantity = ticks * baseRegenQuantity
@@ -293,51 +342,15 @@ This means:
 
 - overvalued demand pressure cools down over time
 - oversupply pressure recovers over time
-- fully balanced items remain at `0`
+- balanced items remain at `0`
 
-Optional future tuning:
-
-- stronger regeneration when pressure magnitude is high
-- item-specific regeneration speed
-- category-specific regeneration speed
-
----
-
-## Snapshot Contract Impact
-
-The public endpoint shape can remain unchanged:
-
-```text
-GET /api/market/snapshot
-POST /api/market/quotes
-POST /api/market/execute
-```
-
-No client should need to understand the sigmoid curve.
-
-Potential semantic change:
-
-- `currentStock` currently means bounded available stock.
-- Under this model, it may need to mean market pressure, available liquidity, or signed/absolute stock pressure.
-
-Recommended contract choice:
-
-Keep `currentStock` as a non-negative display value only if the UI still needs a stock-like number.
-
-Add a new field only if the client must distinguish supply pressure from demand pressure:
-
-```text
-marketPressure: -125
-marketSegment: -3
-```
-
-If adding fields, keep them informational and do not let clients compute prices from them.
+`baseRegenQuantity` must be item configuration so market tuning can happen per item without code changes.
 
 ---
 
 ## Rejection Semantics
 
-This model removes bounded stock exhaustion unless explicit limits are added.
+The pressure model removes normal bounded stock exhaustion.
 
 Existing rejection codes that still apply:
 
@@ -352,21 +365,18 @@ Existing rejection codes that still apply:
 - `API_UNAVAILABLE`
 - `UNKNOWN_ITEM`
 
-`INSUFFICIENT_STOCK` needs a decision:
+`INSUFFICIENT_STOCK` remains available only for configured hard pressure bounds:
 
-- remove it from normal market pressure trading, or
-- reserve it for configured hard position limits, or
-- keep it only for legacy/limited items
+- buy would exceed `maxNetPosition`
+- sell would go below `minNetPosition`
 
-Recommended:
-
-Keep `INSUFFICIENT_STOCK` available, but only emit it when an item has configured hard trade bounds.
+Do not emit `INSUFFICIENT_STOCK` for ordinary pressure-ladder trading.
 
 ---
 
-## Configuration
+## Configuration Defaults
 
-Each item should define:
+Each item must define:
 
 - `baseUnitPrice`
 - `minUnitPrice`
@@ -377,70 +387,143 @@ Each item should define:
 - optional `minNetPosition`
 - optional `maxNetPosition`
 
-Example:
+Recommended initial defaults for existing catalog items:
 
 ```text
-itemId = wheat
-baseUnitPrice = 50000
-minUnitPrice = 25000
-maxUnitPrice = 150000
+baseUnitPrice = existing first/base segment price
+minUnitPrice = max(1, round(baseUnitPrice * 0.50))
+maxUnitPrice = round(baseUnitPrice * 3.00)
 segmentSize = 50
 priceSensitivity = 0.08
-baseRegenQuantity = 5
+baseRegenQuantity = 1
+minNetPosition = null
+maxNetPosition = null
 ```
+
+Use explicit per-item overrides where economy design requires them.
 
 Hard validation:
 
 - `baseUnitPrice > 0`
 - `minUnitPrice > 0`
-- `maxUnitPrice >= baseUnitPrice`
 - `minUnitPrice <= baseUnitPrice`
+- `maxUnitPrice >= baseUnitPrice`
 - `segmentSize > 0`
 - `priceSensitivity > 0`
 - `baseRegenQuantity >= 0`
+- `minNetPosition == null || minNetPosition <= 0`
+- `maxNetPosition == null || maxNetPosition >= 0`
+- when both bounds exist, `minNetPosition <= maxNetPosition`
+
+---
+
+## Snapshot Version
+
+`snapshotVersion` must change when authoritative trade-affecting state or config changes.
+
+Hash inputs must include:
+
+- `itemId`
+- `baseUnitPrice`
+- `minUnitPrice`
+- `maxUnitPrice`
+- `segmentSize`
+- `priceSensitivity`
+- `baseRegenQuantity`
+- `netPosition`
+- `minNetPosition`
+- `maxNetPosition`
+- `blocked`
+- `operating`
+- `lastUpdatedAt` or another deterministic regeneration boundary value
+
+Do not hash persisted derived projections as independent state.
+
+Do not hash virtual segment lists.
 
 ---
 
 ## Persistence Migration
 
-This is not a small migration of the existing segment table.
+This is a replacement of the current segment model, not a small segment-table migration.
 
-The current model stores:
+Current model stores:
 
 - `market_items`
 - `market_segments`
 - `market_quotes`
 
-The new model likely needs:
+Target model stores:
 
-- market item pricing configuration
+- market item metadata
+- pressure-pricing configuration
 - signed `netPosition`
-- no persisted segment rows for normal operation
+- quote records
 
-Migration options:
+Normal operation must not require persisted `market_segments`.
 
-1. Add new columns to `market_items` and stop using `market_segments`.
-2. Create a new aggregate table, migrate item metadata, then drop/deprecate `market_segments`.
-3. Keep `market_segments` only for audit/history during a compatibility period.
+Recommended implementation path:
 
-Recommended first implementation path:
+1. Add new pressure-pricing columns to `market_items`.
+2. Keep old segment columns/table temporarily only for migration and audit.
+3. Backfill pressure config from existing catalog/segments.
+4. Backfill `netPosition`.
+5. Switch planner, projector, regeneration, and execution to pressure state.
+6. Update market snapshot DTO and contract tests for pressure fields.
+7. Remove or archive old segment persistence after the pressure path is verified.
 
-1. Add new columns while keeping old columns temporarily.
-2. Implement a new planner behind the same service contract.
-3. Backfill `netPosition` from legacy state.
-4. Run contract tests against quote and execute behavior.
-5. Remove or archive old segment persistence only after confidence.
-
-Legacy backfill suggestion:
+Legacy backfill:
 
 ```text
-legacy pressure = totalCapacity - currentStock
-netPosition = legacy pressure
+totalCapacity = sum(existing market_segments.maxCapacity)
+netPosition = totalCapacity - currentStock
 ```
 
-This maps consumed stock to positive demand pressure. It does not preserve every detail of prior segment state, but the current finite model is not semantically equivalent to the new pressure ladder.
+This maps consumed finite stock to positive demand pressure:
 
-Backfill must be reviewed item by item before production use.
+- fully restored item: `netPosition = 0`
+- partially consumed item: `netPosition > 0`
+- old model cannot produce oversupply, so migration will not create negative `netPosition`
+
+Backfill must be deterministic and auditable. If existing segment state violates invariants, fail migration or mark the item for manual repair; do not silently repair inconsistent state.
+
+---
+
+## Client Migration
+
+Client implementations must update snapshot handling:
+
+- stop treating `currentStock` as market inventory
+- render `marketPressure` when signed pressure matters
+- render `pressureMagnitude` when a non-negative display value is needed
+- use `marketSegment` for pressure tier indicators
+- keep using backend quote totals
+- keep treating `snapshotVersion` and `quoteToken` as opaque
+
+Client copy should avoid inventory language unless a hard bound is configured.
+
+Recommended display semantics:
+
+- `marketPressure > 0`: demand pressure
+- `marketPressure == 0`: balanced
+- `marketPressure < 0`: oversupply pressure
+
+---
+
+## Implementation Work Items
+
+1. Update docs and contract references.
+2. Add pressure-pricing fields and migration scripts.
+3. Update `MarketItem` and remove normal-operation dependency on `MarketSegment`.
+4. Replace `MarketTradePlanner` with virtual pressure traversal.
+5. Update quote and execute bound checks.
+6. Update regeneration to move `netPosition` toward `0`.
+7. Update snapshot DTOs and snapshot version hashing.
+8. Update default catalog seeding and validation.
+9. Add migration/backfill tests.
+10. Add unit tests for derivation, pricing, traversal, bounds, and regeneration.
+11. Add integration tests for snapshot, quote, execute, stale quote, single-use quote, and insufficient funds.
+12. Update client-facing contract docs.
 
 ---
 
@@ -452,22 +535,26 @@ Aggregate-level:
 - `minUnitPrice > 0`
 - `minUnitPrice <= baseUnitPrice <= maxUnitPrice`
 - `priceSensitivity > 0`
+- `baseRegenQuantity >= 0`
 - `netPosition` must not overflow when applying quantity
-- projected segment price must always be within `[minUnitPrice, maxUnitPrice]`
+- configured pressure bounds must contain `0`
+- projected segment price must stay within `[minUnitPrice, maxUnitPrice]`
 
 Execution-level:
 
-- quoted total must equal deterministic traversal total
-- executed quantity must equal requested quantity
+- quoted total equals deterministic traversal total
+- executed quantity equals requested quantity
 - quote tokens remain single-use
-- failed settlement must not mutate market pressure
+- failed settlement does not mutate market pressure
 - successful buy increases `netPosition`
 - successful sell decreases `netPosition`
+- hard bounds reject before settlement
 - regeneration only moves `netPosition` toward `0`
 
 Snapshot-level:
 
 - `snapshotVersion` changes when authoritative state or trade-affecting config changes
+- pressure fields are derived from `netPosition`
 - clients treat `snapshotVersion` as opaque
 - clients treat quote tokens as opaque
 
@@ -489,9 +576,14 @@ Unit tests:
 - quote traversal across multiple negative segments
 - sell crossing from positive through zero into negative
 - buy crossing from negative through zero into positive
+- buy rejects configured `maxNetPosition`
+- sell rejects configured `minNetPosition`
+- pressure mutation overflow rejection
 
 Integration tests:
 
+- snapshot exposes pressure fields
+- snapshot does not require finite stock semantics
 - snapshot includes stable opaque version
 - quote rejects stale snapshot
 - execute rejects stale quote
@@ -505,42 +597,7 @@ Integration tests:
 
 Migration tests:
 
-- default catalog creates valid pricing config
-- legacy market state maps to deterministic `netPosition`
-- snapshot contract remains compatible for existing clients
-
----
-
-## Open Questions For Grill-Me
-
-Before implementation, confirm these decisions:
-
-1. Should `currentStock` remain in the snapshot, and what should it mean under signed pressure?
-2. Should players be allowed to sell infinitely, bounded only by price approaching `minUnitPrice`?
-3. Should each item have optional `minNetPosition` and `maxNetPosition` hard bounds?
-4. Should sell quotes pay the same segment price as buy quotes when traversing the same segment?
-5. Should segment `0` cover `[0, segmentSize - 1]`, or should equilibrium be centered around zero with half a segment on each side?
-6. Should regeneration be constant, pressure-weighted, or item-specific?
-7. Should `variationPercent` be derived from current buy estimate, sell estimate, or midpoint price?
-8. How aggressive should `priceSensitivity` be for common resources versus rare resources?
-9. Should admin/config changes invalidate all active quotes immediately?
-10. Should the old finite segment model remain available for specific limited-supply items?
-
----
-
-## Implementation Order
-
-Recommended sequence:
-
-1. Finalize the semantics in this document.
-2. Update the aggregate source-of-truth documentation.
-3. Add pricing configuration and `netPosition` persistence.
-4. Implement a pure pressure-ladder planner with unit tests.
-5. Swap quote planning to the new planner.
-6. Swap execute mutation to `netPosition`.
-7. Implement regeneration toward zero.
-8. Update snapshot projection and version hashing.
-9. Add migration/backfill.
-10. Re-run market contract integration tests.
-11. Update client-facing contract docs only if response semantics or fields change.
-
+- default catalog creates valid pressure config
+- legacy finite segment state maps to deterministic `netPosition`
+- invalid legacy segment state fails or is marked for manual repair
+- migrated snapshot matches the new pressure contract
