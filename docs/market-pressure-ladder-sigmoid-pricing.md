@@ -79,6 +79,7 @@ Required authoritative fields:
 - `segmentSize`
 - `priceSensitivity`
 - `baseRegenQuantity`
+- `regenIntervalSeconds`
 - `netPosition`
 - `minNetPosition`
 - `maxNetPosition`
@@ -94,6 +95,7 @@ Field meaning:
 - `segmentSize`: pressure units per segment
 - `priceSensitivity`: curve steepness
 - `baseRegenQuantity`: deterministic pressure recovery amount per regeneration tick
+- `regenIntervalSeconds`: seconds per deterministic regeneration tick
 - `netPosition`: signed pressure position
 - `minNetPosition`: optional hard lower pressure bound
 - `maxNetPosition`: optional hard upper pressure bound
@@ -142,13 +144,9 @@ Meanings:
 - `marketSegment`: `floorDiv(netPosition, segmentSize)`
 - `pressureMagnitude`: `abs(netPosition)` for display, sorting, or filtering
 
-Do not silently redefine `currentStock`.
+Do not silently redefine `currentStock`. Remove `currentStock` from the target market snapshot DTO.
 
-Recommended transition:
-
-1. Remove `currentStock` from the market snapshot DTO if all clients can migrate in the same release.
-2. Otherwise keep `currentStock` only as deprecated compatibility output and document that it is not authoritative.
-3. Clients must migrate to `marketPressure`, `marketSegment`, and `pressureMagnitude`.
+If an old client compatibility adapter is required, it must be implemented as an explicitly named legacy path outside the target snapshot contract. The target pressure-ladder contract must expose `marketPressure`, `marketSegment`, and `pressureMagnitude`.
 
 Clients must still treat prices, quote totals, quote tokens, and snapshot versions as backend-owned opaque values. Clients must not compute trade totals locally.
 
@@ -252,12 +250,31 @@ Quotes remain quantity-sensitive.
 
 The planner must walk virtual segments instead of persisted segment rows.
 
+Unit pricing uses deterministic pressure positions:
+
+- BUY prices positions from `netPosition` through `netPosition + quantity - 1`
+- SELL prices positions from `netPosition - 1` down through `netPosition - quantity`
+
+This means the first buy at equilibrium prices at segment `0`, while the first sell at equilibrium prices at segment `-1`.
+
+Examples with `segmentSize = 50`:
+
+```text
+BUY  quantity 1 from netPosition 0    prices position 0   -> segment 0
+BUY  quantity 2 from netPosition 49   prices 49, 50       -> segments 0, 1
+BUY  quantity 1 from netPosition -1   prices position -1  -> segment -1
+
+SELL quantity 1 from netPosition 0    prices position -1  -> segment -1
+SELL quantity 2 from netPosition 1    prices 0, -1        -> segments 0, -1
+SELL quantity 1 from netPosition -50  prices position -51 -> segment -2
+```
+
 For a buy:
 
 1. Start at current `netPosition`.
 2. Validate `netPosition + quantity` does not overflow.
 3. Validate the result does not exceed `maxNetPosition` when configured.
-4. Traverse upward for `quantity` units.
+4. Traverse upward across positions `[netPosition, netPosition + quantity - 1]`.
 5. Split quantity by segment boundaries.
 6. Price each slice using the segment price.
 7. Sum the total.
@@ -268,7 +285,7 @@ For a sell:
 1. Start at current `netPosition`.
 2. Validate `netPosition - quantity` does not overflow.
 3. Validate the result does not go below `minNetPosition` when configured.
-4. Traverse downward for `quantity` units.
+4. Traverse downward across positions `[netPosition - 1, netPosition - quantity]`.
 5. Split quantity by segment boundaries.
 6. Price each slice using the segment price.
 7. Sum the total.
@@ -325,6 +342,7 @@ Regeneration moves `netPosition` toward `0`.
 Deterministic rule:
 
 ```text
+ticks = floor(Duration.between(lastUpdatedAt, now).seconds / regenIntervalSeconds)
 regenQuantity = ticks * baseRegenQuantity
 ```
 
@@ -345,6 +363,8 @@ This means:
 - balanced items remain at `0`
 
 `baseRegenQuantity` must be item configuration so market tuning can happen per item without code changes.
+
+`regenIntervalSeconds` must be item configuration. It must be positive. Regeneration must not advance `lastUpdatedAt` unless at least one tick is applied. When ticks are applied, advance `lastUpdatedAt` by the elapsed whole ticks, not necessarily all the way to `now`, so fractional tick remainder is preserved deterministically.
 
 ---
 
@@ -384,6 +404,7 @@ Each item must define:
 - `segmentSize`
 - `priceSensitivity`
 - `baseRegenQuantity`
+- `regenIntervalSeconds`
 - optional `minNetPosition`
 - optional `maxNetPosition`
 
@@ -396,6 +417,7 @@ maxUnitPrice = round(baseUnitPrice * 3.00)
 segmentSize = 50
 priceSensitivity = 0.08
 baseRegenQuantity = 1
+regenIntervalSeconds = 60
 minNetPosition = null
 maxNetPosition = null
 ```
@@ -411,6 +433,7 @@ Hard validation:
 - `segmentSize > 0`
 - `priceSensitivity > 0`
 - `baseRegenQuantity >= 0`
+- `regenIntervalSeconds > 0`
 - `minNetPosition == null || minNetPosition <= 0`
 - `maxNetPosition == null || maxNetPosition >= 0`
 - when both bounds exist, `minNetPosition <= maxNetPosition`
@@ -430,6 +453,7 @@ Hash inputs must include:
 - `segmentSize`
 - `priceSensitivity`
 - `baseRegenQuantity`
+- `regenIntervalSeconds`
 - `netPosition`
 - `minNetPosition`
 - `maxNetPosition`
@@ -475,8 +499,7 @@ Recommended implementation path:
 Legacy backfill:
 
 ```text
-totalCapacity = sum(existing market_segments.maxCapacity)
-netPosition = totalCapacity - currentStock
+netPosition = sum(existing market_segments.maxCapacity - existing market_segments.remainingCapacity)
 ```
 
 This maps consumed finite stock to positive demand pressure:
@@ -485,7 +508,13 @@ This maps consumed finite stock to positive demand pressure:
 - partially consumed item: `netPosition > 0`
 - old model cannot produce oversupply, so migration will not create negative `netPosition`
 
-Backfill must be deterministic and auditable. If existing segment state violates invariants, fail migration or mark the item for manual repair; do not silently repair inconsistent state.
+Persisted `currentStock` is not authoritative for backfill. Use it only as a consistency check:
+
+```text
+currentStock == sum(existing market_segments.remainingCapacity)
+```
+
+Backfill must be deterministic and auditable. If existing segment state or projected `currentStock` violates invariants, fail migration or mark the item for manual repair; do not silently repair inconsistent state.
 
 ---
 
@@ -536,6 +565,7 @@ Aggregate-level:
 - `minUnitPrice <= baseUnitPrice <= maxUnitPrice`
 - `priceSensitivity > 0`
 - `baseRegenQuantity >= 0`
+- `regenIntervalSeconds > 0`
 - `netPosition` must not overflow when applying quantity
 - configured pressure bounds must contain `0`
 - projected segment price must stay within `[minUnitPrice, maxUnitPrice]`
@@ -567,6 +597,7 @@ Unit tests:
 - segment derivation for positive positions
 - segment derivation for negative positions
 - boundary behavior at exact segment multiples
+- unit pricing position ranges for buy and sell
 - anchored price equals base at segment `0`
 - positive prices approach max
 - negative prices approach min
@@ -593,11 +624,13 @@ Integration tests:
 - insufficient funds leaves market pressure unchanged
 - regeneration moves positive pressure toward zero
 - regeneration moves negative pressure toward zero
+- regeneration preserves fractional tick remainder
 - blocked and non-operating items reject quote/execute
 
 Migration tests:
 
 - default catalog creates valid pressure config
 - legacy finite segment state maps to deterministic `netPosition`
+- projected `currentStock` is validated against segment remaining capacity
 - invalid legacy segment state fails or is marked for manual repair
 - migrated snapshot matches the new pressure contract

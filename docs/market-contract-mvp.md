@@ -1,260 +1,275 @@
 # Market Contract MVP
 
-  ## Purpose
+## Purpose
 
-  This document defines the minimum authoritative market contract that `craftalism-api` must expose so
-  `craftalism-market` can implement quote-aware trading without guessing backend semantics.
+This document defines the minimum authoritative market contract that `craftalism-api` must expose so `craftalism-market` can implement quote-aware trading without guessing backend semantics.
 
-  `craftalism-api` owns:
-  - snapshot payloads
-  - quote payloads
-  - execute payloads
-  - rejection codes
-  - `snapshotVersion`
-  - `quoteToken`
-  - blocked/operating semantics
+`craftalism-api` owns:
 
-  `craftalism-market` consumes this contract and must not redefine it locally.
+- snapshot payloads
+- quote payloads
+- execute payloads
+- rejection codes
+- `snapshotVersion`
+- `quoteToken`
+- blocked/operating semantics
+- pressure-ladder market semantics
 
-  ---
+`craftalism-market` consumes this contract and must not redefine it locally.
 
-  ## Core Rules
+This contract follows `docs/market-pressure-ladder-sigmoid-pricing.md`.
 
-  - Snapshot prices are informational only.
-  - Quotes and execute responses are authoritative.
-  - Clients must not compute authoritative totals locally.
-  - Clients must treat `snapshotVersion` and `quoteToken` as opaque values.
-  - Rejections must use stable machine-readable codes.
+---
 
-  ---
+## Core Rules
 
-  ## Snapshot Contract
+- Snapshot prices are informational only.
+- Quotes and execute responses are authoritative.
+- Clients must not compute authoritative totals locally.
+- Clients must treat `snapshotVersion` and `quoteToken` as opaque values.
+- Rejections must use stable machine-readable codes.
+- `currentStock` is not part of the pressure-ladder snapshot contract.
 
-  ## Endpoint
+---
 
-  `GET /api/market/snapshot`
+## Snapshot Contract
 
-  ## Response
+Endpoint:
 
-  ```json
-  {
-    "snapshotVersion": "opaque-version-token",
-    "generatedAt": "2026-04-12T18:30:00Z",
-    "categories": [
-      {
-        "categoryId": "farming",
-        "displayName": "Farming",
-        "items": [
-          {
-            "itemId": "wheat",
-            "displayName": "Wheat",
-            "iconKey": "WHEAT",
-            "buyUnitEstimate": "5",
-            "sellUnitEstimate": "4",
-            "currency": "coins",
-            "currentStock": 1820,
-            "variationPercent": "2.3",
-            "blocked": false,
-            "operating": true,
-            "lastUpdatedAt": "2026-04-12T18:29:42Z"
-          }
-        ]
-      }
-    ]
-  }
+```text
+GET /api/market/snapshot
+```
 
-  ## Required Semantics
+Response:
 
-  - snapshotVersion: opaque stale-detection token
-  - buyUnitEstimate / sellUnitEstimate: display-only estimates
-  - blocked: item cannot be traded
-  - operating: item is not currently tradable if false
-
-  ———
-
-  ## Quote Contract
-
-  ## Endpoint
-
-  `POST /api/market/quotes`
-
-  ## Request
-
-  {
-    "itemId": "wheat",
-    "side": "BUY",
-    "quantity": 32,
-    "snapshotVersion": "opaque-version-token",
-    "playerUuid": "220e8400-e29b-41d4-a716-446655440000"
-  }
-
-  `playerUuid` is optional and is honored only for the configured trusted Minecraft server client.
-  Trusted clients may alternatively send the same value in `X-Craftalism-Player-Uuid`.
-
-  ## Response
-
-  {
-    "itemId": "wheat",
-    "side": "BUY",
-    "quantity": 32,
-    "unitPrice": "5",
-    "totalPrice": "160",
-    "currency": "coins",
-    "quoteToken": "opaque-quote-token",
-    "snapshotVersion": "opaque-version-token",
-    "expiresAt": "2026-04-12T18:31:14Z",
-    "blocked": false,
-    "operating": true
-  }
-
-  ## Required Semantics
-
-  - quoteToken: opaque token required for execute
-  - snapshotVersion: authoritative state associated with the quote
-  - expiresAt: quote expiry
-  - unitPrice / totalPrice: authoritative for this quote only
-
-  ———
-
-  ## Execute Contract
-
-  ## Endpoint
-
-  `POST /api/market/execute`
-
-  ## Request
-
-  {
-    "itemId": "wheat",
-    "side": "BUY",
-    "quantity": 32,
-    "quoteToken": "opaque-quote-token",
-    "snapshotVersion": "opaque-version-token",
-    "playerUuid": "220e8400-e29b-41d4-a716-446655440000"
-  }
-
-  `playerUuid` is optional and is honored only for the configured trusted Minecraft server client.
-  Trusted clients may alternatively send the same value in `X-Craftalism-Player-Uuid`.
-
-  ## Success Response
-
-  {
-    "status": "SUCCESS",
-    "itemId": "wheat",
-    "side": "BUY",
-    "executedQuantity": 32,
-    "unitPrice": "5",
-    "totalPrice": "160",
-    "currency": "coins",
-    "snapshotVersion": "opaque-version-token",
-    "updatedItem": {
-      "itemId": "wheat",
-      "displayName": "Wheat",
-      "iconKey": "WHEAT",
-      "buyUnitEstimate": "6",
-      "sellUnitEstimate": "5",
-      "currency": "coins",
-      "currentStock": 1788,
-      "variationPercent": "2.8",
-      "blocked": false,
-      "operating": true,
-      "lastUpdatedAt": "2026-04-12T18:31:05Z"
+```json
+{
+  "snapshotVersion": "opaque-version-token",
+  "generatedAt": "2026-04-12T18:30:00Z",
+  "categories": [
+    {
+      "categoryId": "farming",
+      "displayName": "Farming",
+      "items": [
+        {
+          "itemId": "wheat",
+          "displayName": "Wheat",
+          "iconKey": "WHEAT",
+          "buyUnitEstimate": "50000",
+          "sellUnitEstimate": "48039",
+          "currency": "coins",
+          "marketPressure": -25,
+          "marketSegment": -1,
+          "pressureMagnitude": 25,
+          "variationPercent": "-3.92",
+          "blocked": false,
+          "operating": true,
+          "lastUpdatedAt": "2026-04-12T18:29:42Z"
+        }
+      ]
     }
+  ]
+}
+```
+
+Required semantics:
+
+- `snapshotVersion`: opaque stale-detection token.
+- `buyUnitEstimate`: display-only price estimate for the next buy unit.
+- `sellUnitEstimate`: display-only price estimate for the next sell unit.
+- `marketPressure`: signed backend pressure position.
+- `marketSegment`: signed pressure segment derived from `marketPressure`.
+- `pressureMagnitude`: non-negative absolute pressure value for display, sorting, or filtering.
+- `blocked`: item cannot be traded if true.
+- `operating`: item is not currently tradable if false.
+
+Pressure display semantics:
+
+- `marketPressure > 0`: demand pressure.
+- `marketPressure == 0`: balanced.
+- `marketPressure < 0`: oversupply pressure.
+
+---
+
+## Quote Contract
+
+Endpoint:
+
+```text
+POST /api/market/quotes
+```
+
+Request:
+
+```json
+{
+  "itemId": "wheat",
+  "side": "BUY",
+  "quantity": 32,
+  "snapshotVersion": "opaque-version-token",
+  "playerUuid": "220e8400-e29b-41d4-a716-446655440000"
+}
+```
+
+`playerUuid` is optional and is honored only for the configured trusted Minecraft server client. Trusted clients may alternatively send the same value in `X-Craftalism-Player-Uuid`.
+
+Response:
+
+```json
+{
+  "itemId": "wheat",
+  "side": "BUY",
+  "quantity": 32,
+  "unitPrice": "50000",
+  "totalPrice": "1600000",
+  "currency": "coins",
+  "quoteToken": "opaque-quote-token",
+  "snapshotVersion": "opaque-version-token",
+  "expiresAt": "2026-04-12T18:31:14Z",
+  "blocked": false,
+  "operating": true
+}
+```
+
+Required semantics:
+
+- `quoteToken`: opaque token required for execute.
+- `snapshotVersion`: authoritative state associated with the quote.
+- `expiresAt`: quote expiry.
+- `unitPrice` and `totalPrice`: authoritative for this quote only.
+
+---
+
+## Execute Contract
+
+Endpoint:
+
+```text
+POST /api/market/execute
+```
+
+Request:
+
+```json
+{
+  "itemId": "wheat",
+  "side": "BUY",
+  "quantity": 32,
+  "quoteToken": "opaque-quote-token",
+  "snapshotVersion": "opaque-version-token",
+  "playerUuid": "220e8400-e29b-41d4-a716-446655440000"
+}
+```
+
+`playerUuid` is optional and is honored only for the configured trusted Minecraft server client. Trusted clients may alternatively send the same value in `X-Craftalism-Player-Uuid`.
+
+Success response:
+
+```json
+{
+  "status": "SUCCESS",
+  "itemId": "wheat",
+  "side": "BUY",
+  "executedQuantity": 32,
+  "unitPrice": "50000",
+  "totalPrice": "1600000",
+  "currency": "coins",
+  "snapshotVersion": "opaque-version-token",
+  "updatedItem": {
+    "itemId": "wheat",
+    "displayName": "Wheat",
+    "iconKey": "WHEAT",
+    "buyUnitEstimate": "50000",
+    "sellUnitEstimate": "50000",
+    "currency": "coins",
+    "marketPressure": 7,
+    "marketSegment": 0,
+    "pressureMagnitude": 7,
+    "variationPercent": "0",
+    "blocked": false,
+    "operating": true,
+    "lastUpdatedAt": "2026-04-12T18:31:05Z"
   }
+}
+```
 
-  ## Required Semantics
+Required semantics:
 
-  - execute is single-use for a given `quoteToken`
-  - the first execute attempt claims the quote before final settlement checks run
-  - later retries with the same `quoteToken` must reject with `STALE_QUOTE`
-  - settlement is not retried once the quote has been claimed
-  - a quote may remain `CONSUMED` even when settlement returns a business rejection such as `INSUFFICIENT_FUNDS`
+- execute is single-use for a given `quoteToken`.
+- the first execute attempt claims the quote before final settlement checks run.
+- later retries with the same `quoteToken` must reject with `STALE_QUOTE`.
+- settlement is not retried once the quote has been claimed.
+- a quote may remain `CONSUMED` even when settlement returns a business rejection such as `INSUFFICIENT_FUNDS`.
+- successful buy increases `marketPressure`.
+- successful sell decreases `marketPressure`.
 
-  ———
+---
 
-  ## Rejection Contract
+## Rejection Contract
 
-  ## Response
+Response:
 
-  {
-    "status": "REJECTED",
-    "code": "STALE_QUOTE",
-    "message": "Quote is no longer valid.",
-    "snapshotVersion": "opaque-version-token"
-  }
+```json
+{
+  "status": "REJECTED",
+  "code": "STALE_QUOTE",
+  "message": "Quote is no longer valid.",
+  "snapshotVersion": "opaque-version-token"
+}
+```
 
-  ## Required Codes
+Required codes:
 
-  - STALE_QUOTE
-  - ITEM_BLOCKED
-  - ITEM_NOT_OPERATING
-  - INSUFFICIENT_STOCK
-  - INSUFFICIENT_FUNDS
-  - MARKET_CLOSED
-  - INVALID_QUANTITY
-  - RATE_LIMITED
-  - QUOTE_EXPIRED
-  - API_UNAVAILABLE
-  - UNKNOWN_ITEM
+- `STALE_QUOTE`
+- `ITEM_BLOCKED`
+- `ITEM_NOT_OPERATING`
+- `INSUFFICIENT_STOCK`
+- `INSUFFICIENT_FUNDS`
+- `MARKET_CLOSED`
+- `INVALID_QUANTITY`
+- `RATE_LIMITED`
+- `QUOTE_EXPIRED`
+- `API_UNAVAILABLE`
+- `UNKNOWN_ITEM`
 
-  ———
+`INSUFFICIENT_STOCK` is emitted only when a configured hard pressure bound prevents full execution:
 
-  ## Opaque Token Rules
+- buy would exceed `maxNetPosition`
+- sell would go below `minNetPosition`
 
-  ## snapshotVersion
+It is not emitted for ordinary pressure-ladder trading.
 
-  - compare-only stale token
-  - clients must not parse meaning from it
-  - may change whenever authoritative market state changes
+---
 
-  ## quoteToken
+## Opaque Token Rules
 
-  - compare/pass-through token for execute
-  - clients must not inspect or modify it
-  - may expire or become invalid if state changes
+### `snapshotVersion`
 
-  ———
+- compare-only stale token
+- clients must not parse meaning from it
+- may change whenever authoritative market state or trade-affecting config changes
 
-  ## Client Rules
+### `quoteToken`
 
-  craftalism-market may:
+- compare/pass-through token for execute
+- clients must not inspect or modify it
+- may expire or become invalid if state changes
 
-  - browse with snapshots
-  - request quotes for quantity-sensitive pricing
-  - execute using quote-backed requests
-  - map rejection codes to player-facing messages
+---
 
-  craftalism-market must not:
+## Client Rules
 
-  - compute authoritative totals locally
-  - infer backend behavior from token structure
-  - rely on free-form error text
+`craftalism-market` may:
 
-  ———
+- browse with snapshots
+- request quotes for quantity-sensitive pricing
+- execute using quote-backed requests
+- map rejection codes to player-facing messages
+- display pressure direction and magnitude
 
-  ## Minimum Open Questions To Resolve
+`craftalism-market` must not:
 
-  Confirmed for the MVP implementation:
-
-  - Prices are encoded as strings containing authoritative whole-coin amounts.
-  - `snapshotVersion` is a market-wide opaque token.
-  - `quoteToken` is mandatory for every execute request.
-  - Execute is single-use per `quoteToken`.
-  - The first execute attempt claims the quote before final settlement checks run.
-  - Retries with the same `quoteToken` are not guaranteed to re-run settlement.
-  - A claimed quote may remain consumed even when settlement ends in a business rejection such as `INSUFFICIENT_FUNDS`.
-  - `updatedItem` is always present on successful execute responses.
-  - `blocked` and `operating` are both required:
-    - `blocked` means the item is administratively unavailable.
-    - `operating` means the market is temporarily not trading that item.
-  - Business rejections return the rejection payload with an HTTP business status:
-    - `409` for stale/expired/conflict-style rejections
-    - `422` for quantity, stock, and funds rejections
-    - `404` for `UNKNOWN_ITEM`
-    - `503` for `MARKET_CLOSED` and `API_UNAVAILABLE`
-  - The authenticated player actor is resolved from JWT `player_uuid` when present and valid, otherwise from a UUID-valued `sub` claim.
-  - If neither JWT source provides a UUID, the configured trusted Minecraft server client may supply the Bukkit player UUID with request field `playerUuid` or header `X-Craftalism-Player-Uuid`.
-  - The trusted Minecraft server client is currently `minecraft-server` and must authenticate with `api:write`.
-  - The API recognizes the trusted client from JWT `sub`, `client_id`, or `azp`.
-  - Supplied player UUIDs are ignored for non-trusted clients.
-  - Supplied player UUIDs must use valid UUID format.
+- compute authoritative totals locally
+- infer backend behavior from token structure
+- treat pressure fields as inventory
+- use inventory language unless a configured hard pressure bound is exposed separately
