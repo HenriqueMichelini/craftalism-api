@@ -63,13 +63,21 @@ audit → implement → reverify
 - read-only
 - confirm fixes and check regressions
 
+For feature-card work, use the routed workflow docs:
+
+- `docs/workflows/implement-card.md`
+- `docs/workflows/reverify-card.md`
+
 ---
 
 ## Source of Truth
 
 When needed, consult:
 
-- repo-local docs (, )
+- `docs/index.md`
+- `docs/context-policy.md`
+- repo-local feature docs under `docs/features/`
+- repo-local market, contract, and backlog docs
 - Craftalism root docs (contracts, standards, governance)
 
 If conflicts exist, follow governance precedence.
