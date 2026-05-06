@@ -15,6 +15,10 @@ import java.util.List;
 @Table(name = "market_items")
 public class MarketItem {
 
+    private static final BigDecimal DEFAULT_PRICE_SENSITIVITY = new BigDecimal(
+        "0.0800"
+    );
+
     @Id
     @Column(nullable = false, updatable = false)
     private String itemId;
@@ -45,6 +49,34 @@ public class MarketItem {
 
     @Column(nullable = false)
     private long marketMomentum;
+
+    @Column(nullable = false)
+    private long baseUnitPrice = 1L;
+
+    @Column(nullable = false)
+    private long minUnitPrice = 1L;
+
+    @Column(nullable = false)
+    private long maxUnitPrice = 1L;
+
+    @Column(nullable = false)
+    private long segmentSize = 50L;
+
+    @Column(nullable = false, precision = 8, scale = 4)
+    private BigDecimal priceSensitivity = DEFAULT_PRICE_SENSITIVITY;
+
+    @Column(nullable = false)
+    private long baseRegenQuantity = 1L;
+
+    @Column(nullable = false)
+    private long regenIntervalSeconds = 60L;
+
+    @Column(nullable = false)
+    private long netPosition;
+
+    private Long minNetPosition;
+
+    private Long maxNetPosition;
 
     @Column(nullable = false, precision = 7, scale = 2)
     private BigDecimal variationPercent;
@@ -145,6 +177,86 @@ public class MarketItem {
 
     public void setMarketMomentum(long marketMomentum) {
         this.marketMomentum = marketMomentum;
+    }
+
+    public long getBaseUnitPrice() {
+        return baseUnitPrice;
+    }
+
+    public void setBaseUnitPrice(long baseUnitPrice) {
+        this.baseUnitPrice = baseUnitPrice;
+    }
+
+    public long getMinUnitPrice() {
+        return minUnitPrice;
+    }
+
+    public void setMinUnitPrice(long minUnitPrice) {
+        this.minUnitPrice = minUnitPrice;
+    }
+
+    public long getMaxUnitPrice() {
+        return maxUnitPrice;
+    }
+
+    public void setMaxUnitPrice(long maxUnitPrice) {
+        this.maxUnitPrice = maxUnitPrice;
+    }
+
+    public long getSegmentSize() {
+        return segmentSize;
+    }
+
+    public void setSegmentSize(long segmentSize) {
+        this.segmentSize = segmentSize;
+    }
+
+    public BigDecimal getPriceSensitivity() {
+        return priceSensitivity;
+    }
+
+    public void setPriceSensitivity(BigDecimal priceSensitivity) {
+        this.priceSensitivity = priceSensitivity;
+    }
+
+    public long getBaseRegenQuantity() {
+        return baseRegenQuantity;
+    }
+
+    public void setBaseRegenQuantity(long baseRegenQuantity) {
+        this.baseRegenQuantity = baseRegenQuantity;
+    }
+
+    public long getRegenIntervalSeconds() {
+        return regenIntervalSeconds;
+    }
+
+    public void setRegenIntervalSeconds(long regenIntervalSeconds) {
+        this.regenIntervalSeconds = regenIntervalSeconds;
+    }
+
+    public long getNetPosition() {
+        return netPosition;
+    }
+
+    public void setNetPosition(long netPosition) {
+        this.netPosition = netPosition;
+    }
+
+    public Long getMinNetPosition() {
+        return minNetPosition;
+    }
+
+    public void setMinNetPosition(Long minNetPosition) {
+        this.minNetPosition = minNetPosition;
+    }
+
+    public Long getMaxNetPosition() {
+        return maxNetPosition;
+    }
+
+    public void setMaxNetPosition(Long maxNetPosition) {
+        this.maxNetPosition = maxNetPosition;
     }
 
     public BigDecimal getVariationPercent() {
