@@ -74,45 +74,96 @@ class MarketTradePlannerTest {
     }
 
     @Test
-    void buyPlan_consumesSegmentsFromLowestPriceFrontier() {
-        MarketItem item = marketItem(segment(0L, 50L, 50L, 5L), segment(1L, 50L, 50L, 6L));
+    void buyPlan_pricesVirtualPositionsAcrossPositiveBoundary() {
+        MarketItem item = pressureItem(49L);
 
-        MarketTradePlanner.TradePlan plan = planner.buyPlan(item, 60L);
+        MarketTradePlanner.TradePlan plan = planner.buyPlan(item, 2L);
 
-        assertEquals(60L, plan.executedQuantity());
-        assertEquals(6L, plan.unitPrice());
-        assertEquals(310L, plan.totalPrice());
-        assertEquals(100L, plan.totalAvailableQuantity());
-        assertEquals(2, plan.deltas().size());
-
-        planner.applyConsumption(plan);
-        planner.recomputeDerivedProjections(item);
-
-        assertEquals(40L, item.getCurrentStock());
-        assertEquals(1L, item.getMarketMomentum());
-        assertEquals(6L, item.getBuyUnitEstimate());
-        assertEquals(6L, item.getSellUnitEstimate());
+        assertEquals(2L, plan.executedQuantity());
+        assertEquals(108L, plan.unitPrice());
+        assertEquals(215L, plan.totalPrice());
+        assertEquals(Long.MAX_VALUE, plan.totalAvailableQuantity());
+        assertEquals(0, plan.deltas().size());
     }
 
     @Test
-    void sellPlan_restoresSegmentsFromHighestConsumedFrontier() {
-        MarketItem item = marketItem(segment(0L, 50L, 0L, 5L), segment(1L, 50L, 20L, 6L));
+    void buyPlan_pricesVirtualPositionsFromNegativeThroughPositiveBoundary() {
+        MarketItem item = pressureItem(-1L);
 
-        MarketTradePlanner.TradePlan plan = planner.sellPlan(item, 40L);
+        MarketTradePlanner.TradePlan plan = planner.buyPlan(item, 52L);
 
-        assertEquals(40L, plan.executedQuantity());
-        assertEquals(6L, plan.unitPrice());
-        assertEquals(230L, plan.totalPrice());
-        assertEquals(80L, plan.totalAvailableQuantity());
-        assertEquals(2, plan.deltas().size());
+        assertEquals(52L, plan.executedQuantity());
+        assertEquals(101L, plan.unitPrice());
+        assertEquals(5_211L, plan.totalPrice());
+        assertEquals(Long.MAX_VALUE, plan.totalAvailableQuantity());
+    }
 
-        planner.applyRestoration(plan);
-        planner.recomputeDerivedProjections(item);
+    @Test
+    void sellPlan_pricesVirtualPositionsAcrossZeroIntoNegativeBoundary() {
+        MarketItem item = pressureItem(1L);
 
-        assertEquals(60L, item.getCurrentStock());
-        assertEquals(0L, item.getMarketMomentum());
-        assertEquals(5L, item.getBuyUnitEstimate());
-        assertEquals(5L, item.getSellUnitEstimate());
+        MarketTradePlanner.TradePlan plan = planner.sellPlan(item, 2L);
+
+        assertEquals(2L, plan.executedQuantity());
+        assertEquals(98L, plan.unitPrice());
+        assertEquals(196L, plan.totalPrice());
+        assertEquals(Long.MAX_VALUE, plan.totalAvailableQuantity());
+        assertEquals(0, plan.deltas().size());
+    }
+
+    @Test
+    void sellPlan_pricesNextPositionBelowNegativeSegmentBoundary() {
+        MarketItem item = pressureItem(-50L);
+
+        MarketTradePlanner.TradePlan plan = planner.sellPlan(item, 1L);
+
+        assertEquals(1L, plan.executedQuantity());
+        assertEquals(93L, plan.unitPrice());
+        assertEquals(93L, plan.totalPrice());
+        assertEquals(Long.MAX_VALUE, plan.totalAvailableQuantity());
+    }
+
+    @Test
+    void buyPlan_rejectsOnlyConfiguredMaximumPressureBound() {
+        MarketItem item = pressureItem(49L);
+        item.setMaxNetPosition(50L);
+
+        MarketTradePlanner.TradePlan plan = planner.buyPlan(item, 2L);
+
+        assertEquals(0L, plan.executedQuantity());
+        assertEquals(0L, plan.unitPrice());
+        assertEquals(0L, plan.totalPrice());
+        assertEquals(1L, plan.totalAvailableQuantity());
+    }
+
+    @Test
+    void sellPlan_rejectsOnlyConfiguredMinimumPressureBound() {
+        MarketItem item = pressureItem(-49L);
+        item.setMinNetPosition(-50L);
+
+        MarketTradePlanner.TradePlan plan = planner.sellPlan(item, 2L);
+
+        assertEquals(0L, plan.executedQuantity());
+        assertEquals(0L, plan.unitPrice());
+        assertEquals(0L, plan.totalPrice());
+        assertEquals(1L, plan.totalAvailableQuantity());
+    }
+
+    @Test
+    void buyPlan_rejectsOverflow() {
+        MarketItem item = pressureItem(Long.MAX_VALUE);
+
+        assertThrows(ArithmeticException.class, () -> planner.buyPlan(item, 1L));
+    }
+
+    @Test
+    void sellPlan_rejectsOverflow() {
+        MarketItem item = pressureItem(Long.MIN_VALUE);
+
+        assertThrows(
+            ArithmeticException.class,
+            () -> planner.sellPlan(item, 1L)
+        );
     }
 
     @Test

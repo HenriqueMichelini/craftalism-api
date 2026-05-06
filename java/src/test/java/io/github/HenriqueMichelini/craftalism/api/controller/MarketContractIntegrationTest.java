@@ -643,8 +643,8 @@ class MarketContractIntegrationTest {
                         )
                 )
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.unitPrice").value("6"))
-                .andExpect(jsonPath("$.totalPrice").value("60"))
+                .andExpect(jsonPath("$.unitPrice").value("5"))
+                .andExpect(jsonPath("$.totalPrice").value("50"))
                 .andReturn();
 
         String quoteToken = jsonField(quoteResult.getResponse().getContentAsString(), "quoteToken");
@@ -675,14 +675,14 @@ class MarketContractIntegrationTest {
 
         Balance balance = balanceRepository.findById(playerUuid).orElseThrow();
         MarketItem updatedItem = marketItemRepository.findByItemId("wheat").orElseThrow();
-        assertEquals(1_060L, balance.getAmount());
+        assertEquals(1_050L, balance.getAmount());
         assertEquals(50L, updatedItem.getCurrentStock());
         assertEquals(50L, updatedItem.getSegments().get(1).getRemainingCapacity());
     }
 
     @Test
     @WithMockJwt(playerUuid = "220e8400-e29b-41d4-a716-446655440000")
-    void quote_rejectsSellOverflowWhenRestorableCapacityIsInsufficient() throws Exception {
+    void quote_allowsSellBeyondFiniteRestorableCapacityWhenNoPressureBoundExists() throws Exception {
         MarketItem item = marketItemRepository.findByItemId("wheat").orElseThrow();
         consume(item, 10L);
         item.setLastUpdatedAt(Instant.now());
@@ -705,9 +705,9 @@ class MarketContractIntegrationTest {
                         """.formatted(snapshotVersion)
                     )
             )
-            .andExpect(status().isUnprocessableEntity())
-            .andExpect(jsonPath("$.status").value("REJECTED"))
-            .andExpect(jsonPath("$.code").value("INSUFFICIENT_STOCK"));
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.unitPrice").value("5"))
+            .andExpect(jsonPath("$.totalPrice").value("55"));
     }
 
     @Test
@@ -896,6 +896,13 @@ class MarketContractIntegrationTest {
         item.setCurrency("coins");
         item.setCurrentStock(100L);
         item.setMarketMomentum(-1L);
+        item.setBaseUnitPrice(5L);
+        item.setMinUnitPrice(3L);
+        item.setMaxUnitPrice(15L);
+        item.setSegmentSize(50L);
+        item.setPriceSensitivity(new BigDecimal("0.0800"));
+        item.setBaseRegenQuantity(1L);
+        item.setRegenIntervalSeconds(60L);
         item.setVariationPercent(new BigDecimal("2.3"));
         item.setBlocked(false);
         item.setOperating(true);

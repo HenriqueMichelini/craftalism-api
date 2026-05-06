@@ -150,7 +150,7 @@ final class MarketTradeExecutor {
         if (plan.executedQuantity() != requestedQuantity) {
             throw rejection(
                 MarketRejectionCode.INSUFFICIENT_STOCK,
-                "Requested quantity exceeds available stock.",
+                "Requested quantity exceeds configured pressure bounds.",
                 HttpStatus.UNPROCESSABLE_ENTITY,
                 snapshotVersion
             );
@@ -170,7 +170,7 @@ final class MarketTradeExecutor {
         if (plan.executedQuantity() != requestedQuantity) {
             throw rejection(
                 MarketRejectionCode.INSUFFICIENT_STOCK,
-                "Requested quantity exceeds restorable capacity.",
+                "Requested quantity exceeds configured pressure bounds.",
                 HttpStatus.UNPROCESSABLE_ENTITY,
                 snapshotVersion
             );

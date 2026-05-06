@@ -3,6 +3,7 @@ package io.github.HenriqueMichelini.craftalism.api.service;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketItem;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketSegment;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 
@@ -21,85 +22,47 @@ final class MarketTradePlanner {
 
     TradePlan buyPlan(MarketItem item, long requestedQuantity) {
         recomputeDerivedProjections(item);
-        long remainingRequest = requestedQuantity;
-        long totalPrice = 0L;
-        long executedQuantity = 0L;
-        long totalAvailableQuantity = item.getCurrentStock();
-        List<SegmentDelta> deltas = new ArrayList<>();
-
-        for (MarketSegment segment : sortedSegments(item)) {
-            if (remainingRequest <= 0L) {
-                break;
-            }
-            if (segment.getRemainingCapacity() <= 0L) {
-                continue;
-            }
-            long take = Math.min(
-                remainingRequest,
-                segment.getRemainingCapacity()
-            );
-            totalPrice = Math.addExact(
-                totalPrice,
-                Math.multiplyExact(take, segment.getUnitPrice())
-            );
-            executedQuantity = Math.addExact(executedQuantity, take);
-            remainingRequest -= take;
-            deltas.add(new SegmentDelta(segment, take));
+        long resultingNetPosition = Math.addExact(
+            item.getNetPosition(),
+            requestedQuantity
+        );
+        long totalAvailableQuantity = buyPressureCapacity(item);
+        if (
+            item.getMaxNetPosition() != null &&
+            resultingNetPosition > item.getMaxNetPosition()
+        ) {
+            return unavailablePlan(totalAvailableQuantity);
         }
-
-        long unitPrice =
-            executedQuantity == 0L
-                ? 0L
-                : effectiveUnitPrice(totalPrice, executedQuantity);
-        return new TradePlan(
-            executedQuantity,
-            unitPrice,
-            totalPrice,
+        return pressurePlan(
+            item,
+            item.getNetPosition(),
+            requestedQuantity,
+            Direction.UP,
             totalAvailableQuantity,
-            deltas
+            legacyConsumptionDeltas(item, requestedQuantity)
         );
     }
 
     TradePlan sellPlan(MarketItem item, long requestedQuantity) {
         recomputeDerivedProjections(item);
-        long remainingRequest = requestedQuantity;
-        long totalPrice = 0L;
-        long executedQuantity = 0L;
-        long totalAvailableQuantity = totalRestorableCapacity(item);
-        List<SegmentDelta> deltas = new ArrayList<>();
-
-        List<MarketSegment> segments = sortedSegments(item);
-        for (
-            int index = segments.size() - 1;
-            index >= 0 && remainingRequest > 0L;
-            index--
+        long resultingNetPosition = Math.subtractExact(
+            item.getNetPosition(),
+            requestedQuantity
+        );
+        long totalAvailableQuantity = sellPressureCapacity(item);
+        if (
+            item.getMinNetPosition() != null &&
+            resultingNetPosition < item.getMinNetPosition()
         ) {
-            MarketSegment segment = segments.get(index);
-            long restorable =
-                segment.getMaxCapacity() - segment.getRemainingCapacity();
-            if (restorable <= 0L) {
-                continue;
-            }
-            long take = Math.min(remainingRequest, restorable);
-            totalPrice = Math.addExact(
-                totalPrice,
-                Math.multiplyExact(take, segment.getUnitPrice())
-            );
-            executedQuantity = Math.addExact(executedQuantity, take);
-            remainingRequest -= take;
-            deltas.add(new SegmentDelta(segment, take));
+            return unavailablePlan(totalAvailableQuantity);
         }
-
-        long unitPrice =
-            executedQuantity == 0L
-                ? 0L
-                : effectiveUnitPrice(totalPrice, executedQuantity);
-        return new TradePlan(
-            executedQuantity,
-            unitPrice,
-            totalPrice,
+        return pressurePlan(
+            item,
+            Math.subtractExact(item.getNetPosition(), 1L),
+            requestedQuantity,
+            Direction.DOWN,
             totalAvailableQuantity,
-            deltas
+            legacyRestorationDeltas(item, requestedQuantity)
         );
     }
 
@@ -126,9 +89,8 @@ final class MarketTradePlanner {
     void recomputeDerivedProjections(MarketItem item) {
         List<MarketSegment> segments = sortedSegments(item);
         if (segments.isEmpty()) {
-            throw invariantViolation(
-                "Market item must have at least one segment."
-            );
+            recomputePressureProjections(item);
+            return;
         }
 
         long expectedIndex = 0L;
@@ -212,6 +174,22 @@ final class MarketTradePlanner {
         );
     }
 
+    private void recomputePressureProjections(MarketItem item) {
+        item.setCurrentStock(0L);
+        item.setMarketMomentum(
+            pressurePricing.segment(item, item.getNetPosition())
+        );
+        item.setBuyUnitEstimate(
+            pressurePricing.unitPrice(item, item.getNetPosition())
+        );
+        item.setSellUnitEstimate(
+            pressurePricing.unitPrice(
+                item,
+                Math.subtractExact(item.getNetPosition(), 1L)
+            )
+        );
+    }
+
     List<MarketSegment> sortedSegments(MarketItem item) {
         return item
             .getSegments()
@@ -224,6 +202,117 @@ final class MarketTradePlanner {
         return Math.floorDiv(
             Math.addExact(totalPrice, quantity - 1L),
             quantity
+        );
+    }
+
+    private TradePlan pressurePlan(
+        MarketItem item,
+        long startPosition,
+        long requestedQuantity,
+        Direction direction,
+        long totalAvailableQuantity,
+        List<SegmentDelta> deltas
+    ) {
+        long remainingRequest = requestedQuantity;
+        long currentPosition = startPosition;
+        long totalPrice = 0L;
+
+        while (remainingRequest > 0L) {
+            long take = Math.min(
+                remainingRequest,
+                positionsRemainingInSegment(item, currentPosition, direction)
+            );
+            totalPrice = Math.addExact(
+                totalPrice,
+                Math.multiplyExact(
+                    take,
+                    pressurePricing.unitPrice(item, currentPosition)
+                )
+            );
+            remainingRequest -= take;
+            currentPosition =
+                direction == Direction.UP
+                    ? Math.addExact(currentPosition, take)
+                    : Math.subtractExact(currentPosition, take);
+        }
+
+        return new TradePlan(
+            requestedQuantity,
+            effectiveUnitPrice(totalPrice, requestedQuantity),
+            totalPrice,
+            totalAvailableQuantity,
+            deltas
+        );
+    }
+
+    private List<SegmentDelta> legacyConsumptionDeltas(
+        MarketItem item,
+        long requestedQuantity
+    ) {
+        long remainingRequest = requestedQuantity;
+        List<SegmentDelta> deltas = new ArrayList<>();
+
+        for (MarketSegment segment : sortedSegments(item)) {
+            if (remainingRequest <= 0L) {
+                break;
+            }
+            if (segment.getRemainingCapacity() <= 0L) {
+                continue;
+            }
+            long take = Math.min(
+                remainingRequest,
+                segment.getRemainingCapacity()
+            );
+            remainingRequest -= take;
+            deltas.add(new SegmentDelta(segment, take));
+        }
+        return List.copyOf(deltas);
+    }
+
+    private List<SegmentDelta> legacyRestorationDeltas(
+        MarketItem item,
+        long requestedQuantity
+    ) {
+        long remainingRequest = requestedQuantity;
+        List<SegmentDelta> deltas = new ArrayList<>();
+        List<MarketSegment> segments = sortedSegments(item);
+
+        for (
+            int index = segments.size() - 1;
+            index >= 0 && remainingRequest > 0L;
+            index--
+        ) {
+            MarketSegment segment = segments.get(index);
+            long restorable =
+                segment.getMaxCapacity() - segment.getRemainingCapacity();
+            if (restorable <= 0L) {
+                continue;
+            }
+            long take = Math.min(remainingRequest, restorable);
+            remainingRequest -= take;
+            deltas.add(new SegmentDelta(segment, take));
+        }
+        return List.copyOf(deltas);
+    }
+
+    private long positionsRemainingInSegment(
+        MarketItem item,
+        long pressurePosition,
+        Direction direction
+    ) {
+        long offset = Math.floorMod(pressurePosition, item.getSegmentSize());
+        return direction == Direction.UP
+            ? item.getSegmentSize() - offset
+            : offset + 1L;
+    }
+
+    private TradePlan unavailablePlan(long totalAvailableQuantity) {
+        return new TradePlan(
+            0L,
+            0L,
+            0L,
+            totalAvailableQuantity,
+            Collections.emptyList()
         );
     }
 
@@ -248,15 +337,18 @@ final class MarketTradePlanner {
         return SegmentState.PARTIAL;
     }
 
-    private long totalRestorableCapacity(MarketItem item) {
-        long total = 0L;
-        for (MarketSegment segment : item.getSegments()) {
-            total = Math.addExact(
-                total,
-                segment.getMaxCapacity() - segment.getRemainingCapacity()
-            );
+    private long buyPressureCapacity(MarketItem item) {
+        if (item.getMaxNetPosition() == null) {
+            return Long.MAX_VALUE;
         }
-        return total;
+        return Math.max(0L, item.getMaxNetPosition() - item.getNetPosition());
+    }
+
+    private long sellPressureCapacity(MarketItem item) {
+        if (item.getMinNetPosition() == null) {
+            return Long.MAX_VALUE;
+        }
+        return Math.max(0L, item.getNetPosition() - item.getMinNetPosition());
     }
 
     private IllegalStateException invariantViolation(String message) {
@@ -267,6 +359,11 @@ final class MarketTradePlanner {
         CONSUMED,
         PARTIAL,
         UNTOUCHED,
+    }
+
+    private enum Direction {
+        UP,
+        DOWN,
     }
 
     record SegmentDelta(MarketSegment segment, long quantity) {}

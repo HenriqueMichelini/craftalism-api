@@ -192,7 +192,7 @@ class MarketServiceTest {
     }
 
     @Test
-    void execute_buyExactlyExhaustingAvailableStock_leavesZeroStock() {
+    void execute_buyExactlyMatchingFiniteStock_doesNotApplyPressureMutationYet() {
         MarketItem item = marketItem(1, 50L, 5L);
         when(marketItemRepository.findAllForMarketRead()).thenReturn(java.util.List.of(item));
         String snapshotVersion = marketService.getSnapshot().snapshotVersion();
@@ -232,8 +232,25 @@ class MarketServiceTest {
     }
 
     @Test
-    void quote_buyRejectsWhenQuantityExceedsAvailableStock() {
+    void quote_buyAllowsQuantityBeyondFiniteStockWhenNoPressureBoundExists() {
         MarketItem item = marketItem(1, 40L, 5L);
+        when(marketItemRepository.findAllForMarketRead()).thenReturn(java.util.List.of(item));
+
+        MarketQuoteResponseDTO quote = marketService.quote(
+            authentication(),
+            new MarketQuoteRequestDTO("wheat", MarketSide.BUY, 41L, marketService.getSnapshot().snapshotVersion(), null),
+            null
+        );
+
+        assertEquals("5", quote.unitPrice());
+        assertEquals("205", quote.totalPrice());
+        verify(quoteStore).put(any(MarketQuoteStore.StoredQuote.class));
+    }
+
+    @Test
+    void quote_buyRejectsWhenQuantityExceedsMaximumPressureBound() {
+        MarketItem item = marketItem(1, 40L, 5L);
+        item.setMaxNetPosition(40L);
         when(marketItemRepository.findAllForMarketRead()).thenReturn(java.util.List.of(item));
 
         MarketRejectionException exception = assertThrows(
@@ -251,7 +268,7 @@ class MarketServiceTest {
     }
 
     @Test
-    void execute_buyRegression_iron2304DoesNotMutateStockBelowZero() {
+    void quote_buyLargeQuantityIsNotLimitedByFiniteStock() {
         MarketItem item = marketItem(13, 20L, 14L);
         item.setItemId("iron_ingot");
         item.setCategoryId("mining");
@@ -260,42 +277,17 @@ class MarketServiceTest {
         item.setIconKey("IRON_INGOT");
         item.setVariationPercent(new BigDecimal("1.1"));
         when(marketItemRepository.findAllForMarketRead()).thenReturn(java.util.List.of(item));
-        String snapshotVersion = marketService.getSnapshot().snapshotVersion();
 
-        when(quoteStore.get("iron-quote")).thenReturn(
-            Optional.of(
-                new MarketQuoteStore.StoredQuote(
-                    "iron-quote",
-                    playerUuid(),
-                    "iron_ingot",
-                    MarketSide.BUY,
-                    2_304L,
-                    37L,
-                    85_000L,
-                    snapshotVersion,
-                    Instant.now().plusSeconds(60L),
-                    MarketQuote.Status.ACTIVE
-                )
-            )
-        );
-        when(marketItemRepository.findForUpdate("iron_ingot")).thenReturn(Optional.of(item));
-        when(quoteStore.consume("iron-quote")).thenReturn(true);
-
-        MarketRejectionException exception = assertThrows(
-            MarketRejectionException.class,
-            () ->
-                marketService.execute(
-                    authentication(),
-                    new MarketExecuteRequestDTO("iron_ingot", MarketSide.BUY, 2_304L, "iron-quote", snapshotVersion, null),
-                    null
-                )
+        MarketQuoteResponseDTO quote = marketService.quote(
+            authentication(),
+            new MarketQuoteRequestDTO("iron_ingot", MarketSide.BUY, 2_304L, marketService.getSnapshot().snapshotVersion(), null),
+            null
         );
 
-        assertEquals(MarketRejectionCode.INSUFFICIENT_STOCK, exception.getCode());
+        assertEquals("35", quote.unitPrice());
         assertEquals(620L, item.getCurrentStock());
         assertEquals(-1L, item.getMarketMomentum());
-        verify(balanceRepository, never()).save(any());
-        verify(marketItemRepository, never()).save(item);
+        verify(quoteStore).put(any(MarketQuoteStore.StoredQuote.class));
     }
 
     @Test
@@ -371,6 +363,13 @@ class MarketServiceTest {
         item.setBuyUnitEstimate(baseUnitPrice);
         item.setSellUnitEstimate(baseUnitPrice);
         item.setCurrency("coins");
+        item.setBaseUnitPrice(baseUnitPrice);
+        item.setMinUnitPrice(Math.max(1L, Math.round(baseUnitPrice * 0.5D)));
+        item.setMaxUnitPrice(Math.round(baseUnitPrice * 3.0D));
+        item.setSegmentSize(50L);
+        item.setPriceSensitivity(new BigDecimal("0.0800"));
+        item.setBaseRegenQuantity(1L);
+        item.setRegenIntervalSeconds(60L);
         long totalStock = 0L;
         for (int index = 0; index < segmentCount; index++) {
             long capacity = index == segmentCount - 1 ? lastSegmentCapacity : 50L;

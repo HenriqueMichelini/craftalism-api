@@ -125,6 +125,13 @@ class MarketTradeExecutorTest {
         item.setDisplayName("Wheat");
         item.setIconKey("WHEAT");
         item.setCurrency("coins");
+        item.setBaseUnitPrice(5L);
+        item.setMinUnitPrice(3L);
+        item.setMaxUnitPrice(15L);
+        item.setSegmentSize(50L);
+        item.setPriceSensitivity(new BigDecimal("0.0800"));
+        item.setBaseRegenQuantity(1L);
+        item.setRegenIntervalSeconds(60L);
         item.setVariationPercent(new BigDecimal("2.3"));
         item.setBlocked(false);
         item.setOperating(true);

@@ -2,7 +2,7 @@
 
 ## Status
 
-planned
+completed
 
 ## Objective
 
@@ -25,10 +25,10 @@ Quote planning prices requested quantities over virtual pressure positions and r
 
 ## Acceptance Criteria
 
-- [ ] BUY prices positions `netPosition` through `netPosition + quantity - 1`.
-- [ ] SELL prices positions `netPosition - 1` through `netPosition - quantity`.
-- [ ] `INSUFFICIENT_STOCK` is emitted only for configured pressure bounds.
-- [ ] Ordinary buys and sells are not limited by finite stock.
+- [x] BUY prices positions `netPosition` through `netPosition + quantity - 1`.
+- [x] SELL prices positions `netPosition - 1` through `netPosition - quantity`.
+- [x] `INSUFFICIENT_STOCK` is emitted only for configured pressure bounds.
+- [x] Ordinary buys and sells are not limited by finite stock.
 
 ## Expected Files to Change
 
@@ -64,3 +64,7 @@ Run from `java/`. Include planner unit tests for crossing segment boundaries in 
 
 ## Completion Notes
 
+- Implemented quote planning over virtual pressure positions for BUY and SELL.
+- Preserved legacy segment deltas only for existing out-of-scope mutation paths; quote totals and full-plan acceptance no longer depend on finite stock.
+- Updated tests for pressure traversal boundaries, configured pressure bounds, overflow, and superseded finite-stock quote behavior.
+- Validation: `rtk ./gradlew test` from `java/` passed.
