@@ -2,7 +2,7 @@
 
 ## Status
 
-planned
+implemented
 
 ## Objective
 
@@ -66,3 +66,12 @@ Run from `java/`. Prefer focused unit tests for positive, zero, negative, and bo
 
 ## Completion Notes
 
+Implemented pressure segment and bounded unit price derivation in a package-private pricing helper exposed through `MarketTradePlanner`.
+
+Validation:
+
+```bash
+rtk ./gradlew test
+```
+
+Result: passed from `java/`.

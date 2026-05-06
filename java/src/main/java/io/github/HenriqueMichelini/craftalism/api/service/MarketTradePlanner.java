@@ -8,6 +8,17 @@ import java.util.List;
 
 final class MarketTradePlanner {
 
+    private final MarketPressurePricing pressurePricing =
+        new MarketPressurePricing();
+
+    long pressureSegment(MarketItem item, long netPosition) {
+        return pressurePricing.segment(item, netPosition);
+    }
+
+    long pressureUnitPrice(MarketItem item, long pressurePosition) {
+        return pressurePricing.unitPrice(item, pressurePosition);
+    }
+
     TradePlan buyPlan(MarketItem item, long requestedQuantity) {
         recomputeDerivedProjections(item);
         long remainingRequest = requestedQuantity;

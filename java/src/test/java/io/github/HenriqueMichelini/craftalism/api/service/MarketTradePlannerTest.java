@@ -8,10 +8,70 @@ import io.github.HenriqueMichelini.craftalism.api.model.MarketSegment;
 import java.math.BigDecimal;
 import java.time.Instant;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 class MarketTradePlannerTest {
 
     private final MarketTradePlanner planner = new MarketTradePlanner();
+
+    @ParameterizedTest
+    @CsvSource({
+        "0, 0",
+        "49, 0",
+        "50, 1",
+        "-1, -1",
+        "-50, -1",
+        "-51, -2",
+    })
+    void pressureSegment_usesFloorDivisionForNegativePressure(
+        long netPosition,
+        long expectedSegment
+    ) {
+        MarketItem item = pressureItem(0L);
+
+        assertEquals(
+            expectedSegment,
+            planner.pressureSegment(item, netPosition)
+        );
+    }
+
+    @Test
+    void pressureUnitPrice_pricesSegmentZeroAtBaseUnitPrice() {
+        MarketItem item = pressureItem(49L);
+
+        assertEquals(
+            100L,
+            planner.pressureUnitPrice(item, item.getNetPosition())
+        );
+    }
+
+    @Test
+    void pressureUnitPrice_positivePressureApproachesMaxUnitPrice() {
+        MarketItem item = pressureItem(50_000L);
+
+        long unitPrice = planner.pressureUnitPrice(item, item.getNetPosition());
+
+        assertEquals(300L, unitPrice);
+    }
+
+    @Test
+    void pressureUnitPrice_negativePressureApproachesMinUnitPrice() {
+        MarketItem item = pressureItem(-50_000L);
+
+        long unitPrice = planner.pressureUnitPrice(item, item.getNetPosition());
+
+        assertEquals(50L, unitPrice);
+    }
+
+    @Test
+    void pressureUnitPrice_roundsAndClampsWithinBounds() {
+        MarketItem item = pressureItem(50L);
+
+        long unitPrice = planner.pressureUnitPrice(item, item.getNetPosition());
+
+        assertEquals(115L, unitPrice);
+    }
 
     @Test
     void buyPlan_consumesSegmentsFromLowestPriceFrontier() {
@@ -130,6 +190,17 @@ class MarketTradePlannerTest {
         item.setBlocked(false);
         item.setOperating(true);
         item.setLastUpdatedAt(Instant.parse("2026-04-12T18:29:42Z"));
+        return item;
+    }
+
+    private MarketItem pressureItem(long netPosition) {
+        MarketItem item = baseMarketItem();
+        item.setBaseUnitPrice(100L);
+        item.setMinUnitPrice(50L);
+        item.setMaxUnitPrice(300L);
+        item.setSegmentSize(50L);
+        item.setPriceSensitivity(new BigDecimal("0.0800"));
+        item.setNetPosition(netPosition);
         return item;
     }
 
