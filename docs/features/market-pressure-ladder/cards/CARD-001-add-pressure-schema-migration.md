@@ -61,3 +61,10 @@ Run from `java/`. Also run any Flyway or migration-specific test available.
 
 ## Completion Notes
 
+Implemented with `V15__add_market_pressure_state.sql` and focused migration coverage in
+`MarketPressureStateMigrationTest`.
+
+Validation:
+
+- `rtk ./gradlew test --tests io.github.HenriqueMichelini.craftalism.api.migration.MarketPressureStateMigrationTest`
+- `rtk ./gradlew test`
