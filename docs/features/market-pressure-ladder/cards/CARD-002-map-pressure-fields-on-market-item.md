@@ -2,7 +2,7 @@
 
 ## Status
 
-planned
+completed
 
 ## Objective
 
@@ -59,3 +59,6 @@ Run from `java/`. Prefer focused compile/model/repository tests when available.
 
 ## Completion Notes
 
+- Explicitly mapped `MarketItem` pressure-ladder config/state fields to the `market_items` schema columns added by `V15__add_market_pressure_state.sql`.
+- Left the legacy `segments` relationship intact for migration compatibility.
+- Validation passed with `rtk ./gradlew test` from `java/`.

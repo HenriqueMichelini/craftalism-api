@@ -50,32 +50,34 @@ public class MarketItem {
     @Column(nullable = false)
     private long marketMomentum;
 
-    @Column(nullable = false)
+    @Column(name = "base_unit_price", nullable = false)
     private long baseUnitPrice = 1L;
 
-    @Column(nullable = false)
+    @Column(name = "min_unit_price", nullable = false)
     private long minUnitPrice = 1L;
 
-    @Column(nullable = false)
+    @Column(name = "max_unit_price", nullable = false)
     private long maxUnitPrice = 1L;
 
-    @Column(nullable = false)
+    @Column(name = "segment_size", nullable = false)
     private long segmentSize = 50L;
 
-    @Column(nullable = false, precision = 8, scale = 4)
+    @Column(name = "price_sensitivity", nullable = false, precision = 8, scale = 4)
     private BigDecimal priceSensitivity = DEFAULT_PRICE_SENSITIVITY;
 
-    @Column(nullable = false)
+    @Column(name = "base_regen_quantity", nullable = false)
     private long baseRegenQuantity = 1L;
 
-    @Column(nullable = false)
+    @Column(name = "regen_interval_seconds", nullable = false)
     private long regenIntervalSeconds = 60L;
 
-    @Column(nullable = false)
+    @Column(name = "net_position", nullable = false)
     private long netPosition;
 
+    @Column(name = "min_net_position")
     private Long minNetPosition;
 
+    @Column(name = "max_net_position")
     private Long maxNetPosition;
 
     @Column(nullable = false, precision = 7, scale = 2)
