@@ -10,7 +10,14 @@ record MarketSeedItem(
     String iconKey,
     BigDecimal variationPercent,
     long baseUnitPrice,
-    int segmentCount
+    long minUnitPrice,
+    long maxUnitPrice,
+    long segmentSize,
+    BigDecimal priceSensitivity,
+    long baseRegenQuantity,
+    long regenIntervalSeconds,
+    Long minNetPosition,
+    Long maxNetPosition
 ) {
     MarketSeedItem {
         requireText(itemId, "itemId");
@@ -28,8 +35,62 @@ record MarketSeedItem(
                 "baseUnitPrice must be positive"
             );
         }
-        if (segmentCount <= 0) {
-            throw new IllegalArgumentException("segmentCount must be positive");
+        if (minUnitPrice <= 0L) {
+            throw new IllegalArgumentException(
+                "minUnitPrice must be positive"
+            );
+        }
+        if (minUnitPrice > baseUnitPrice) {
+            throw new IllegalArgumentException(
+                "minUnitPrice must not exceed baseUnitPrice"
+            );
+        }
+        if (maxUnitPrice < baseUnitPrice) {
+            throw new IllegalArgumentException(
+                "maxUnitPrice must not be below baseUnitPrice"
+            );
+        }
+        if (segmentSize <= 0L) {
+            throw new IllegalArgumentException("segmentSize must be positive");
+        }
+        if (priceSensitivity == null) {
+            throw new IllegalArgumentException(
+                "priceSensitivity must be provided"
+            );
+        }
+        if (priceSensitivity.signum() <= 0) {
+            throw new IllegalArgumentException(
+                "priceSensitivity must be positive"
+            );
+        }
+        if (baseRegenQuantity < 0L) {
+            throw new IllegalArgumentException(
+                "baseRegenQuantity must not be negative"
+            );
+        }
+        if (regenIntervalSeconds <= 0L) {
+            throw new IllegalArgumentException(
+                "regenIntervalSeconds must be positive"
+            );
+        }
+        if (minNetPosition != null && minNetPosition > 0L) {
+            throw new IllegalArgumentException(
+                "minNetPosition must be non-positive when provided"
+            );
+        }
+        if (maxNetPosition != null && maxNetPosition < 0L) {
+            throw new IllegalArgumentException(
+                "maxNetPosition must be non-negative when provided"
+            );
+        }
+        if (
+            minNetPosition != null &&
+            maxNetPosition != null &&
+            minNetPosition > maxNetPosition
+        ) {
+            throw new IllegalArgumentException(
+                "minNetPosition must not exceed maxNetPosition"
+            );
         }
     }
 
@@ -52,7 +113,14 @@ record MarketSeedItem(
         private String iconKey;
         private BigDecimal variationPercent;
         private long baseUnitPrice;
-        private int segmentCount;
+        private long minUnitPrice;
+        private long maxUnitPrice;
+        private long segmentSize;
+        private BigDecimal priceSensitivity;
+        private long baseRegenQuantity;
+        private long regenIntervalSeconds;
+        private Long minNetPosition;
+        private Long maxNetPosition;
 
         Builder itemId(String itemId) {
             this.itemId = itemId;
@@ -89,8 +157,43 @@ record MarketSeedItem(
             return this;
         }
 
-        Builder segmentCount(int segmentCount) {
-            this.segmentCount = segmentCount;
+        Builder minUnitPrice(long minUnitPrice) {
+            this.minUnitPrice = minUnitPrice;
+            return this;
+        }
+
+        Builder maxUnitPrice(long maxUnitPrice) {
+            this.maxUnitPrice = maxUnitPrice;
+            return this;
+        }
+
+        Builder segmentSize(long segmentSize) {
+            this.segmentSize = segmentSize;
+            return this;
+        }
+
+        Builder priceSensitivity(String priceSensitivity) {
+            this.priceSensitivity = new BigDecimal(priceSensitivity);
+            return this;
+        }
+
+        Builder baseRegenQuantity(long baseRegenQuantity) {
+            this.baseRegenQuantity = baseRegenQuantity;
+            return this;
+        }
+
+        Builder regenIntervalSeconds(long regenIntervalSeconds) {
+            this.regenIntervalSeconds = regenIntervalSeconds;
+            return this;
+        }
+
+        Builder minNetPosition(Long minNetPosition) {
+            this.minNetPosition = minNetPosition;
+            return this;
+        }
+
+        Builder maxNetPosition(Long maxNetPosition) {
+            this.maxNetPosition = maxNetPosition;
             return this;
         }
 
@@ -103,7 +206,14 @@ record MarketSeedItem(
                 iconKey,
                 variationPercent,
                 baseUnitPrice,
-                segmentCount
+                minUnitPrice,
+                maxUnitPrice,
+                segmentSize,
+                priceSensitivity,
+                baseRegenQuantity,
+                regenIntervalSeconds,
+                minNetPosition,
+                maxNetPosition
             );
         }
     }

@@ -16,7 +16,12 @@ public class DefaultMarketCatalog {
             .iconKey("WHEAT")
             .variationPercent("2.3")
             .baseUnitPrice(50000L)
-            .segmentCount(37)
+            .minUnitPrice(25000L)
+            .maxUnitPrice(150000L)
+            .segmentSize(50L)
+            .priceSensitivity("0.0800")
+            .baseRegenQuantity(1L)
+            .regenIntervalSeconds(60L)
             .build(),
         MarketSeedItem
             .builder()
@@ -27,7 +32,12 @@ public class DefaultMarketCatalog {
             .iconKey("CARROT")
             .variationPercent("-1.4")
             .baseUnitPrice(10000L)
-            .segmentCount(29)
+            .minUnitPrice(5000L)
+            .maxUnitPrice(30000L)
+            .segmentSize(50L)
+            .priceSensitivity("0.0800")
+            .baseRegenQuantity(1L)
+            .regenIntervalSeconds(60L)
             .build(),
         MarketSeedItem
             .builder()
@@ -38,7 +48,12 @@ public class DefaultMarketCatalog {
             .iconKey("IRON_INGOT")
             .variationPercent("1.1")
             .baseUnitPrice(140000L)
-            .segmentCount(13)
+            .minUnitPrice(70000L)
+            .maxUnitPrice(420000L)
+            .segmentSize(50L)
+            .priceSensitivity("0.0800")
+            .baseRegenQuantity(1L)
+            .regenIntervalSeconds(60L)
             .build()
     );
 

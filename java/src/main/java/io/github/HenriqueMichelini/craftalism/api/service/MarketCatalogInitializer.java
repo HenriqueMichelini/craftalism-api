@@ -206,15 +206,36 @@ final class MarketCatalogInitializer {
         item.setDisplayName(seed.displayName());
         item.setIconKey(seed.iconKey());
         item.setCurrency("coins");
+        item.setBaseUnitPrice(seed.baseUnitPrice());
+        item.setMinUnitPrice(seed.minUnitPrice());
+        item.setMaxUnitPrice(seed.maxUnitPrice());
+        item.setSegmentSize(seed.segmentSize());
+        item.setPriceSensitivity(seed.priceSensitivity());
+        item.setBaseRegenQuantity(seed.baseRegenQuantity());
+        item.setRegenIntervalSeconds(seed.regenIntervalSeconds());
+        item.setNetPosition(0L);
+        item.setMinNetPosition(seed.minNetPosition());
+        item.setMaxNetPosition(seed.maxNetPosition());
         item.setVariationPercent(seed.variationPercent());
         item.setBlocked(false);
         item.setOperating(true);
         item.setLastUpdatedAt(Instant.now());
         item.setSegments(
-            explicitSeedSegments(seed.baseUnitPrice(), seed.segmentCount())
+            explicitSeedSegments(seed.baseUnitPrice(), legacySegmentCount(seed))
         );
         tradePlanner.recomputeDerivedProjections(item);
         return item;
+    }
+
+    private int legacySegmentCount(MarketSeedItem seed) {
+        return switch (seed.itemId()) {
+            case "wheat" -> 37;
+            case "carrot" -> 29;
+            case "iron_ingot" -> 13;
+            default -> throw new IllegalArgumentException(
+                "No legacy segment count configured for " + seed.itemId()
+            );
+        };
     }
 
     private List<MarketSegment> explicitSeedSegments(

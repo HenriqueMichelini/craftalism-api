@@ -64,3 +64,14 @@ Run from `java/`. Prefer catalog initializer unit tests when available.
 
 ## Completion Notes
 
+Implemented in:
+
+- `java/src/main/java/io/github/HenriqueMichelini/craftalism/api/service/DefaultMarketCatalog.java`
+- `java/src/main/java/io/github/HenriqueMichelini/craftalism/api/service/MarketSeedItem.java`
+- `java/src/main/java/io/github/HenriqueMichelini/craftalism/api/service/MarketCatalogInitializer.java`
+- `java/src/test/java/io/github/HenriqueMichelini/craftalism/api/service/MarketCatalogInitializerTest.java`
+
+Validation:
+
+- `rtk ./gradlew test --tests io.github.HenriqueMichelini.craftalism.api.service.MarketCatalogInitializerTest`
+- `rtk ./gradlew test`
