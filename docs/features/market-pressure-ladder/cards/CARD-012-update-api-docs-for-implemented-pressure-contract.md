@@ -2,7 +2,7 @@
 
 ## Status
 
-planned
+completed
 
 ## Objective
 
@@ -66,3 +66,5 @@ Run from `java/` when contract tests are part of the implementation. Also perfor
 
 ## Completion Notes
 
+- Updated repo-local market docs to describe implemented pressure snapshot fields, hard pressure-bound `INSUFFICIENT_STOCK` semantics, and authoritative pressure-state `snapshotVersion` hash behavior.
+- Validation: `rtk ./gradlew test` from `java/` passed.

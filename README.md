@@ -212,6 +212,10 @@ Base path: `/api`. Full interactive documentation is available at `http://localh
 
 Market prices are exposed as string-encoded whole-coin amounts. Business rejections use a stable JSON contract with machine-readable codes instead of free-form text.
 
+Market snapshot and execute `updatedItem` payloads expose pressure-ladder state with `marketPressure`, `marketSegment`, and `pressureMagnitude`. The superseded `currentStock` field is not part of the public pressure-ladder contract. `INSUFFICIENT_STOCK` is reserved for trades that would exceed configured hard pressure bounds (`maxNetPosition` for buys or `minNetPosition` for sells).
+
+Market `snapshotVersion` values are opaque `market:<hash>` tokens derived from authoritative pressure state and trade-affecting configuration. Clients must compare or pass them through only; they must not parse token structure or infer inventory semantics from it.
+
 Market player context is resolved from a valid JWT `player_uuid` claim first, then a UUID-valued subject. When the authenticated client is the configured trusted Minecraft server client (`minecraft-server`, recognized from JWT `sub`, `client_id`, or `azp`) with `api:write`, quote and execute may instead supply the Bukkit player UUID as request field `playerUuid` or header `X-Craftalism-Player-Uuid`. Supplied player UUIDs are ignored for non-trusted clients and must be valid UUIDs.
 
 ### Transfer incidents (diagnostic)

@@ -247,7 +247,10 @@ It is not emitted for ordinary pressure-ladder trading.
 
 - compare-only stale token
 - clients must not parse meaning from it
-- may change whenever authoritative market state or trade-affecting config changes
+- formatted by the backend as `market:<hash>`, but clients must treat that shape as opaque
+- derived from authoritative pressure state and trade-affecting pressure config
+- changes when fields such as `marketPressure`, hard pressure bounds, blocked/operating state, item update time, unit price bounds, segment size, pressure sensitivity, or regeneration config change
+- does not change for display-only recalculations such as estimates, legacy `currentStock`, legacy segment rows, market momentum, or variation percent
 
 ### `quoteToken`
 
