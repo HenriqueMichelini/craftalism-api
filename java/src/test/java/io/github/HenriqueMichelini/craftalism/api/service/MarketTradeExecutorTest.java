@@ -1,10 +1,14 @@
 package io.github.HenriqueMichelini.craftalism.api.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import io.github.HenriqueMichelini.craftalism.api.dto.MarketSide;
+import io.github.HenriqueMichelini.craftalism.api.exceptions.MarketRejectionException;
 import io.github.HenriqueMichelini.craftalism.api.model.Balance;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketItem;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketQuote;
@@ -54,6 +58,7 @@ class MarketTradeExecutorTest {
         );
 
         assertEquals(10L, appliedTrade.executedQuantity());
+        assertEquals(10L, item.getNetPosition());
         assertEquals(950L, balance.getAmount());
         assertEquals(40L, item.getCurrentStock());
         assertEquals(40L, item.getSegments().get(0).getRemainingCapacity());
@@ -83,10 +88,39 @@ class MarketTradeExecutorTest {
         verify(balanceRepository).save(balanceCaptor.capture());
 
         assertEquals(10L, appliedTrade.executedQuantity());
+        assertEquals(-10L, item.getNetPosition());
         assertEquals(50L, balanceCaptor.getValue().getAmount());
         assertEquals(10L, item.getCurrentStock());
         assertEquals(10L, item.getSegments().get(0).getRemainingCapacity());
         verify(marketItemRepository).save(item);
+    }
+
+    @Test
+    void applyTrade_buyInsufficientFundsLeavesPressureUnchanged() {
+        MarketItem item = marketItem(segment(0L, 50L, 50L, 5L));
+        Balance balance = new Balance(PLAYER_UUID, 49L);
+        when(balanceRepository.findForUpdate(PLAYER_UUID)).thenReturn(
+            Optional.of(balance)
+        );
+        MarketTradeExecutor executor = executor();
+
+        assertThrows(
+            MarketRejectionException.class,
+            () ->
+                executor.applyTrade(
+                    PLAYER_UUID,
+                    item,
+                    quote(MarketSide.BUY, 10L, 5L, 50L),
+                    "market:snapshot",
+                    () -> "market:current"
+                )
+        );
+
+        assertEquals(0L, item.getNetPosition());
+        assertEquals(50L, item.getCurrentStock());
+        assertEquals(50L, item.getSegments().get(0).getRemainingCapacity());
+        verify(balanceRepository, never()).save(any());
+        verify(marketItemRepository, never()).save(any());
     }
 
     private MarketTradeExecutor executor() {

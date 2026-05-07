@@ -125,6 +125,7 @@ class MarketServiceTest {
         );
 
         assertEquals("SUCCESS", response.status());
+        assertEquals(10L, item.getNetPosition());
         assertEquals(1_810L, item.getCurrentStock());
         assertEquals(0L, item.getMarketMomentum());
         assertEquals(950L, balance.getAmount());
@@ -184,6 +185,7 @@ class MarketServiceTest {
 
         assertEquals("SUCCESS", response.status());
         assertEquals(60L, response.executedQuantity());
+        assertEquals(60L, item.getNetPosition());
         assertEquals(40L, item.getCurrentStock());
         assertEquals(1L, item.getMarketMomentum());
         assertEquals(6L, item.getBuyUnitEstimate());
@@ -192,7 +194,7 @@ class MarketServiceTest {
     }
 
     @Test
-    void execute_buyExactlyMatchingFiniteStock_doesNotApplyPressureMutationYet() {
+    void execute_buyExactlyMatchingFiniteStock_mutatesPressurePosition() {
         MarketItem item = marketItem(1, 50L, 5L);
         when(marketItemRepository.findAllForMarketRead()).thenReturn(java.util.List.of(item));
         String snapshotVersion = marketService.getSnapshot().snapshotVersion();
@@ -226,6 +228,7 @@ class MarketServiceTest {
 
         assertEquals("SUCCESS", response.status());
         assertEquals(50L, response.executedQuantity());
+        assertEquals(50L, item.getNetPosition());
         assertEquals(0L, item.getCurrentStock());
         assertEquals(0L, item.getMarketMomentum());
         assertEquals(750L, balance.getAmount());

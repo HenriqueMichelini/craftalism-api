@@ -2,7 +2,7 @@
 
 ## Status
 
-planned
+completed
 
 ## Objective
 
@@ -24,10 +24,10 @@ Successful execute mutates pressure state after quote validation and settlement;
 
 ## Acceptance Criteria
 
-- [ ] BUY increments `netPosition` by quantity.
-- [ ] SELL decrements `netPosition` by quantity.
-- [ ] Failed settlement does not mutate pressure.
-- [ ] Rebuilt plan must match stored quote total and unit price before mutation.
+- [x] BUY increments `netPosition` by quantity.
+- [x] SELL decrements `netPosition` by quantity.
+- [x] Failed settlement does not mutate pressure.
+- [x] Rebuilt plan must match stored quote total and unit price before mutation.
 
 ## Expected Files to Change
 
@@ -62,3 +62,7 @@ Run from `java/`. Include execute tests for buy, sell, insufficient funds, stale
 
 ## Completion Notes
 
+- Mutated `netPosition` after quote plan verification and successful balance settlement in execute.
+- Preserved legacy segment mutation paths while keeping pressure mutation scoped to successful BUY/SELL execution.
+- Added execute coverage for BUY, SELL, insufficient funds, stale quote, and single-use quote behavior.
+- Validation: `rtk ./gradlew test` from `java/` passed.

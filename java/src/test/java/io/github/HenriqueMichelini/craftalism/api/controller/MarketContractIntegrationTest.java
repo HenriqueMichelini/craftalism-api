@@ -177,6 +177,7 @@ class MarketContractIntegrationTest {
         MarketQuote quote = marketQuoteRepository.findById(quoteToken).orElseThrow();
         assertEquals(950L, balance.getAmount());
         assertEquals(90L, item.getCurrentStock());
+        assertEquals(10L, item.getNetPosition());
         assertEquals(MarketQuote.Status.CONSUMED, quote.getStatus());
     }
 
@@ -235,8 +236,10 @@ class MarketContractIntegrationTest {
             .andExpect(jsonPath("$.status").value("SUCCESS"));
 
         Balance balance = balanceRepository.findById(playerUuid).orElseThrow();
+        MarketItem item = marketItemRepository.findById("wheat").orElseThrow();
         MarketQuote consumedQuote = marketQuoteRepository.findById(quoteToken).orElseThrow();
         assertEquals(950L, balance.getAmount());
+        assertEquals(10L, item.getNetPosition());
         assertEquals(MarketQuote.Status.CONSUMED, consumedQuote.getStatus());
     }
 
@@ -424,6 +427,8 @@ class MarketContractIntegrationTest {
             .andExpect(jsonPath("$.code").value("INSUFFICIENT_FUNDS"));
 
         MarketQuote quote = marketQuoteRepository.findById(quoteToken).orElseThrow();
+        MarketItem item = marketItemRepository.findById("wheat").orElseThrow();
+        assertEquals(0L, item.getNetPosition());
         assertEquals(MarketQuote.Status.CONSUMED, quote.getStatus());
     }
 
@@ -547,6 +552,8 @@ class MarketContractIntegrationTest {
             .andExpect(jsonPath("$.code").value("STALE_QUOTE"));
 
         MarketQuote quote = marketQuoteRepository.findById(quoteToken).orElseThrow();
+        MarketItem persistedItem = marketItemRepository.findById("wheat").orElseThrow();
+        assertEquals(0L, persistedItem.getNetPosition());
         assertEquals(MarketQuote.Status.INVALIDATED, quote.getStatus());
     }
 
@@ -613,6 +620,8 @@ class MarketContractIntegrationTest {
             .andExpect(jsonPath("$.code").value("STALE_QUOTE"));
 
         MarketQuote quote = marketQuoteRepository.findById(quoteToken).orElseThrow();
+        MarketItem item = marketItemRepository.findById("wheat").orElseThrow();
+        assertEquals(10L, item.getNetPosition());
         assertEquals(MarketQuote.Status.CONSUMED, quote.getStatus());
     }
 
@@ -676,6 +685,7 @@ class MarketContractIntegrationTest {
         Balance balance = balanceRepository.findById(playerUuid).orElseThrow();
         MarketItem updatedItem = marketItemRepository.findByItemId("wheat").orElseThrow();
         assertEquals(1_050L, balance.getAmount());
+        assertEquals(-10L, updatedItem.getNetPosition());
         assertEquals(50L, updatedItem.getCurrentStock());
         assertEquals(50L, updatedItem.getSegments().get(1).getRemainingCapacity());
     }
@@ -815,6 +825,7 @@ class MarketContractIntegrationTest {
         MarketQuote quote = marketQuoteRepository.findById(quoteToken).orElseThrow();
         assertEquals(950L, balance.getAmount());
         assertEquals(90L, item.getCurrentStock());
+        assertEquals(10L, item.getNetPosition());
         assertEquals(MarketQuote.Status.CONSUMED, quote.getStatus());
     }
 
