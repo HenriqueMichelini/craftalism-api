@@ -63,7 +63,9 @@ final class MarketSnapshotProjector {
             Long.toString(item.getBuyUnitEstimate()),
             Long.toString(item.getSellUnitEstimate()),
             item.getCurrency(),
-            item.getCurrentStock(),
+            item.getNetPosition(),
+            tradePlanner.pressureSegment(item, item.getNetPosition()),
+            pressureMagnitude(item.getNetPosition()),
             item.getVariationPercent().stripTrailingZeros().toPlainString(),
             item.isBlocked(),
             item.isOperating(),
@@ -81,7 +83,9 @@ final class MarketSnapshotProjector {
             Long.toString(item.buyUnitEstimate()),
             Long.toString(item.sellUnitEstimate()),
             item.currency(),
-            item.currentStock(),
+            item.marketPressure(),
+            item.marketSegment(),
+            item.pressureMagnitude(),
             item.variationPercent(),
             item.blocked(),
             item.operating(),
@@ -106,6 +110,9 @@ final class MarketSnapshotProjector {
                     item.getSellUnitEstimate(),
                     item.getCurrency(),
                     item.getCurrentStock(),
+                    item.getNetPosition(),
+                    tradePlanner.pressureSegment(item, item.getNetPosition()),
+                    pressureMagnitude(item.getNetPosition()),
                     item.getMarketMomentum(),
                     item
                         .getVariationPercent()
@@ -139,7 +146,11 @@ final class MarketSnapshotProjector {
                 .append('|')
                 .append(item.itemId())
                 .append(':')
-                .append(item.currentStock())
+                .append(item.marketPressure())
+                .append(':')
+                .append(item.marketSegment())
+                .append(':')
+                .append(item.pressureMagnitude())
                 .append(':')
                 .append(item.buyUnitEstimate())
                 .append(':')
@@ -178,6 +189,12 @@ final class MarketSnapshotProjector {
         }
     }
 
+    private long pressureMagnitude(long marketPressure) {
+        return marketPressure == Long.MIN_VALUE
+            ? Long.MAX_VALUE
+            : Math.abs(marketPressure);
+    }
+
     record MarketSegmentProjection(
         long segmentIndex,
         long maxCapacity,
@@ -195,6 +212,9 @@ final class MarketSnapshotProjector {
         long sellUnitEstimate,
         String currency,
         long currentStock,
+        long marketPressure,
+        long marketSegment,
+        long pressureMagnitude,
         long marketMomentum,
         String variationPercent,
         boolean blocked,

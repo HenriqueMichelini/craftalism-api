@@ -22,8 +22,14 @@ public record MarketSnapshotItemDTO(
     @Schema(description = "Currency code", example = "coins")
     String currency,
 
-    @Schema(description = "Current market stock", example = "1820")
-    long currentStock,
+    @Schema(description = "Signed backend pressure position", example = "-25")
+    long marketPressure,
+
+    @Schema(description = "Signed pressure segment", example = "-1")
+    long marketSegment,
+
+    @Schema(description = "Absolute pressure magnitude", example = "25")
+    long pressureMagnitude,
 
     @Schema(description = "Variation percentage string", example = "2.3")
     String variationPercent,

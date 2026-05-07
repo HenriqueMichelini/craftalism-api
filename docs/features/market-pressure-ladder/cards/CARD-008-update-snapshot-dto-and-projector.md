@@ -2,7 +2,7 @@
 
 ## Status
 
-planned
+completed
 
 ## Objective
 
@@ -63,3 +63,7 @@ Run from `java/`. Include controller integration tests for snapshot and execute 
 
 ## Completion Notes
 
+- Implemented pressure snapshot item fields in `MarketSnapshotItemDTO`.
+- Updated `MarketSnapshotProjector` to populate `marketPressure`, `marketSegment`, and `pressureMagnitude` for snapshot items and execute `updatedItem`.
+- Removed public `currentStock` assertions from snapshot and execute integration tests and added pressure-shape assertions.
+- Validation passed: `rtk ./gradlew test` from `java/`.

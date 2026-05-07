@@ -92,7 +92,11 @@ class MarketContractIntegrationTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.snapshotVersion").value(org.hamcrest.Matchers.startsWith("market:")))
             .andExpect(jsonPath("$.categories[0].categoryId").value("farming"))
-            .andExpect(jsonPath("$.categories[0].items[0].itemId").value("wheat"));
+            .andExpect(jsonPath("$.categories[0].items[0].itemId").value("wheat"))
+            .andExpect(jsonPath("$.categories[0].items[0].marketPressure").value(0))
+            .andExpect(jsonPath("$.categories[0].items[0].marketSegment").value(0))
+            .andExpect(jsonPath("$.categories[0].items[0].pressureMagnitude").value(0))
+            .andExpect(jsonPath("$.categories[0].items[0].currentStock").doesNotExist());
     }
 
     @Test
@@ -170,7 +174,10 @@ class MarketContractIntegrationTest {
             .andExpect(jsonPath("$.status").value("SUCCESS"))
             .andExpect(jsonPath("$.executedQuantity").value(10))
             .andExpect(jsonPath("$.updatedItem.itemId").value("wheat"))
-            .andExpect(jsonPath("$.updatedItem.currentStock").value(90));
+            .andExpect(jsonPath("$.updatedItem.marketPressure").value(10))
+            .andExpect(jsonPath("$.updatedItem.marketSegment").value(0))
+            .andExpect(jsonPath("$.updatedItem.pressureMagnitude").value(10))
+            .andExpect(jsonPath("$.updatedItem.currentStock").doesNotExist());
 
         Balance balance = balanceRepository.findById(playerUuid).orElseThrow();
         MarketItem item = marketItemRepository.findById("wheat").orElseThrow();
@@ -680,7 +687,10 @@ class MarketContractIntegrationTest {
             )
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.executedQuantity").value(10))
-            .andExpect(jsonPath("$.updatedItem.currentStock").value(50));
+            .andExpect(jsonPath("$.updatedItem.marketPressure").value(-10))
+            .andExpect(jsonPath("$.updatedItem.marketSegment").value(-1))
+            .andExpect(jsonPath("$.updatedItem.pressureMagnitude").value(10))
+            .andExpect(jsonPath("$.updatedItem.currentStock").doesNotExist());
 
         Balance balance = balanceRepository.findById(playerUuid).orElseThrow();
         MarketItem updatedItem = marketItemRepository.findByItemId("wheat").orElseThrow();
@@ -731,7 +741,10 @@ class MarketContractIntegrationTest {
         mockMvc
             .perform(get("/api/market/snapshot"))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.categories[0].items[0].currentStock").value(45));
+            .andExpect(jsonPath("$.categories[0].items[0].marketPressure").value(50))
+            .andExpect(jsonPath("$.categories[0].items[0].marketSegment").value(1))
+            .andExpect(jsonPath("$.categories[0].items[0].pressureMagnitude").value(50))
+            .andExpect(jsonPath("$.categories[0].items[0].currentStock").doesNotExist());
 
         MarketItem regenerated = marketItemRepository.findByItemId("wheat").orElseThrow();
         assertEquals(50L, regenerated.getNetPosition());
