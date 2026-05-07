@@ -130,19 +130,7 @@ final class MarketSnapshotProjector {
                         .toPlainString(),
                     item.isBlocked(),
                     item.isOperating(),
-                    item.getLastUpdatedAt(),
-                    tradePlanner
-                        .sortedSegments(item)
-                        .stream()
-                        .map(segment ->
-                            new MarketSegmentProjection(
-                                segment.getSegmentIndex(),
-                                segment.getMaxCapacity(),
-                                segment.getRemainingCapacity(),
-                                segment.getUnitPrice()
-                            )
-                        )
-                        .toList()
+                    item.getLastUpdatedAt()
                 )
             );
         }
@@ -212,13 +200,6 @@ final class MarketSnapshotProjector {
             : Math.abs(marketPressure);
     }
 
-    record MarketSegmentProjection(
-        long segmentIndex,
-        long maxCapacity,
-        long remainingCapacity,
-        long unitPrice
-    ) {}
-
     record MarketSnapshotProjection(
         String itemId,
         String categoryId,
@@ -245,7 +226,6 @@ final class MarketSnapshotProjector {
         String variationPercent,
         boolean blocked,
         boolean operating,
-        Instant lastUpdatedAt,
-        List<MarketSegmentProjection> segments
+        Instant lastUpdatedAt
     ) {}
 }

@@ -2,7 +2,7 @@
 
 ## Status
 
-planned
+completed
 
 ## Objective
 
@@ -63,3 +63,8 @@ Run from `java/`. Include integration and performance tests confirming bounded r
 
 ## Completion Notes
 
+- Removed normal repository fetch joins/entity graphs for `MarketItem.segments`.
+- Switched market planning, projection, execution, regeneration, and catalog initialization to derive from pressure-state fields only.
+- Default catalog bootstrap no longer creates `market_segments` rows.
+- Kept legacy segment entity/repository/table for migration or audit-only access.
+- Validated with `rtk ./gradlew test` from `java/`.

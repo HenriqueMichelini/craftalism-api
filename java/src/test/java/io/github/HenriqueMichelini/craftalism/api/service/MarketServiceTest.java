@@ -19,7 +19,6 @@ import io.github.HenriqueMichelini.craftalism.api.exceptions.MarketRejectionExce
 import io.github.HenriqueMichelini.craftalism.api.model.Balance;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketItem;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketQuote;
-import io.github.HenriqueMichelini.craftalism.api.model.MarketSegment;
 import io.github.HenriqueMichelini.craftalism.api.repository.BalanceRepository;
 import io.github.HenriqueMichelini.craftalism.api.repository.MarketItemRepository;
 import io.github.HenriqueMichelini.craftalism.api.repository.MarketQuoteRepository;
@@ -87,7 +86,7 @@ class MarketServiceTest {
     }
 
     @Test
-    void execute_buyUpdatesBalanceAndStock() {
+    void execute_buyUpdatesBalanceAndPressure() {
         MarketItem item = marketItem(37, 20L, 5L);
         when(marketItemRepository.findAllForMarketRead()).thenReturn(java.util.List.of(item));
 
@@ -126,7 +125,7 @@ class MarketServiceTest {
 
         assertEquals("SUCCESS", response.status());
         assertEquals(10L, item.getNetPosition());
-        assertEquals(1_810L, item.getCurrentStock());
+        assertEquals(0L, item.getCurrentStock());
         assertEquals(0L, item.getMarketMomentum());
         assertEquals(950L, balance.getAmount());
         assertNotNull(response.updatedItem());
@@ -135,7 +134,7 @@ class MarketServiceTest {
     }
 
     @Test
-    void quote_buyTraversesSegmentsProgressively() {
+    void quote_buyTraversesVirtualPressureSegmentsProgressively() {
         MarketItem item = marketItem(2, 50L, 5L);
         when(marketItemRepository.findAllForMarketRead()).thenReturn(java.util.List.of(item));
 
@@ -151,7 +150,7 @@ class MarketServiceTest {
     }
 
     @Test
-    void execute_buyAcrossSegments_updatesExecutedQuantityAndDerivedProjections() {
+    void execute_buyAcrossVirtualSegments_updatesExecutedQuantityAndDerivedProjections() {
         MarketItem item = marketItem(2, 50L, 5L);
         when(marketItemRepository.findAllForMarketRead()).thenReturn(java.util.List.of(item));
         String snapshotVersion = marketService.getSnapshot().snapshotVersion();
@@ -186,7 +185,7 @@ class MarketServiceTest {
         assertEquals("SUCCESS", response.status());
         assertEquals(60L, response.executedQuantity());
         assertEquals(60L, item.getNetPosition());
-        assertEquals(40L, item.getCurrentStock());
+        assertEquals(0L, item.getCurrentStock());
         assertEquals(1L, item.getMarketMomentum());
         assertEquals(6L, item.getBuyUnitEstimate());
         assertEquals(6L, item.getSellUnitEstimate());
@@ -194,7 +193,7 @@ class MarketServiceTest {
     }
 
     @Test
-    void execute_buyExactlyMatchingFiniteStock_mutatesPressurePosition() {
+    void execute_buyAtSegmentBoundary_mutatesPressurePosition() {
         MarketItem item = marketItem(1, 50L, 5L);
         when(marketItemRepository.findAllForMarketRead()).thenReturn(java.util.List.of(item));
         String snapshotVersion = marketService.getSnapshot().snapshotVersion();
@@ -230,7 +229,7 @@ class MarketServiceTest {
         assertEquals(50L, response.executedQuantity());
         assertEquals(50L, item.getNetPosition());
         assertEquals(0L, item.getCurrentStock());
-        assertEquals(0L, item.getMarketMomentum());
+        assertEquals(1L, item.getMarketMomentum());
         assertEquals(750L, balance.getAmount());
     }
 
@@ -287,9 +286,8 @@ class MarketServiceTest {
             null
         );
 
-        assertEquals("35", quote.unitPrice());
-        assertEquals(620L, item.getCurrentStock());
-        assertEquals(-1L, item.getMarketMomentum());
+        assertEquals(0L, item.getCurrentStock());
+        assertEquals(0L, item.getMarketMomentum());
         verify(quoteStore).put(any(MarketQuoteStore.StoredQuote.class));
     }
 
@@ -313,12 +311,10 @@ class MarketServiceTest {
             .filter(item -> item.getItemId().equals("carrot"))
             .findFirst()
             .orElseThrow();
-        List<MarketSegment> carrotSegments = carrot.getSegments();
-
-        assertEquals(1_450L, carrot.getCurrentStock());
+        assertEquals(0L, carrot.getCurrentStock());
         assertEquals(10_000L, carrot.getBuyUnitEstimate());
-        assertEquals(10_000L, carrotSegments.get(0).getUnitPrice());
-        assertEquals(10_028L, carrotSegments.get(28).getUnitPrice());
+        assertEquals(9_616L, carrot.getSellUnitEstimate());
+        assertEquals(0, carrot.getSegments().size());
     }
 
     @Test
@@ -373,19 +369,9 @@ class MarketServiceTest {
         item.setPriceSensitivity(new BigDecimal("0.0800"));
         item.setBaseRegenQuantity(1L);
         item.setRegenIntervalSeconds(60L);
-        long totalStock = 0L;
-        for (int index = 0; index < segmentCount; index++) {
-            long capacity = index == segmentCount - 1 ? lastSegmentCapacity : 50L;
-            MarketSegment segment = new MarketSegment();
-            segment.setSegmentIndex(index);
-            segment.setMaxCapacity(capacity);
-            segment.setRemainingCapacity(capacity);
-            segment.setUnitPrice(baseUnitPrice + index);
-            item.addSegment(segment);
-            totalStock += capacity;
-        }
-        item.setCurrentStock(totalStock);
-        item.setMarketMomentum(-1L);
+        item.setCurrentStock(0L);
+        item.setMarketMomentum(0L);
+        item.setNetPosition(0L);
         item.setVariationPercent(new BigDecimal("2.3"));
         item.setBlocked(false);
         item.setOperating(true);

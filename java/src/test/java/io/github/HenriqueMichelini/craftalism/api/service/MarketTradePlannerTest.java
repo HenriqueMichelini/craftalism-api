@@ -4,7 +4,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import io.github.HenriqueMichelini.craftalism.api.model.MarketItem;
-import io.github.HenriqueMichelini.craftalism.api.model.MarketSegment;
 import java.math.BigDecimal;
 import java.time.Instant;
 import org.junit.jupiter.api.Test;
@@ -83,7 +82,6 @@ class MarketTradePlannerTest {
         assertEquals(108L, plan.unitPrice());
         assertEquals(215L, plan.totalPrice());
         assertEquals(Long.MAX_VALUE, plan.totalAvailableQuantity());
-        assertEquals(0, plan.deltas().size());
     }
 
     @Test
@@ -108,7 +106,6 @@ class MarketTradePlannerTest {
         assertEquals(98L, plan.unitPrice());
         assertEquals(196L, plan.totalPrice());
         assertEquals(Long.MAX_VALUE, plan.totalAvailableQuantity());
-        assertEquals(0, plan.deltas().size());
     }
 
     @Test
@@ -167,66 +164,19 @@ class MarketTradePlannerTest {
     }
 
     @Test
-    void recomputeDerivedProjections_rejectsMultiplePartialSegments() {
-        MarketItem item = invalidMarketItem(
-            segment(0L, 50L, 10L, 5L),
-            segment(1L, 50L, 20L, 6L)
-        );
+    void recomputeDerivedProjections_usesPressureState() {
+        MarketItem item = pressureItem(50L);
+        item.setBuyUnitEstimate(999L);
+        item.setSellUnitEstimate(888L);
+        item.setCurrentStock(777L);
+        item.setMarketMomentum(666L);
 
-        IllegalStateException exception = assertThrows(
-            IllegalStateException.class,
-            () -> planner.recomputeDerivedProjections(item)
-        );
-
-        assertEquals(
-            "There must be at most one partially consumed segment and no gaps.",
-            exception.getMessage()
-        );
-    }
-
-    @Test
-    void recomputeDerivedProjections_rejectsNonContiguousSegments() {
-        MarketItem item = invalidMarketItem(
-            segment(0L, 50L, 50L, 5L),
-            segment(2L, 50L, 50L, 6L)
-        );
-
-        IllegalStateException exception = assertThrows(
-            IllegalStateException.class,
-            () -> planner.recomputeDerivedProjections(item)
-        );
-
-        assertEquals(
-            "Segment indexes must be contiguous and start at zero.",
-            exception.getMessage()
-        );
-    }
-
-    private MarketItem marketItem(MarketSegment... segments) {
-        MarketItem item = new MarketItem();
-        item.setItemId("wheat");
-        item.setCategoryId("farming");
-        item.setCategoryDisplayName("Farming");
-        item.setDisplayName("Wheat");
-        item.setIconKey("WHEAT");
-        item.setCurrency("coins");
-        item.setVariationPercent(new BigDecimal("2.3"));
-        item.setBlocked(false);
-        item.setOperating(true);
-        item.setLastUpdatedAt(Instant.parse("2026-04-12T18:29:42Z"));
-        for (MarketSegment segment : segments) {
-            item.addSegment(segment);
-        }
         planner.recomputeDerivedProjections(item);
-        return item;
-    }
 
-    private MarketItem invalidMarketItem(MarketSegment... segments) {
-        MarketItem item = baseMarketItem();
-        for (MarketSegment segment : segments) {
-            item.addSegment(segment);
-        }
-        return item;
+        assertEquals(0L, item.getCurrentStock());
+        assertEquals(1L, item.getMarketMomentum());
+        assertEquals(115L, item.getBuyUnitEstimate());
+        assertEquals(100L, item.getSellUnitEstimate());
     }
 
     private MarketItem baseMarketItem() {
@@ -253,19 +203,5 @@ class MarketTradePlannerTest {
         item.setPriceSensitivity(new BigDecimal("0.0800"));
         item.setNetPosition(netPosition);
         return item;
-    }
-
-    private MarketSegment segment(
-        long index,
-        long maxCapacity,
-        long remainingCapacity,
-        long unitPrice
-    ) {
-        MarketSegment segment = new MarketSegment();
-        segment.setSegmentIndex(index);
-        segment.setMaxCapacity(maxCapacity);
-        segment.setRemainingCapacity(remainingCapacity);
-        segment.setUnitPrice(unitPrice);
-        return segment;
     }
 }

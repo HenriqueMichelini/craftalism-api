@@ -12,7 +12,6 @@ import io.github.HenriqueMichelini.craftalism.api.exceptions.MarketRejectionExce
 import io.github.HenriqueMichelini.craftalism.api.model.Balance;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketItem;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketQuote;
-import io.github.HenriqueMichelini.craftalism.api.model.MarketSegment;
 import io.github.HenriqueMichelini.craftalism.api.repository.BalanceRepository;
 import io.github.HenriqueMichelini.craftalism.api.repository.MarketItemRepository;
 import java.math.BigDecimal;
@@ -41,8 +40,8 @@ class MarketTradeExecutorTest {
     private final MarketTradePlanner tradePlanner = new MarketTradePlanner();
 
     @Test
-    void applyTrade_buyDebitsBalanceAndConsumesSegments() {
-        MarketItem item = marketItem(segment(0L, 50L, 50L, 5L));
+    void applyTrade_buyDebitsBalanceAndIncreasesPressure() {
+        MarketItem item = marketItem();
         Balance balance = new Balance(PLAYER_UUID, 1_000L);
         when(balanceRepository.findForUpdate(PLAYER_UUID)).thenReturn(
             Optional.of(balance)
@@ -60,15 +59,15 @@ class MarketTradeExecutorTest {
         assertEquals(10L, appliedTrade.executedQuantity());
         assertEquals(10L, item.getNetPosition());
         assertEquals(950L, balance.getAmount());
-        assertEquals(40L, item.getCurrentStock());
-        assertEquals(40L, item.getSegments().get(0).getRemainingCapacity());
+        assertEquals(0L, item.getCurrentStock());
+        assertEquals(0, item.getSegments().size());
         verify(balanceRepository).save(balance);
         verify(marketItemRepository).save(item);
     }
 
     @Test
-    void applyTrade_sellCreatesBalanceAndRestoresSegments() {
-        MarketItem item = marketItem(segment(0L, 50L, 0L, 5L));
+    void applyTrade_sellCreatesBalanceAndDecreasesPressure() {
+        MarketItem item = marketItem();
         when(balanceRepository.findForUpdate(PLAYER_UUID)).thenReturn(
             Optional.empty()
         );
@@ -90,14 +89,14 @@ class MarketTradeExecutorTest {
         assertEquals(10L, appliedTrade.executedQuantity());
         assertEquals(-10L, item.getNetPosition());
         assertEquals(50L, balanceCaptor.getValue().getAmount());
-        assertEquals(10L, item.getCurrentStock());
-        assertEquals(10L, item.getSegments().get(0).getRemainingCapacity());
+        assertEquals(0L, item.getCurrentStock());
+        assertEquals(0, item.getSegments().size());
         verify(marketItemRepository).save(item);
     }
 
     @Test
     void applyTrade_buyInsufficientFundsLeavesPressureUnchanged() {
-        MarketItem item = marketItem(segment(0L, 50L, 50L, 5L));
+        MarketItem item = marketItem();
         Balance balance = new Balance(PLAYER_UUID, 49L);
         when(balanceRepository.findForUpdate(PLAYER_UUID)).thenReturn(
             Optional.of(balance)
@@ -117,8 +116,8 @@ class MarketTradeExecutorTest {
         );
 
         assertEquals(0L, item.getNetPosition());
-        assertEquals(50L, item.getCurrentStock());
-        assertEquals(50L, item.getSegments().get(0).getRemainingCapacity());
+        assertEquals(0L, item.getCurrentStock());
+        assertEquals(0, item.getSegments().size());
         verify(balanceRepository, never()).save(any());
         verify(marketItemRepository, never()).save(any());
     }
@@ -151,7 +150,7 @@ class MarketTradeExecutorTest {
         );
     }
 
-    private MarketItem marketItem(MarketSegment... segments) {
+    private MarketItem marketItem() {
         MarketItem item = new MarketItem();
         item.setItemId("wheat");
         item.setCategoryId("farming");
@@ -170,24 +169,7 @@ class MarketTradeExecutorTest {
         item.setBlocked(false);
         item.setOperating(true);
         item.setLastUpdatedAt(Instant.parse("2026-04-12T18:29:42Z"));
-        for (MarketSegment segment : segments) {
-            item.addSegment(segment);
-        }
         tradePlanner.recomputeDerivedProjections(item);
         return item;
-    }
-
-    private MarketSegment segment(
-        long index,
-        long maxCapacity,
-        long remainingCapacity,
-        long unitPrice
-    ) {
-        MarketSegment segment = new MarketSegment();
-        segment.setSegmentIndex(index);
-        segment.setMaxCapacity(maxCapacity);
-        segment.setRemainingCapacity(remainingCapacity);
-        segment.setUnitPrice(unitPrice);
-        return segment;
     }
 }

@@ -3,11 +3,11 @@ package io.github.HenriqueMichelini.craftalism.api.service;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import io.github.HenriqueMichelini.craftalism.api.model.MarketItem;
-import io.github.HenriqueMichelini.craftalism.api.model.MarketSegment;
 import io.github.HenriqueMichelini.craftalism.api.repository.MarketItemRepository;
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -67,7 +67,7 @@ class MarketCatalogInitializerTest {
         assertEquals(0L, wheat.getNetPosition());
         assertNull(wheat.getMinNetPosition());
         assertNull(wheat.getMaxNetPosition());
-        assertEquals(37, wheat.getSegments().size());
+        assertEquals(0, wheat.getSegments().size());
     }
 
     @ParameterizedTest
@@ -79,8 +79,12 @@ class MarketCatalogInitializerTest {
     }
 
     @Test
-    void initializeCatalogIfEmpty_backfillsMissingSegmentsFromLegacyState() {
-        MarketItem item = legacyItem();
+    void initializeCatalogIfEmpty_recomputesExistingPressureProjections() {
+        MarketItem item = pressureItem();
+        item.setBuyUnitEstimate(999L);
+        item.setSellUnitEstimate(888L);
+        item.setCurrentStock(777L);
+        item.setMarketMomentum(666L);
         when(marketItemRepository.count()).thenReturn(1L);
         when(marketItemRepository.findAllForMarketRead()).thenReturn(
             List.of(item)
@@ -102,30 +106,45 @@ class MarketCatalogInitializerTest {
         List<MarketItem> savedItems = new ArrayList<>();
         itemCaptor.getValue().forEach(savedItems::add);
         MarketItem savedItem = savedItems.get(0);
-        List<MarketSegment> segments = savedItem.getSegments();
 
-        assertEquals(80L, savedItem.getCurrentStock());
-        assertEquals(20L, savedItem.getMarketMomentum());
-        assertEquals(22, segments.size());
-        assertEquals(0L, segments.get(19).getRemainingCapacity());
-        assertEquals(30L, segments.get(20).getRemainingCapacity());
-        assertEquals(25L, segments.get(20).getUnitPrice());
-        assertEquals(50L, segments.get(21).getRemainingCapacity());
-        assertEquals(26L, segments.get(21).getUnitPrice());
+        assertEquals(0L, savedItem.getCurrentStock());
+        assertEquals(1L, savedItem.getMarketMomentum());
+        assertEquals(115L, savedItem.getBuyUnitEstimate());
+        assertEquals(100L, savedItem.getSellUnitEstimate());
+        assertEquals(0, savedItem.getSegments().size());
     }
 
-    private MarketItem legacyItem() {
+    @Test
+    void initializeCatalogIfEmpty_doesNotReadSegmentsForEmptyDefaultCatalog() {
+        when(marketItemRepository.count()).thenReturn(0L);
+
+        MarketCatalogInitializer initializer = new MarketCatalogInitializer(
+            marketItemRepository,
+            new DefaultMarketCatalog(),
+            tradePlanner
+        );
+
+        initializer.initializeCatalogIfEmpty();
+
+        verify(marketItemRepository, never()).findAllForMarketRead();
+    }
+
+    private MarketItem pressureItem() {
         MarketItem item = new MarketItem();
         item.setItemId("wheat");
         item.setCategoryId("farming");
         item.setCategoryDisplayName("Farming");
         item.setDisplayName("Wheat");
         item.setIconKey("WHEAT");
-        item.setBuyUnitEstimate(25L);
-        item.setSellUnitEstimate(25L);
         item.setCurrency("coins");
-        item.setCurrentStock(80L);
-        item.setMarketMomentum(20L);
+        item.setBaseUnitPrice(100L);
+        item.setMinUnitPrice(50L);
+        item.setMaxUnitPrice(300L);
+        item.setSegmentSize(50L);
+        item.setPriceSensitivity(new BigDecimal("0.0800"));
+        item.setBaseRegenQuantity(1L);
+        item.setRegenIntervalSeconds(60L);
+        item.setNetPosition(50L);
         item.setVariationPercent(new BigDecimal("2.3"));
         item.setBlocked(false);
         item.setOperating(true);

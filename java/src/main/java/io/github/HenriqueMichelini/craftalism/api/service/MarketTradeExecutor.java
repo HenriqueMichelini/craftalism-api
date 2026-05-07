@@ -78,7 +78,6 @@ final class MarketTradeExecutor {
         item.setNetPosition(
             Math.addExact(item.getNetPosition(), plan.executedQuantity())
         );
-        tradePlanner.applyConsumption(plan);
         item.setVariationPercent(
             item.getVariationPercent().add(BigDecimal.valueOf(0.6))
         );
@@ -117,7 +116,6 @@ final class MarketTradeExecutor {
         item.setNetPosition(
             Math.subtractExact(item.getNetPosition(), plan.executedQuantity())
         );
-        tradePlanner.applyRestoration(plan);
         item.setVariationPercent(
             item.getVariationPercent().subtract(BigDecimal.valueOf(0.6))
         );

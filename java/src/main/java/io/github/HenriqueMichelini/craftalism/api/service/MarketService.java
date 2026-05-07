@@ -440,20 +440,14 @@ public class MarketService {
         long hashNanos,
         long totalNanos
     ) {
-        long segmentCount = 0L;
-        for (MarketSnapshotProjector.MarketSnapshotProjection projection : projections) {
-            segmentCount += projection.segments().size();
-        }
-
         log.info(
-            "market.snapshot.timing totalMs={} fetchMs={} regenerationMs={} projectionBuildMs={} hashMs={} items={} segments={} regeneratedItems={}",
+            "market.snapshot.timing totalMs={} fetchMs={} regenerationMs={} projectionBuildMs={} hashMs={} items={} regeneratedItems={}",
             nanosToMillis(totalNanos),
             nanosToMillis(readState.fetchNanos()),
             nanosToMillis(readState.regenerationNanos()),
             nanosToMillis(projectionBuildNanos),
             nanosToMillis(hashNanos),
             projections.size(),
-            segmentCount,
             readState.regeneratedItemCount()
         );
     }

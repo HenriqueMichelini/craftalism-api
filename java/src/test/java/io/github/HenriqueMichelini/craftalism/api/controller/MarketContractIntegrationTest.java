@@ -11,12 +11,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import io.github.HenriqueMichelini.craftalism.api.model.Balance;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketItem;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketQuote;
-import io.github.HenriqueMichelini.craftalism.api.model.MarketSegment;
 import io.github.HenriqueMichelini.craftalism.api.model.Player;
 import io.github.HenriqueMichelini.craftalism.api.repository.BalanceRepository;
 import io.github.HenriqueMichelini.craftalism.api.repository.MarketItemRepository;
 import io.github.HenriqueMichelini.craftalism.api.repository.MarketQuoteRepository;
-import io.github.HenriqueMichelini.craftalism.api.repository.MarketSegmentRepository;
 import io.github.HenriqueMichelini.craftalism.api.repository.PlayerRepository;
 import io.github.HenriqueMichelini.craftalism.api.security.WithMockJwt;
 import io.github.HenriqueMichelini.craftalism.api.service.MarketQuoteStore;
@@ -66,9 +64,6 @@ class MarketContractIntegrationTest {
     @Autowired
     private MarketQuoteRepository marketQuoteRepository;
 
-    @Autowired
-    private MarketSegmentRepository marketSegmentRepository;
-
     private UUID playerUuid;
 
     @BeforeEach
@@ -76,7 +71,6 @@ class MarketContractIntegrationTest {
         marketQuoteStore.clear();
         balanceRepository.deleteAll();
         playerRepository.deleteAll();
-        marketSegmentRepository.deleteAll();
         marketItemRepository.deleteAll();
 
         playerUuid = UUID.fromString("220e8400-e29b-41d4-a716-446655440000");
@@ -123,7 +117,7 @@ class MarketContractIntegrationTest {
 
     @Test
     @WithMockJwt(playerUuid = "220e8400-e29b-41d4-a716-446655440000")
-    void quoteAndExecute_buySuccess_updatesBalanceAndStock() throws Exception {
+    void quoteAndExecute_buySuccess_updatesBalanceAndPressure() throws Exception {
         String snapshotVersion = snapshotVersion();
 
         MvcResult quoteResult =
@@ -183,7 +177,7 @@ class MarketContractIntegrationTest {
         MarketItem item = marketItemRepository.findById("wheat").orElseThrow();
         MarketQuote quote = marketQuoteRepository.findById(quoteToken).orElseThrow();
         assertEquals(950L, balance.getAmount());
-        assertEquals(90L, item.getCurrentStock());
+        assertEquals(0L, item.getCurrentStock());
         assertEquals(10L, item.getNetPosition());
         assertEquals(MarketQuote.Status.CONSUMED, quote.getStatus());
     }
@@ -534,7 +528,7 @@ class MarketContractIntegrationTest {
         );
 
         MarketItem item = marketItemRepository.findByItemId("wheat").orElseThrow();
-        item.getSegments().get(0).setRemainingCapacity(45L);
+        item.setNetPosition(1L);
         item.setLastUpdatedAt(Instant.now().plusSeconds(5));
         marketItemRepository.save(item);
 
@@ -560,7 +554,7 @@ class MarketContractIntegrationTest {
 
         MarketQuote quote = marketQuoteRepository.findById(quoteToken).orElseThrow();
         MarketItem persistedItem = marketItemRepository.findById("wheat").orElseThrow();
-        assertEquals(0L, persistedItem.getNetPosition());
+        assertEquals(1L, persistedItem.getNetPosition());
         assertEquals(MarketQuote.Status.INVALIDATED, quote.getStatus());
     }
 
@@ -634,9 +628,8 @@ class MarketContractIntegrationTest {
 
     @Test
     @WithMockJwt(playerUuid = "220e8400-e29b-41d4-a716-446655440000")
-    void quoteAndExecute_sellSuccess_restoresCapacityAndCreditsBalance() throws Exception {
+    void quoteAndExecute_sellSuccess_decreasesPressureAndCreditsBalance() throws Exception {
         MarketItem item = marketItemRepository.findByItemId("wheat").orElseThrow();
-        consume(item, 60L);
         item.setLastUpdatedAt(Instant.now());
         marketItemRepository.save(item);
 
@@ -696,15 +689,13 @@ class MarketContractIntegrationTest {
         MarketItem updatedItem = marketItemRepository.findByItemId("wheat").orElseThrow();
         assertEquals(1_050L, balance.getAmount());
         assertEquals(-10L, updatedItem.getNetPosition());
-        assertEquals(50L, updatedItem.getCurrentStock());
-        assertEquals(50L, updatedItem.getSegments().get(1).getRemainingCapacity());
+        assertEquals(0L, updatedItem.getCurrentStock());
     }
 
     @Test
     @WithMockJwt(playerUuid = "220e8400-e29b-41d4-a716-446655440000")
-    void quote_allowsSellBeyondFiniteRestorableCapacityWhenNoPressureBoundExists() throws Exception {
+    void quote_allowsSellWithoutFiniteRestorableCapacityWhenNoPressureBoundExists() throws Exception {
         MarketItem item = marketItemRepository.findByItemId("wheat").orElseThrow();
-        consume(item, 10L);
         item.setLastUpdatedAt(Instant.now());
         marketItemRepository.save(item);
 
@@ -731,9 +722,8 @@ class MarketContractIntegrationTest {
     }
 
     @Test
-    void snapshot_regenerationRecoversPressureWithoutRestoringSegments() throws Exception {
+    void snapshot_regenerationRecoversPressureWithoutReadingSegments() throws Exception {
         MarketItem item = marketItemRepository.findByItemId("wheat").orElseThrow();
-        consume(item, 55L);
         item.setNetPosition(55L);
         item.setLastUpdatedAt(Instant.now().minusSeconds(5 * 60L));
         marketItemRepository.save(item);
@@ -748,9 +738,7 @@ class MarketContractIntegrationTest {
 
         MarketItem regenerated = marketItemRepository.findByItemId("wheat").orElseThrow();
         assertEquals(50L, regenerated.getNetPosition());
-        assertEquals(45L, regenerated.getCurrentStock());
-        assertEquals(0L, regenerated.getSegments().get(0).getRemainingCapacity());
-        assertEquals(45L, regenerated.getSegments().get(1).getRemainingCapacity());
+        assertEquals(0L, regenerated.getCurrentStock());
     }
 
     @Test
@@ -839,7 +827,7 @@ class MarketContractIntegrationTest {
         MarketItem item = marketItemRepository.findById("wheat").orElseThrow();
         MarketQuote quote = marketQuoteRepository.findById(quoteToken).orElseThrow();
         assertEquals(950L, balance.getAmount());
-        assertEquals(90L, item.getCurrentStock());
+        assertEquals(0L, item.getCurrentStock());
         assertEquals(10L, item.getNetPosition());
         assertEquals(MarketQuote.Status.CONSUMED, quote.getStatus());
     }
@@ -920,8 +908,8 @@ class MarketContractIntegrationTest {
         item.setBuyUnitEstimate(5L);
         item.setSellUnitEstimate(5L);
         item.setCurrency("coins");
-        item.setCurrentStock(100L);
-        item.setMarketMomentum(-1L);
+        item.setCurrentStock(0L);
+        item.setMarketMomentum(0L);
         item.setBaseUnitPrice(5L);
         item.setMinUnitPrice(3L);
         item.setMaxUnitPrice(15L);
@@ -929,37 +917,11 @@ class MarketContractIntegrationTest {
         item.setPriceSensitivity(new BigDecimal("0.0800"));
         item.setBaseRegenQuantity(1L);
         item.setRegenIntervalSeconds(60L);
+        item.setNetPosition(0L);
         item.setVariationPercent(new BigDecimal("2.3"));
         item.setBlocked(false);
         item.setOperating(true);
         item.setLastUpdatedAt(Instant.parse("2026-04-12T18:29:42Z"));
-        item.addSegment(segment(0L, 50L, 50L, 5L));
-        item.addSegment(segment(1L, 50L, 50L, 6L));
         return item;
-    }
-
-    private MarketSegment segment(long index, long maxCapacity, long remainingCapacity, long unitPrice) {
-        MarketSegment segment = new MarketSegment();
-        segment.setSegmentIndex(index);
-        segment.setMaxCapacity(maxCapacity);
-        segment.setRemainingCapacity(remainingCapacity);
-        segment.setUnitPrice(unitPrice);
-        return segment;
-    }
-
-    private void consume(MarketItem item, long quantity) {
-        long remaining = quantity;
-        for (MarketSegment segment : item.getSegments()) {
-            if (remaining <= 0L) {
-                break;
-            }
-            long take = Math.min(remaining, segment.getRemainingCapacity());
-            segment.setRemainingCapacity(segment.getRemainingCapacity() - take);
-            remaining -= take;
-        }
-        if (remaining != 0L) {
-            throw new IllegalArgumentException("Cannot consume more than available fixture capacity.");
-        }
-        item.setCurrentStock(item.getSegments().stream().mapToLong(MarketSegment::getRemainingCapacity).sum());
     }
 }
