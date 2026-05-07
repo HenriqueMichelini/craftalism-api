@@ -2,7 +2,7 @@
 
 ## Status
 
-planned
+completed
 
 ## Objective
 
@@ -25,10 +25,10 @@ Regeneration moves pressure toward equilibrium and preserves deterministic tick 
 
 ## Acceptance Criteria
 
-- [ ] Positive `netPosition` decreases toward `0`.
-- [ ] Negative `netPosition` increases toward `0`.
-- [ ] `lastUpdatedAt` advances only by whole applied ticks.
-- [ ] Fractional tick remainder is preserved.
+- [x] Positive `netPosition` decreases toward `0`.
+- [x] Negative `netPosition` increases toward `0`.
+- [x] `lastUpdatedAt` advances only by whole applied ticks.
+- [x] Fractional tick remainder is preserved.
 
 ## Expected Files to Change
 
@@ -63,3 +63,10 @@ Run from `java/`. Include unit and integration tests for positive, negative, zer
 
 ## Completion Notes
 
+Implemented in `MarketReadService`.
+
+Validation:
+
+- `rtk ./gradlew test --tests io.github.HenriqueMichelini.craftalism.api.service.MarketReadServiceTest`
+- `rtk ./gradlew test --tests io.github.HenriqueMichelini.craftalism.api.controller.MarketContractIntegrationTest.snapshot_regenerationRecoversPressureWithoutRestoringSegments`
+- `rtk ./gradlew test`

@@ -721,21 +721,23 @@ class MarketContractIntegrationTest {
     }
 
     @Test
-    void snapshot_regenerationRestoresAcrossSegmentBoundary() throws Exception {
+    void snapshot_regenerationRecoversPressureWithoutRestoringSegments() throws Exception {
         MarketItem item = marketItemRepository.findByItemId("wheat").orElseThrow();
         consume(item, 55L);
+        item.setNetPosition(55L);
         item.setLastUpdatedAt(Instant.now().minusSeconds(5 * 60L));
         marketItemRepository.save(item);
 
         mockMvc
             .perform(get("/api/market/snapshot"))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.categories[0].items[0].currentStock").value(55));
+            .andExpect(jsonPath("$.categories[0].items[0].currentStock").value(45));
 
         MarketItem regenerated = marketItemRepository.findByItemId("wheat").orElseThrow();
-        assertEquals(55L, regenerated.getCurrentStock());
-        assertEquals(5L, regenerated.getSegments().get(0).getRemainingCapacity());
-        assertEquals(50L, regenerated.getSegments().get(1).getRemainingCapacity());
+        assertEquals(50L, regenerated.getNetPosition());
+        assertEquals(45L, regenerated.getCurrentStock());
+        assertEquals(0L, regenerated.getSegments().get(0).getRemainingCapacity());
+        assertEquals(45L, regenerated.getSegments().get(1).getRemainingCapacity());
     }
 
     @Test

@@ -1,8 +1,8 @@
 package io.github.HenriqueMichelini.craftalism.api.service;
 
 import io.github.HenriqueMichelini.craftalism.api.model.MarketItem;
-import io.github.HenriqueMichelini.craftalism.api.model.MarketSegment;
 import io.github.HenriqueMichelini.craftalism.api.repository.MarketItemRepository;
+import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -10,18 +10,25 @@ import java.util.List;
 
 final class MarketReadService {
 
-    private static final long STOCK_REGEN_SPEED_SECONDS = 60L;
-    private static final long BASE_STOCK_REGEN_QUANTITY = 1L;
-
     private final MarketItemRepository marketItemRepository;
     private final MarketTradePlanner tradePlanner;
+    private final Clock clock;
 
     MarketReadService(
         MarketItemRepository marketItemRepository,
         MarketTradePlanner tradePlanner
     ) {
+        this(marketItemRepository, tradePlanner, Clock.systemUTC());
+    }
+
+    MarketReadService(
+        MarketItemRepository marketItemRepository,
+        MarketTradePlanner tradePlanner,
+        Clock clock
+    ) {
         this.marketItemRepository = marketItemRepository;
         this.tradePlanner = tradePlanner;
+        this.clock = clock;
     }
 
     MarketReadState regeneratedItems() {
@@ -32,7 +39,7 @@ final class MarketReadService {
         long fetchNanos = System.nanoTime() - fetchStartNanos;
 
         long regenerationStartNanos = System.nanoTime();
-        Instant now = Instant.now();
+        Instant now = Instant.now(clock);
         int regeneratedItemCount = 0;
         for (int index = 0; index < items.size(); index++) {
             MarketItem item = items.get(index);
@@ -58,65 +65,50 @@ final class MarketReadService {
     }
 
     private boolean shouldAttemptRegeneration(MarketItem item, Instant now) {
-        if (
-            restoreFrontier(item) == -1L ||
-            !now.isAfter(item.getLastUpdatedAt())
-        ) {
+        if (item.getNetPosition() == 0L || !now.isAfter(item.getLastUpdatedAt())) {
             return false;
         }
 
         long ticks =
             Duration.between(item.getLastUpdatedAt(), now).getSeconds() /
-            STOCK_REGEN_SPEED_SECONDS;
+            item.getRegenIntervalSeconds();
         return ticks > 0L;
-    }
-
-    private long restoreFrontier(MarketItem item) {
-        long restoreFrontier = -1L;
-        for (MarketSegment segment : item.getSegments()) {
-            if (segment.getRemainingCapacity() < segment.getMaxCapacity()) {
-                restoreFrontier = Math.max(
-                    restoreFrontier,
-                    segment.getSegmentIndex()
-                );
-            }
-        }
-        return restoreFrontier;
     }
 
     private boolean regenerateItem(MarketItem item, Instant now) {
         tradePlanner.recomputeDerivedProjections(item);
-        if (
-            item.getMarketMomentum() == -1L ||
-            !now.isAfter(item.getLastUpdatedAt())
-        ) {
+        if (item.getNetPosition() == 0L || !now.isAfter(item.getLastUpdatedAt())) {
             return false;
         }
 
         long ticks =
             Duration.between(item.getLastUpdatedAt(), now).getSeconds() /
-            STOCK_REGEN_SPEED_SECONDS;
+            item.getRegenIntervalSeconds();
         if (ticks <= 0L) {
             return false;
         }
 
         long regenQuantity = Math.multiplyExact(
             ticks,
-            Math.addExact(
-                BASE_STOCK_REGEN_QUANTITY,
-                Math.max(item.getMarketMomentum(), 0L)
-            )
+            item.getBaseRegenQuantity()
         );
-        MarketTradePlanner.TradePlan plan = tradePlanner.sellPlan(
-            item,
-            regenQuantity
-        );
-        if (plan.executedQuantity() <= 0L) {
+        if (regenQuantity <= 0L) {
             return false;
         }
 
-        tradePlanner.applyRestoration(plan);
-        item.setLastUpdatedAt(now);
+        long netPosition = item.getNetPosition();
+        if (netPosition > 0L) {
+            item.setNetPosition(Math.max(0L, netPosition - regenQuantity));
+        } else {
+            item.setNetPosition(Math.min(0L, netPosition + regenQuantity));
+        }
+        item.setLastUpdatedAt(
+            item
+                .getLastUpdatedAt()
+                .plusSeconds(
+                    Math.multiplyExact(ticks, item.getRegenIntervalSeconds())
+                )
+        );
         tradePlanner.recomputeDerivedProjections(item);
         return true;
     }
