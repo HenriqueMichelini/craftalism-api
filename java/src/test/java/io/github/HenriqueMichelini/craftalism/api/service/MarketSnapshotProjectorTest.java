@@ -101,6 +101,40 @@ class MarketSnapshotProjectorTest {
     }
 
     @Test
+    void toSnapshotItem_derivesZeroVariationInsideSegmentZero() {
+        MarketItem item = pressureItem();
+        item.setNetPosition(49L);
+        item.setVariationPercent(new BigDecimal("99.99"));
+
+        MarketSnapshotItemDTO snapshotItem = projector.toSnapshotItem(item);
+
+        assertEquals("100", snapshotItem.buyUnitEstimate());
+        assertEquals("0", snapshotItem.variationPercent());
+    }
+
+    @Test
+    void toSnapshotItem_derivesPositiveVariationFromBuyEstimate() {
+        MarketItem item = pressureItem();
+        item.setNetPosition(50L);
+
+        MarketSnapshotItemDTO snapshotItem = projector.toSnapshotItem(item);
+
+        assertEquals("115", snapshotItem.buyUnitEstimate());
+        assertEquals("15", snapshotItem.variationPercent());
+    }
+
+    @Test
+    void toSnapshotItem_derivesNegativeVariationFromBuyEstimate() {
+        MarketItem item = pressureItem();
+        item.setNetPosition(-1L);
+
+        MarketSnapshotItemDTO snapshotItem = projector.toSnapshotItem(item);
+
+        assertEquals("96", snapshotItem.buyUnitEstimate());
+        assertEquals("-4", snapshotItem.variationPercent());
+    }
+
+    @Test
     void snapshotVersion_staysStableWhenLegacySegmentRowsChange() {
         MarketItem item = pressureItem();
         MarketSegment segment = segment(0L, 50L, 50L, 100L);

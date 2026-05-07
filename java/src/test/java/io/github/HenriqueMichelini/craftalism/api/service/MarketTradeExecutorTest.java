@@ -60,6 +60,10 @@ class MarketTradeExecutorTest {
         assertEquals(10L, item.getNetPosition());
         assertEquals(950L, balance.getAmount());
         assertEquals(0L, item.getCurrentStock());
+        assertEquals(
+            0,
+            BigDecimal.ZERO.compareTo(item.getVariationPercent())
+        );
         assertEquals(0, item.getSegments().size());
         verify(balanceRepository).save(balance);
         verify(marketItemRepository).save(item);
@@ -68,6 +72,11 @@ class MarketTradeExecutorTest {
     @Test
     void applyTrade_sellCreatesBalanceAndDecreasesPressure() {
         MarketItem item = marketItem();
+        item.setBaseUnitPrice(100L);
+        item.setMinUnitPrice(50L);
+        item.setMaxUnitPrice(300L);
+        item.setNetPosition(50L);
+        tradePlanner.recomputeDerivedProjections(item);
         when(balanceRepository.findForUpdate(PLAYER_UUID)).thenReturn(
             Optional.empty()
         );
@@ -76,7 +85,7 @@ class MarketTradeExecutorTest {
         MarketTradeExecutor.AppliedTrade appliedTrade = executor.applyTrade(
             PLAYER_UUID,
             item,
-            quote(MarketSide.SELL, 10L, 5L, 50L),
+            quote(MarketSide.SELL, 51L, 100L, 5_096L),
             "market:snapshot",
             () -> "market:current"
         );
@@ -86,10 +95,14 @@ class MarketTradeExecutorTest {
         );
         verify(balanceRepository).save(balanceCaptor.capture());
 
-        assertEquals(10L, appliedTrade.executedQuantity());
-        assertEquals(-10L, item.getNetPosition());
-        assertEquals(50L, balanceCaptor.getValue().getAmount());
+        assertEquals(51L, appliedTrade.executedQuantity());
+        assertEquals(-1L, item.getNetPosition());
+        assertEquals(5_096L, balanceCaptor.getValue().getAmount());
         assertEquals(0L, item.getCurrentStock());
+        assertEquals(
+            0,
+            new BigDecimal("-4.00").compareTo(item.getVariationPercent())
+        );
         assertEquals(0, item.getSegments().size());
         verify(marketItemRepository).save(item);
     }
@@ -117,6 +130,10 @@ class MarketTradeExecutorTest {
 
         assertEquals(0L, item.getNetPosition());
         assertEquals(0L, item.getCurrentStock());
+        assertEquals(
+            0,
+            BigDecimal.ZERO.compareTo(item.getVariationPercent())
+        );
         assertEquals(0, item.getSegments().size());
         assertEquals(49L, balance.getAmount());
         verify(balanceRepository, never()).save(any());

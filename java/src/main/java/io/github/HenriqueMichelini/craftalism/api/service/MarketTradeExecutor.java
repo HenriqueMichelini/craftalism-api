@@ -7,7 +7,6 @@ import io.github.HenriqueMichelini.craftalism.api.model.Balance;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketItem;
 import io.github.HenriqueMichelini.craftalism.api.repository.BalanceRepository;
 import io.github.HenriqueMichelini.craftalism.api.repository.MarketItemRepository;
-import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
 import java.util.function.Supplier;
@@ -78,9 +77,6 @@ final class MarketTradeExecutor {
         item.setNetPosition(
             Math.addExact(item.getNetPosition(), plan.executedQuantity())
         );
-        item.setVariationPercent(
-            item.getVariationPercent().add(BigDecimal.valueOf(0.6))
-        );
         item.setLastUpdatedAt(Instant.now());
         tradePlanner.recomputeDerivedProjections(item);
         marketItemRepository.save(item);
@@ -115,9 +111,6 @@ final class MarketTradeExecutor {
         balanceRepository.save(balance);
         item.setNetPosition(
             Math.subtractExact(item.getNetPosition(), plan.executedQuantity())
-        );
-        item.setVariationPercent(
-            item.getVariationPercent().subtract(BigDecimal.valueOf(0.6))
         );
         item.setLastUpdatedAt(Instant.now());
         tradePlanner.recomputeDerivedProjections(item);

@@ -1,6 +1,8 @@
 package io.github.HenriqueMichelini.craftalism.api.service;
 
 import io.github.HenriqueMichelini.craftalism.api.model.MarketItem;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 
 final class MarketTradePlanner {
 
@@ -60,19 +62,38 @@ final class MarketTradePlanner {
     }
 
     void recomputeDerivedProjections(MarketItem item) {
+        long buyUnitEstimate = pressurePricing.unitPrice(
+            item,
+            item.getNetPosition()
+        );
         item.setCurrentStock(0L);
         item.setMarketMomentum(
             pressurePricing.segment(item, item.getNetPosition())
         );
-        item.setBuyUnitEstimate(
-            pressurePricing.unitPrice(item, item.getNetPosition())
-        );
+        item.setBuyUnitEstimate(buyUnitEstimate);
         item.setSellUnitEstimate(
             pressurePricing.unitPrice(
                 item,
                 Math.subtractExact(item.getNetPosition(), 1L)
             )
         );
+        item.setVariationPercent(variationPercent(item, buyUnitEstimate));
+    }
+
+    private BigDecimal variationPercent(
+        MarketItem item,
+        long buyUnitEstimate
+    ) {
+        return BigDecimal
+            .valueOf(
+                Math.subtractExact(buyUnitEstimate, item.getBaseUnitPrice())
+            )
+            .multiply(BigDecimal.valueOf(100L))
+            .divide(
+                BigDecimal.valueOf(item.getBaseUnitPrice()),
+                2,
+                RoundingMode.HALF_UP
+            );
     }
 
     private long effectiveUnitPrice(long totalPrice, long quantity) {

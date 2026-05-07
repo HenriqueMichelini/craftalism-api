@@ -2,7 +2,7 @@
 
 ## Status
 
-planned
+completed
 
 ## Objective
 
@@ -87,3 +87,7 @@ rtk ./gradlew test --tests io.github.HenriqueMichelini.craftalism.api.controller
 
 ## Completion Notes
 
+- Derived `variationPercent` from pressure-derived `buyUnitEstimate` versus `baseUnitPrice` during market projection recomputation.
+- Removed fixed BUY/SELL variation deltas from trade execution while preserving pressure mutation and settlement flow.
+- Added service coverage for segment `0`, positive pressure, negative pressure, execute success, and failed settlement no-mutation behavior.
+- Validation: `rtk ./gradlew test --tests io.github.HenriqueMichelini.craftalism.api.service.MarketTradePlannerTest --tests io.github.HenriqueMichelini.craftalism.api.service.MarketTradeExecutorTest --tests io.github.HenriqueMichelini.craftalism.api.service.MarketSnapshotProjectorTest` from `java/` passed.

@@ -182,6 +182,7 @@ class MarketTradePlannerTest {
         item.setSellUnitEstimate(888L);
         item.setCurrentStock(777L);
         item.setMarketMomentum(666L);
+        item.setVariationPercent(new BigDecimal("99.99"));
 
         planner.recomputeDerivedProjections(item);
 
@@ -189,6 +190,38 @@ class MarketTradePlannerTest {
         assertEquals(1L, item.getMarketMomentum());
         assertEquals(115L, item.getBuyUnitEstimate());
         assertEquals(100L, item.getSellUnitEstimate());
+        assertEquals(
+            0,
+            new BigDecimal("15.00").compareTo(item.getVariationPercent())
+        );
+    }
+
+    @Test
+    void recomputeDerivedProjections_reportsZeroVariationInsideSegmentZero() {
+        MarketItem item = pressureItem(49L);
+        item.setVariationPercent(new BigDecimal("2.3"));
+
+        planner.recomputeDerivedProjections(item);
+
+        assertEquals(100L, item.getBuyUnitEstimate());
+        assertEquals(
+            0,
+            BigDecimal.ZERO.compareTo(item.getVariationPercent())
+        );
+    }
+
+    @Test
+    void recomputeDerivedProjections_reportsNegativeVariationFromBuyEstimate() {
+        MarketItem item = pressureItem(-1L);
+        item.setVariationPercent(new BigDecimal("2.3"));
+
+        planner.recomputeDerivedProjections(item);
+
+        assertEquals(96L, item.getBuyUnitEstimate());
+        assertEquals(
+            0,
+            new BigDecimal("-4.00").compareTo(item.getVariationPercent())
+        );
     }
 
     private MarketItem baseMarketItem() {
