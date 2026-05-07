@@ -69,7 +69,7 @@ class MarketServiceTest {
 
     @Test
     void quote_rejectsStaleSnapshotVersion() {
-        MarketItem item = marketItem(37, 20L, 5L);
+        MarketItem item = marketItem(5L);
         when(marketItemRepository.findAllForMarketRead()).thenReturn(java.util.List.of(item));
 
         MarketRejectionException exception = assertThrows(
@@ -87,7 +87,7 @@ class MarketServiceTest {
 
     @Test
     void execute_buyUpdatesBalanceAndPressure() {
-        MarketItem item = marketItem(37, 20L, 5L);
+        MarketItem item = marketItem(5L);
         when(marketItemRepository.findAllForMarketRead()).thenReturn(java.util.List.of(item));
 
         MarketQuoteResponseDTO quote = marketService.quote(
@@ -135,7 +135,7 @@ class MarketServiceTest {
 
     @Test
     void quote_buyTraversesVirtualPressureSegmentsProgressively() {
-        MarketItem item = marketItem(2, 50L, 5L);
+        MarketItem item = marketItem(5L);
         when(marketItemRepository.findAllForMarketRead()).thenReturn(java.util.List.of(item));
 
         MarketQuoteResponseDTO quote = marketService.quote(
@@ -151,7 +151,7 @@ class MarketServiceTest {
 
     @Test
     void execute_buyAcrossVirtualSegments_updatesExecutedQuantityAndDerivedProjections() {
-        MarketItem item = marketItem(2, 50L, 5L);
+        MarketItem item = marketItem(5L);
         when(marketItemRepository.findAllForMarketRead()).thenReturn(java.util.List.of(item));
         String snapshotVersion = marketService.getSnapshot().snapshotVersion();
 
@@ -194,7 +194,7 @@ class MarketServiceTest {
 
     @Test
     void execute_buyAtSegmentBoundary_mutatesPressurePosition() {
-        MarketItem item = marketItem(1, 50L, 5L);
+        MarketItem item = marketItem(5L);
         when(marketItemRepository.findAllForMarketRead()).thenReturn(java.util.List.of(item));
         String snapshotVersion = marketService.getSnapshot().snapshotVersion();
 
@@ -234,8 +234,8 @@ class MarketServiceTest {
     }
 
     @Test
-    void quote_buyAllowsQuantityBeyondFiniteStockWhenNoPressureBoundExists() {
-        MarketItem item = marketItem(1, 40L, 5L);
+    void quote_buyAllowsQuantityBeyondLegacyStockWhenNoPressureBoundExists() {
+        MarketItem item = marketItem(5L);
         when(marketItemRepository.findAllForMarketRead()).thenReturn(java.util.List.of(item));
 
         MarketQuoteResponseDTO quote = marketService.quote(
@@ -251,7 +251,7 @@ class MarketServiceTest {
 
     @Test
     void quote_buyRejectsWhenQuantityExceedsMaximumPressureBound() {
-        MarketItem item = marketItem(1, 40L, 5L);
+        MarketItem item = marketItem(5L);
         item.setMaxNetPosition(40L);
         when(marketItemRepository.findAllForMarketRead()).thenReturn(java.util.List.of(item));
 
@@ -270,8 +270,34 @@ class MarketServiceTest {
     }
 
     @Test
-    void quote_buyLargeQuantityIsNotLimitedByFiniteStock() {
-        MarketItem item = marketItem(13, 20L, 14L);
+    void quote_sellRejectsWhenQuantityExceedsMinimumPressureBound() {
+        MarketItem item = marketItem(5L);
+        item.setMinNetPosition(0L);
+        when(marketItemRepository.findAllForMarketRead()).thenReturn(java.util.List.of(item));
+
+        MarketRejectionException exception = assertThrows(
+            MarketRejectionException.class,
+            () ->
+                marketService.quote(
+                    authentication(),
+                    new MarketQuoteRequestDTO(
+                        "wheat",
+                        MarketSide.SELL,
+                        1L,
+                        marketService.getSnapshot().snapshotVersion(),
+                        null
+                    ),
+                    null
+                )
+        );
+
+        assertEquals(MarketRejectionCode.INSUFFICIENT_STOCK, exception.getCode());
+        verify(quoteStore, never()).put(any(MarketQuoteStore.StoredQuote.class));
+    }
+
+    @Test
+    void quote_buyLargeQuantityIsNotLimitedByLegacyStock() {
+        MarketItem item = marketItem(14L);
         item.setItemId("iron_ingot");
         item.setCategoryId("mining");
         item.setCategoryDisplayName("Mining");
@@ -320,7 +346,7 @@ class MarketServiceTest {
     @Test
     void execute_rejectsExpiredQuote() {
         when(marketItemRepository.findAllForMarketRead())
-            .thenReturn(java.util.List.of(marketItem(2, 50L, 5L)));
+            .thenReturn(java.util.List.of(marketItem(5L)));
         when(quoteStore.get("missing-token")).thenReturn(Optional.empty());
 
         MarketRejectionException exception = assertThrows(
@@ -352,7 +378,7 @@ class MarketServiceTest {
         return UUID.fromString("110e8400-e29b-41d4-a716-446655440000");
     }
 
-    private MarketItem marketItem(int segmentCount, long lastSegmentCapacity, long baseUnitPrice) {
+    private MarketItem marketItem(long baseUnitPrice) {
         MarketItem item = new MarketItem();
         item.setItemId("wheat");
         item.setCategoryId("farming");

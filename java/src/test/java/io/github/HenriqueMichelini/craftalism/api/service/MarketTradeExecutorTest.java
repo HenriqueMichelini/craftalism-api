@@ -118,6 +118,7 @@ class MarketTradeExecutorTest {
         assertEquals(0L, item.getNetPosition());
         assertEquals(0L, item.getCurrentStock());
         assertEquals(0, item.getSegments().size());
+        assertEquals(49L, balance.getAmount());
         verify(balanceRepository, never()).save(any());
         verify(marketItemRepository, never()).save(any());
     }

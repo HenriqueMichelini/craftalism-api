@@ -3,6 +3,7 @@ package io.github.HenriqueMichelini.craftalism.api.service;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 
+import io.github.HenriqueMichelini.craftalism.api.dto.MarketSnapshotItemDTO;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketItem;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketSegment;
 import java.math.BigDecimal;
@@ -110,6 +111,41 @@ class MarketSnapshotProjectorTest {
         segment.setUnitPrice(125L);
 
         assertEquals(baseline, snapshotVersion(item));
+    }
+
+    @Test
+    void toSnapshotItem_projectsPositivePressureFields() {
+        MarketItem item = pressureItem();
+        item.setNetPosition(50L);
+
+        MarketSnapshotItemDTO snapshotItem = projector.toSnapshotItem(item);
+
+        assertEquals(50L, snapshotItem.marketPressure());
+        assertEquals(1L, snapshotItem.marketSegment());
+        assertEquals(50L, snapshotItem.pressureMagnitude());
+    }
+
+    @Test
+    void toSnapshotItem_projectsZeroPressureFields() {
+        MarketSnapshotItemDTO snapshotItem = projector.toSnapshotItem(
+            pressureItem()
+        );
+
+        assertEquals(0L, snapshotItem.marketPressure());
+        assertEquals(0L, snapshotItem.marketSegment());
+        assertEquals(0L, snapshotItem.pressureMagnitude());
+    }
+
+    @Test
+    void toSnapshotItem_projectsNegativePressureFields() {
+        MarketItem item = pressureItem();
+        item.setNetPosition(-51L);
+
+        MarketSnapshotItemDTO snapshotItem = projector.toSnapshotItem(item);
+
+        assertEquals(-51L, snapshotItem.marketPressure());
+        assertEquals(-2L, snapshotItem.marketSegment());
+        assertEquals(51L, snapshotItem.pressureMagnitude());
     }
 
     private String snapshotVersion(Consumer<MarketItem> customizer) {

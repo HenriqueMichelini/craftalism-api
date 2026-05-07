@@ -429,7 +429,9 @@ class MarketContractIntegrationTest {
 
         MarketQuote quote = marketQuoteRepository.findById(quoteToken).orElseThrow();
         MarketItem item = marketItemRepository.findById("wheat").orElseThrow();
+        Balance balance = balanceRepository.findById(playerUuid).orElseThrow();
         assertEquals(0L, item.getNetPosition());
+        assertEquals(20L, balance.getAmount());
         assertEquals(MarketQuote.Status.CONSUMED, quote.getStatus());
     }
 
@@ -694,7 +696,7 @@ class MarketContractIntegrationTest {
 
     @Test
     @WithMockJwt(playerUuid = "220e8400-e29b-41d4-a716-446655440000")
-    void quote_allowsSellWithoutFiniteRestorableCapacityWhenNoPressureBoundExists() throws Exception {
+    void quote_allowsSellPastEquilibriumWhenNoPressureBoundExists() throws Exception {
         MarketItem item = marketItemRepository.findByItemId("wheat").orElseThrow();
         item.setLastUpdatedAt(Instant.now());
         marketItemRepository.save(item);
@@ -719,6 +721,36 @@ class MarketContractIntegrationTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.unitPrice").value("5"))
             .andExpect(jsonPath("$.totalPrice").value("55"));
+    }
+
+    @Test
+    @WithMockJwt(playerUuid = "220e8400-e29b-41d4-a716-446655440000")
+    void quote_rejectsSellPastMinimumPressureBoundWithInsufficientStock() throws Exception {
+        MarketItem item = marketItemRepository.findByItemId("wheat").orElseThrow();
+        item.setMinNetPosition(0L);
+        item.setLastUpdatedAt(Instant.now());
+        marketItemRepository.save(item);
+
+        String snapshotVersion = snapshotVersion();
+
+        mockMvc
+            .perform(
+                post("/api/market/quotes")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(
+                        """
+                        {
+                          "itemId": "wheat",
+                          "side": "SELL",
+                          "quantity": 1,
+                          "snapshotVersion": "%s"
+                        }
+                        """.formatted(snapshotVersion)
+                    )
+            )
+            .andExpect(status().isUnprocessableEntity())
+            .andExpect(jsonPath("$.status").value("REJECTED"))
+            .andExpect(jsonPath("$.code").value("INSUFFICIENT_STOCK"));
     }
 
     @Test

@@ -2,7 +2,7 @@
 
 ## Status
 
-planned
+completed
 
 ## Objective
 
@@ -26,11 +26,11 @@ Tests assert pressure-ladder behavior instead of superseded stock and persisted-
 
 ## Acceptance Criteria
 
-- [ ] Tests cover segment derivation for positive, zero, and negative pressure.
-- [ ] Tests cover quote traversal across positive and negative virtual segments.
-- [ ] Tests cover snapshot pressure fields and absence of target `currentStock`.
-- [ ] Tests cover hard-bound `INSUFFICIENT_STOCK`, stale quote, single-use quote, and failed settlement no mutation.
-- [ ] Tests cover migration and backfill consistency.
+- [x] Tests cover segment derivation for positive, zero, and negative pressure.
+- [x] Tests cover quote traversal across positive and negative virtual segments.
+- [x] Tests cover snapshot pressure fields and absence of target `currentStock`.
+- [x] Tests cover hard-bound `INSUFFICIENT_STOCK`, stale quote, single-use quote, and failed settlement no mutation.
+- [x] Tests cover migration and backfill consistency.
 
 ## Expected Files to Change
 
@@ -69,3 +69,10 @@ Run from `java/`.
 
 ## Completion Notes
 
+Implemented on 2026-05-06.
+
+- Added pressure-ladder test coverage for negative-boundary buy traversal and direct positive, zero, and negative snapshot pressure projection.
+- Replaced legacy-shaped market service test setup with pressure-state setup and added minimum-pressure sell bound rejection coverage.
+- Strengthened failed-settlement tests to assert balance and market pressure remain unchanged.
+- Added integration coverage for sell hard-bound `INSUFFICIENT_STOCK`.
+- Validation passed with `rtk ./gradlew test` from `java/`.

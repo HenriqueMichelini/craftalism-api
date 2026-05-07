@@ -97,6 +97,18 @@ class MarketTradePlannerTest {
     }
 
     @Test
+    void buyPlan_pricesVirtualPositionsAcrossNegativeBoundary() {
+        MarketItem item = pressureItem(-51L);
+
+        MarketTradePlanner.TradePlan plan = planner.buyPlan(item, 2L);
+
+        assertEquals(2L, plan.executedQuantity());
+        assertEquals(95L, plan.unitPrice());
+        assertEquals(189L, plan.totalPrice());
+        assertEquals(Long.MAX_VALUE, plan.totalAvailableQuantity());
+    }
+
+    @Test
     void sellPlan_pricesVirtualPositionsAcrossZeroIntoNegativeBoundary() {
         MarketItem item = pressureItem(1L);
 
