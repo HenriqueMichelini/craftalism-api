@@ -2,7 +2,7 @@
 
 ## Status
 
-planned
+completed
 
 ## Objective
 
@@ -24,9 +24,9 @@ Source: audit finding 8.
 
 ## Acceptance Criteria
 
-- [ ] Hash includes required pressure config, `netPosition`, bounds, blocked/operating, and deterministic regen boundary.
-- [ ] Hash does not include persisted derived projections.
-- [ ] Hash does not include segment rows or virtual segment lists.
+- [x] Hash includes required pressure config, `netPosition`, bounds, blocked/operating, and deterministic regen boundary.
+- [x] Hash does not include persisted derived projections.
+- [x] Hash does not include segment rows or virtual segment lists.
 
 ## Expected Files to Change
 
@@ -61,3 +61,6 @@ Run from `java/`. Include unit tests proving version changes for authoritative s
 
 ## Completion Notes
 
+Implemented in `MarketSnapshotProjector` by hashing item identity, currency, authoritative pressure config, `netPosition`, configured pressure bounds, blocked/operating flags, and `lastUpdatedAt` as the deterministic regeneration boundary. Persisted derived projections and legacy segment row projections are no longer included in the hash payload.
+
+Added focused unit coverage in `MarketSnapshotProjectorTest` for authoritative state/config changes and derived/segment-only stability.

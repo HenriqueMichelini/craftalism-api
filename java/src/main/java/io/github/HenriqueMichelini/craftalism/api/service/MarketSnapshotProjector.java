@@ -4,6 +4,7 @@ import io.github.HenriqueMichelini.craftalism.api.dto.MarketSnapshotCategoryDTO;
 import io.github.HenriqueMichelini.craftalism.api.dto.MarketSnapshotItemDTO;
 import io.github.HenriqueMichelini.craftalism.api.dto.MarketSnapshotResponseDTO;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketItem;
+import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -109,8 +110,17 @@ final class MarketSnapshotProjector {
                     item.getBuyUnitEstimate(),
                     item.getSellUnitEstimate(),
                     item.getCurrency(),
+                    item.getBaseUnitPrice(),
+                    item.getMinUnitPrice(),
+                    item.getMaxUnitPrice(),
+                    item.getSegmentSize(),
+                    item.getPriceSensitivity(),
+                    item.getBaseRegenQuantity(),
+                    item.getRegenIntervalSeconds(),
                     item.getCurrentStock(),
                     item.getNetPosition(),
+                    item.getMinNetPosition(),
+                    item.getMaxNetPosition(),
                     tradePlanner.pressureSegment(item, item.getNetPosition()),
                     pressureMagnitude(item.getNetPosition()),
                     item.getMarketMomentum(),
@@ -146,34 +156,33 @@ final class MarketSnapshotProjector {
                 .append('|')
                 .append(item.itemId())
                 .append(':')
+                .append(item.currency())
+                .append(':')
+                .append(item.baseUnitPrice())
+                .append(':')
+                .append(item.minUnitPrice())
+                .append(':')
+                .append(item.maxUnitPrice())
+                .append(':')
+                .append(item.segmentSize())
+                .append(':')
+                .append(normalizedDecimal(item.priceSensitivity()))
+                .append(':')
+                .append(item.baseRegenQuantity())
+                .append(':')
+                .append(item.regenIntervalSeconds())
+                .append(':')
                 .append(item.marketPressure())
                 .append(':')
-                .append(item.marketSegment())
+                .append(nullableLong(item.minNetPosition()))
                 .append(':')
-                .append(item.pressureMagnitude())
-                .append(':')
-                .append(item.buyUnitEstimate())
-                .append(':')
-                .append(item.sellUnitEstimate())
-                .append(':')
-                .append(item.marketMomentum())
+                .append(nullableLong(item.maxNetPosition()))
                 .append(':')
                 .append(item.blocked())
                 .append(':')
                 .append(item.operating())
                 .append(':')
                 .append(item.lastUpdatedAt());
-            for (MarketSegmentProjection segment : item.segments()) {
-                payload
-                    .append(':')
-                    .append(segment.segmentIndex())
-                    .append(',')
-                    .append(segment.maxCapacity())
-                    .append(',')
-                    .append(segment.remainingCapacity())
-                    .append(',')
-                    .append(segment.unitPrice());
-            }
         }
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
@@ -187,6 +196,14 @@ final class MarketSnapshotProjector {
                 ex
             );
         }
+    }
+
+    private String normalizedDecimal(BigDecimal value) {
+        return value.stripTrailingZeros().toPlainString();
+    }
+
+    private String nullableLong(Long value) {
+        return value == null ? "_" : Long.toString(value);
     }
 
     private long pressureMagnitude(long marketPressure) {
@@ -211,8 +228,17 @@ final class MarketSnapshotProjector {
         long buyUnitEstimate,
         long sellUnitEstimate,
         String currency,
+        long baseUnitPrice,
+        long minUnitPrice,
+        long maxUnitPrice,
+        long segmentSize,
+        BigDecimal priceSensitivity,
+        long baseRegenQuantity,
+        long regenIntervalSeconds,
         long currentStock,
         long marketPressure,
+        Long minNetPosition,
+        Long maxNetPosition,
         long marketSegment,
         long pressureMagnitude,
         long marketMomentum,
