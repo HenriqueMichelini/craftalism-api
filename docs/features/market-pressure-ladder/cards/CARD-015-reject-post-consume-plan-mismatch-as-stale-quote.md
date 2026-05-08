@@ -2,7 +2,7 @@
 
 ## Status
 
-planned
+implemented
 
 ## Objective
 
@@ -30,13 +30,13 @@ No balance mutation or market pressure mutation occurs for the failed execution.
 
 ## Acceptance Criteria
 
-- [ ] A post-consume buy plan mismatch returns `STALE_QUOTE` instead of a generic 500.
-- [ ] A post-consume sell plan mismatch returns `STALE_QUOTE` instead of a generic 500.
-- [ ] The first mismatched execute attempt leaves the quote consumed or otherwise non-active so retries remain single-use.
-- [ ] Balance amount is unchanged after a post-consume stale execution.
-- [ ] `netPosition` and derived market projections are unchanged after a post-consume stale execution.
-- [ ] Existing `INSUFFICIENT_FUNDS` behavior still consumes the quote and does not mutate market pressure.
-- [ ] Existing consumed quote replay behavior still returns `STALE_QUOTE`.
+- [x] A post-consume buy plan mismatch returns `STALE_QUOTE` instead of a generic 500.
+- [x] A post-consume sell plan mismatch returns `STALE_QUOTE` instead of a generic 500.
+- [x] The first mismatched execute attempt leaves the quote consumed or otherwise non-active so retries remain single-use.
+- [x] Balance amount is unchanged after a post-consume stale execution.
+- [x] `netPosition` and derived market projections are unchanged after a post-consume stale execution.
+- [x] Existing `INSUFFICIENT_FUNDS` behavior still consumes the quote and does not mutate market pressure.
+- [x] Existing consumed quote replay behavior still returns `STALE_QUOTE`.
 
 ## Expected Files to Change
 
@@ -81,4 +81,6 @@ rtk ./gradlew test --tests io.github.HenriqueMichelini.craftalism.api.service.Ma
 
 ## Completion Notes
 
-Leave empty until implemented.
+- Implemented by converting post-consume quoted plan mismatches to `STALE_QUOTE` market rejections.
+- Added executor, service, and integration coverage for buy/sell mismatch rejection, consumed quote replay, and no balance/pressure mutation.
+- Validation passed with the card command from `java/`.

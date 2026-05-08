@@ -13,6 +13,8 @@ import io.github.HenriqueMichelini.craftalism.api.model.MarketQuote;
 import io.github.HenriqueMichelini.craftalism.api.repository.BalanceRepository;
 import io.github.HenriqueMichelini.craftalism.api.repository.MarketItemRepository;
 import io.github.HenriqueMichelini.craftalism.api.repository.MarketQuoteRepository;
+import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -20,6 +22,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -38,9 +41,12 @@ public class MarketService {
     private final MarketCatalogInitializer catalogInitializer;
     private final MarketReadService marketReadService;
     private final MarketTradeExecutor tradeExecutor;
+    private final MarketRateLimiter quoteRateLimiter;
+    private final MarketRateLimiter executeRateLimiter;
     private final boolean marketEnabled;
     private final long quoteTtlSeconds;
 
+    @Autowired
     public MarketService(
         MarketItemRepository marketItemRepository,
         BalanceRepository balanceRepository,
@@ -53,7 +59,40 @@ public class MarketService {
         ) long quoteTtlSeconds,
         @Value(
             "${craftalism.market.trusted-minecraft-server-client-id:minecraft-server}"
-        ) String trustedMinecraftServerClientId
+        ) String trustedMinecraftServerClientId,
+        @Value("${craftalism.market.quote-rate-limit.max-requests:0}") int quoteRateLimitMaxRequests,
+        @Value("${craftalism.market.execute-rate-limit.max-requests:0}") int executeRateLimitMaxRequests,
+        @Value("${craftalism.market.rate-limit.window-seconds:60}") long rateLimitWindowSeconds
+    ) {
+        this(
+            marketItemRepository,
+            balanceRepository,
+            quoteStore,
+            marketQuoteRepository,
+            defaultMarketCatalog,
+            marketEnabled,
+            quoteTtlSeconds,
+            trustedMinecraftServerClientId,
+            quoteRateLimitMaxRequests,
+            executeRateLimitMaxRequests,
+            rateLimitWindowSeconds,
+            Clock.systemUTC()
+        );
+    }
+
+    MarketService(
+        MarketItemRepository marketItemRepository,
+        BalanceRepository balanceRepository,
+        MarketQuoteStore quoteStore,
+        MarketQuoteRepository marketQuoteRepository,
+        DefaultMarketCatalog defaultMarketCatalog,
+        boolean marketEnabled,
+        long quoteTtlSeconds,
+        String trustedMinecraftServerClientId,
+        int quoteRateLimitMaxRequests,
+        int executeRateLimitMaxRequests,
+        long rateLimitWindowSeconds,
+        Clock clock
     ) {
         this.marketItemRepository = marketItemRepository;
         this.balanceRepository = balanceRepository;
@@ -77,6 +116,17 @@ public class MarketService {
             balanceRepository,
             marketItemRepository,
             tradePlanner
+        );
+        Duration rateLimitWindow = Duration.ofSeconds(rateLimitWindowSeconds);
+        this.quoteRateLimiter = new MarketRateLimiter(
+            quoteRateLimitMaxRequests,
+            rateLimitWindow,
+            clock
+        );
+        this.executeRateLimiter = new MarketRateLimiter(
+            executeRateLimitMaxRequests,
+            rateLimitWindow,
+            clock
         );
     }
 
@@ -121,15 +171,22 @@ public class MarketService {
     ) {
         ensureMarketOpen();
 
+        List<MarketItem> items = marketReadService.regeneratedItems().items();
+        String currentSnapshotVersion = snapshotProjector.snapshotVersion(
+            snapshotProjector.projections(items)
+        );
+        validateQuantity(request.quantity(), currentSnapshotVersion);
+
         UUID playerUuid = playerResolver.resolvePlayerUuid(
             authentication,
             request.playerUuid(),
             playerUuidHeader,
             this::currentSnapshotVersion
         );
-        List<MarketItem> items = marketReadService.regeneratedItems().items();
-        String currentSnapshotVersion = snapshotProjector.snapshotVersion(
-            snapshotProjector.projections(items)
+        enforceRateLimit(
+            quoteRateLimiter,
+            playerUuid,
+            currentSnapshotVersion
         );
         if (!currentSnapshotVersion.equals(request.snapshotVersion())) {
             throw rejection(
@@ -154,14 +211,6 @@ public class MarketService {
             );
 
         validateItemAvailability(item, currentSnapshotVersion);
-        if (request.quantity() <= 0L) {
-            throw rejection(
-                MarketRejectionCode.INVALID_QUANTITY,
-                "Quantity must be positive.",
-                HttpStatus.UNPROCESSABLE_ENTITY,
-                currentSnapshotVersion
-            );
-        }
 
         MarketTradePlanner.TradePlan plan =
             request.side() == MarketSide.BUY
@@ -217,11 +266,19 @@ public class MarketService {
     ) {
         ensureMarketOpen();
 
+        String initialSnapshotVersion = currentSnapshotVersion();
+        validateQuantity(request.quantity(), initialSnapshotVersion);
+
         UUID playerUuid = playerResolver.resolvePlayerUuid(
             authentication,
             request.playerUuid(),
             playerUuidHeader,
             this::currentSnapshotVersion
+        );
+        enforceRateLimit(
+            executeRateLimiter,
+            playerUuid,
+            initialSnapshotVersion
         );
         MarketQuoteStore.StoredQuote storedQuote = quoteStore
             .get(request.quoteToken())
@@ -403,6 +460,17 @@ public class MarketService {
         }
     }
 
+    private void validateQuantity(Long quantity, String snapshotVersion) {
+        if (quantity != null && quantity <= 0L) {
+            throw rejection(
+                MarketRejectionCode.INVALID_QUANTITY,
+                "Quantity must be positive.",
+                HttpStatus.UNPROCESSABLE_ENTITY,
+                snapshotVersion
+            );
+        }
+    }
+
     private void ensureMarketOpen() {
         if (!marketEnabled) {
             throw rejection(
@@ -410,6 +478,21 @@ public class MarketService {
                 "Market is currently closed.",
                 HttpStatus.SERVICE_UNAVAILABLE,
                 currentSnapshotVersion()
+            );
+        }
+    }
+
+    private void enforceRateLimit(
+        MarketRateLimiter rateLimiter,
+        UUID playerUuid,
+        String snapshotVersion
+    ) {
+        if (!rateLimiter.tryAcquire(playerUuid)) {
+            throw rejection(
+                MarketRejectionCode.RATE_LIMITED,
+                "Market request rate limit exceeded.",
+                HttpStatus.TOO_MANY_REQUESTS,
+                snapshotVersion
             );
         }
     }

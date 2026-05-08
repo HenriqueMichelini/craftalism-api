@@ -322,13 +322,20 @@ class BalanceServiceTest {
     @Test
     void setBalance_negative_throwsException() {
         UUID uuid = UUID.randomUUID();
-        // Negative values are rejected by @PositiveOrZero on the DTO,
-        // but the service no longer guards this — test documents that behaviour.
-        // If you want defence-in-depth, re-add the guard to the service.
-        when(repository.findById(uuid)).thenReturn(Optional.of(new Balance()));
-        when(repository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-        Balance result = service.setBalance(uuid, -1L);
-        assertEquals(-1L, result.getAmount()); // service trusts the DTO layer
+        assertThrows(InvalidAmountException.class, () ->
+            service.setBalance(uuid, -1L)
+        );
+        verify(repository, never()).save(any());
+    }
+
+    @Test
+    void createBalance_negative_throwsException() {
+        UUID uuid = UUID.randomUUID();
+
+        assertThrows(InvalidAmountException.class, () ->
+            service.createBalance(uuid, -1L)
+        );
+        verify(repository, never()).save(any());
     }
 }

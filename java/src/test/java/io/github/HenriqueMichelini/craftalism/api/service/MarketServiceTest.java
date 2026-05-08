@@ -23,13 +23,17 @@ import io.github.HenriqueMichelini.craftalism.api.repository.BalanceRepository;
 import io.github.HenriqueMichelini.craftalism.api.repository.MarketItemRepository;
 import io.github.HenriqueMichelini.craftalism.api.repository.MarketQuoteRepository;
 import java.math.BigDecimal;
+import java.time.Clock;
 import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -63,7 +67,11 @@ class MarketServiceTest {
             new DefaultMarketCatalog(),
             true,
             60L,
-            "minecraft-server"
+            "minecraft-server",
+            0,
+            0,
+            60L,
+            fixedClock()
         );
     }
 
@@ -83,6 +91,33 @@ class MarketServiceTest {
         );
 
         assertEquals(MarketRejectionCode.STALE_QUOTE, exception.getCode());
+    }
+
+    @ParameterizedTest
+    @ValueSource(longs = { 0L, -1L })
+    void quote_rejectsInvalidQuantity(long quantity) {
+        MarketItem item = marketItem(5L);
+        when(marketItemRepository.findAllForMarketRead()).thenReturn(java.util.List.of(item));
+
+        MarketRejectionException exception = assertThrows(
+            MarketRejectionException.class,
+            () ->
+                marketService.quote(
+                    authentication(),
+                    new MarketQuoteRequestDTO(
+                        "wheat",
+                        MarketSide.BUY,
+                        quantity,
+                        marketService.getSnapshot().snapshotVersion(),
+                        null
+                    ),
+                    null
+                )
+        );
+
+        assertEquals(MarketRejectionCode.INVALID_QUANTITY, exception.getCode());
+        assertNotNull(exception.getSnapshotVersion());
+        verify(quoteStore, never()).put(any(MarketQuoteStore.StoredQuote.class));
     }
 
     @Test
@@ -234,6 +269,112 @@ class MarketServiceTest {
     }
 
     @Test
+    void execute_postConsumeBuyPlanMismatchRejectsStaleQuoteWithoutMutation() {
+        MarketItem snapshotItem = marketItem(5L);
+        MarketItem lockedItem = marketItem(5L);
+        lockedItem.setNetPosition(50L);
+        when(marketItemRepository.findAllForMarketRead())
+            .thenReturn(java.util.List.of(snapshotItem));
+        String snapshotVersion = marketService.getSnapshot().snapshotVersion();
+        Balance balance = new Balance(playerUuid(), 1_000L);
+        when(quoteStore.get("mismatched-buy-quote")).thenReturn(
+            Optional.of(
+                new MarketQuoteStore.StoredQuote(
+                    "mismatched-buy-quote",
+                    playerUuid(),
+                    "wheat",
+                    MarketSide.BUY,
+                    10L,
+                    5L,
+                    50L,
+                    snapshotVersion,
+                    Instant.now().plusSeconds(60L),
+                    MarketQuote.Status.ACTIVE
+                )
+            )
+        );
+        when(quoteStore.consume("mismatched-buy-quote")).thenReturn(true);
+        when(marketItemRepository.findForUpdate("wheat")).thenReturn(Optional.of(lockedItem));
+        when(balanceRepository.findForUpdate(playerUuid())).thenReturn(Optional.of(balance));
+
+        MarketRejectionException exception = assertThrows(
+            MarketRejectionException.class,
+            () ->
+                marketService.execute(
+                    authentication(),
+                    new MarketExecuteRequestDTO(
+                        "wheat",
+                        MarketSide.BUY,
+                        10L,
+                        "mismatched-buy-quote",
+                        snapshotVersion,
+                        null
+                    ),
+                    null
+                )
+        );
+
+        assertEquals(MarketRejectionCode.STALE_QUOTE, exception.getCode());
+        assertEquals(50L, lockedItem.getNetPosition());
+        assertEquals(1_000L, balance.getAmount());
+        verify(quoteStore).consume("mismatched-buy-quote");
+        verify(balanceRepository, never()).save(any());
+        verify(marketItemRepository, never()).save(any());
+    }
+
+    @Test
+    void execute_postConsumeSellPlanMismatchRejectsStaleQuoteWithoutMutation() {
+        MarketItem item = marketItem(5L);
+        when(marketItemRepository.findAllForMarketRead())
+            .thenReturn(java.util.List.of(item));
+        String snapshotVersion = marketService.getSnapshot().snapshotVersion();
+        Balance balance = new Balance(playerUuid(), 1_000L);
+        when(quoteStore.get("mismatched-sell-quote")).thenReturn(
+            Optional.of(
+                new MarketQuoteStore.StoredQuote(
+                    "mismatched-sell-quote",
+                    playerUuid(),
+                    "wheat",
+                    MarketSide.SELL,
+                    10L,
+                    6L,
+                    60L,
+                    snapshotVersion,
+                    Instant.now().plusSeconds(60L),
+                    MarketQuote.Status.ACTIVE
+                )
+            )
+        );
+        when(quoteStore.consume("mismatched-sell-quote")).thenReturn(true);
+        when(marketItemRepository.findForUpdate("wheat")).thenReturn(Optional.of(item));
+        when(balanceRepository.findForUpdate(playerUuid())).thenReturn(Optional.of(balance));
+
+        MarketRejectionException exception = assertThrows(
+            MarketRejectionException.class,
+            () ->
+                marketService.execute(
+                    authentication(),
+                    new MarketExecuteRequestDTO(
+                        "wheat",
+                        MarketSide.SELL,
+                        10L,
+                        "mismatched-sell-quote",
+                        snapshotVersion,
+                        null
+                    ),
+                    null
+                )
+        );
+
+        assertEquals(MarketRejectionCode.STALE_QUOTE, exception.getCode());
+        assertEquals(0L, item.getNetPosition());
+        assertEquals(1_000L, balance.getAmount());
+        verify(quoteStore).consume("mismatched-sell-quote");
+        verify(balanceRepository, never()).save(any());
+        verify(marketItemRepository, never()).save(any());
+    }
+
+    @Test
     void quote_buyAllowsQuantityBeyondLegacyStockWhenNoPressureBoundExists() {
         MarketItem item = marketItem(5L);
         when(marketItemRepository.findAllForMarketRead()).thenReturn(java.util.List.of(item));
@@ -267,6 +408,39 @@ class MarketServiceTest {
 
         assertEquals(MarketRejectionCode.INSUFFICIENT_STOCK, exception.getCode());
         verify(quoteStore, never()).put(any(MarketQuoteStore.StoredQuote.class));
+    }
+
+    @Test
+    void quote_rejectsRateLimitedRequestWithCurrentSnapshotVersion() {
+        marketService = rateLimitedMarketService(1, 0);
+        MarketItem item = marketItem(5L);
+        when(marketItemRepository.findAllForMarketRead()).thenReturn(java.util.List.of(item));
+        String snapshotVersion = marketService.getSnapshot().snapshotVersion();
+
+        marketService.quote(
+            authentication(),
+            new MarketQuoteRequestDTO("wheat", MarketSide.BUY, 10L, snapshotVersion, null),
+            null
+        );
+
+        MarketRejectionException exception = assertThrows(
+            MarketRejectionException.class,
+            () ->
+                marketService.quote(
+                    authentication(),
+                    new MarketQuoteRequestDTO(
+                        "wheat",
+                        MarketSide.BUY,
+                        10L,
+                        snapshotVersion,
+                        null
+                    ),
+                    null
+                )
+        );
+
+        assertEquals(MarketRejectionCode.RATE_LIMITED, exception.getCode());
+        assertEquals(snapshotVersion, exception.getSnapshotVersion());
     }
 
     @Test
@@ -361,6 +535,111 @@ class MarketServiceTest {
 
         assertEquals(MarketRejectionCode.QUOTE_EXPIRED, exception.getCode());
         verify(balanceRepository, never()).save(any());
+    }
+
+    @ParameterizedTest
+    @ValueSource(longs = { 0L, -1L })
+    void execute_rejectsInvalidQuantity(long quantity) {
+        when(marketItemRepository.findAllForMarketRead())
+            .thenReturn(java.util.List.of(marketItem(5L)));
+
+        MarketRejectionException exception = assertThrows(
+            MarketRejectionException.class,
+            () ->
+                marketService.execute(
+                    authentication(),
+                    new MarketExecuteRequestDTO(
+                        "wheat",
+                        MarketSide.BUY,
+                        quantity,
+                        "unused-token",
+                        "market:any",
+                        null
+                    ),
+                    null
+                )
+        );
+
+        assertEquals(MarketRejectionCode.INVALID_QUANTITY, exception.getCode());
+        assertNotNull(exception.getSnapshotVersion());
+        verify(quoteStore, never()).get("unused-token");
+        verify(balanceRepository, never()).save(any());
+    }
+
+    @Test
+    void execute_rejectsRateLimitedRequestWithCurrentSnapshotVersion() {
+        marketService = rateLimitedMarketService(0, 1);
+        when(marketItemRepository.findAllForMarketRead())
+            .thenReturn(java.util.List.of(marketItem(5L)));
+        String snapshotVersion = marketService.getSnapshot().snapshotVersion();
+        when(quoteStore.get("missing-token")).thenReturn(Optional.empty());
+
+        MarketRejectionException firstException = assertThrows(
+            MarketRejectionException.class,
+            () ->
+                marketService.execute(
+                    authentication(),
+                    new MarketExecuteRequestDTO(
+                        "wheat",
+                        MarketSide.BUY,
+                        10L,
+                        "missing-token",
+                        snapshotVersion,
+                        null
+                    ),
+                    null
+                )
+        );
+        assertEquals(MarketRejectionCode.QUOTE_EXPIRED, firstException.getCode());
+
+        MarketRejectionException secondException = assertThrows(
+            MarketRejectionException.class,
+            () ->
+                marketService.execute(
+                    authentication(),
+                    new MarketExecuteRequestDTO(
+                        "wheat",
+                        MarketSide.BUY,
+                        10L,
+                        "missing-token",
+                        snapshotVersion,
+                        null
+                    ),
+                    null
+                )
+        );
+
+        assertEquals(MarketRejectionCode.RATE_LIMITED, secondException.getCode());
+        assertEquals(snapshotVersion, secondException.getSnapshotVersion());
+        verify(quoteStore).get("missing-token");
+        verify(balanceRepository, never()).save(any());
+    }
+
+    private MarketService rateLimitedMarketService(
+        int quoteRateLimitMaxRequests,
+        int executeRateLimitMaxRequests
+    ) {
+        return new MarketService(
+            marketItemRepository,
+            balanceRepository,
+            quoteStore,
+            marketQuoteRepository,
+            new DefaultMarketCatalog(),
+            true,
+            60L,
+            "minecraft-server",
+            quoteRateLimitMaxRequests,
+            executeRateLimitMaxRequests,
+            60L,
+            fixedClock()
+        );
+    }
+
+    private Clock fixedClock() {
+        return Clock.fixed(
+            Instant.parse("2026-04-12T18:30:00Z"),
+            ZoneOffset.UTC
+        );
     }
 
     private JwtAuthenticationToken authentication() {

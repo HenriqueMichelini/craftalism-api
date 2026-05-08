@@ -2,7 +2,7 @@
 
 ## Status
 
-planned
+implemented
 
 ## Objective
 
@@ -79,4 +79,7 @@ rtk ./gradlew test --tests io.github.HenriqueMichelini.craftalism.api.service.Ma
 
 ## Completion Notes
 
-Leave empty until implemented.
+- Added configurable per-player market quote and execute fixed-window rate limits.
+- Defaults remain unlimited unless `craftalism.market.*rate-limit*` properties are configured.
+- Exceeded limits reject with `RATE_LIMITED` and the current market `snapshotVersion`.
+- Validation passed from `java/`: `rtk ./gradlew test --tests io.github.HenriqueMichelini.craftalism.api.service.MarketServiceTest --tests io.github.HenriqueMichelini.craftalism.api.controller.MarketContractIntegrationTest`.

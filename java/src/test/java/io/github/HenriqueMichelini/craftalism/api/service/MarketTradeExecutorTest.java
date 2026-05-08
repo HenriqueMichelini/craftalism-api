@@ -8,6 +8,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import io.github.HenriqueMichelini.craftalism.api.dto.MarketSide;
+import io.github.HenriqueMichelini.craftalism.api.exceptions.MarketRejectionCode;
 import io.github.HenriqueMichelini.craftalism.api.exceptions.MarketRejectionException;
 import io.github.HenriqueMichelini.craftalism.api.model.Balance;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketItem;
@@ -136,6 +137,69 @@ class MarketTradeExecutorTest {
         );
         assertEquals(0, item.getSegments().size());
         assertEquals(49L, balance.getAmount());
+        verify(balanceRepository, never()).save(any());
+        verify(marketItemRepository, never()).save(any());
+    }
+
+    @Test
+    void applyTrade_buyPlanMismatchRejectsStaleQuoteWithoutMutation() {
+        MarketItem item = marketItem();
+        Balance balance = new Balance(PLAYER_UUID, 1_000L);
+        when(balanceRepository.findForUpdate(PLAYER_UUID)).thenReturn(
+            Optional.of(balance)
+        );
+        MarketTradeExecutor executor = executor();
+
+        MarketRejectionException exception = assertThrows(
+            MarketRejectionException.class,
+            () ->
+                executor.applyTrade(
+                    PLAYER_UUID,
+                    item,
+                    quote(MarketSide.BUY, 10L, 6L, 60L),
+                    "market:snapshot",
+                    () -> "market:current"
+                )
+        );
+
+        assertEquals(MarketRejectionCode.STALE_QUOTE, exception.getCode());
+        assertEquals("market:current", exception.getSnapshotVersion());
+        assertEquals(0L, item.getNetPosition());
+        assertEquals(1_000L, balance.getAmount());
+        verify(balanceRepository, never()).save(any());
+        verify(marketItemRepository, never()).save(any());
+    }
+
+    @Test
+    void applyTrade_sellPlanMismatchRejectsStaleQuoteWithoutMutation() {
+        MarketItem item = marketItem();
+        item.setBaseUnitPrice(100L);
+        item.setMinUnitPrice(50L);
+        item.setMaxUnitPrice(300L);
+        item.setNetPosition(50L);
+        tradePlanner.recomputeDerivedProjections(item);
+        Balance balance = new Balance(PLAYER_UUID, 1_000L);
+        when(balanceRepository.findForUpdate(PLAYER_UUID)).thenReturn(
+            Optional.of(balance)
+        );
+        MarketTradeExecutor executor = executor();
+
+        MarketRejectionException exception = assertThrows(
+            MarketRejectionException.class,
+            () ->
+                executor.applyTrade(
+                    PLAYER_UUID,
+                    item,
+                    quote(MarketSide.SELL, 51L, 101L, 5_151L),
+                    "market:snapshot",
+                    () -> "market:current"
+                )
+        );
+
+        assertEquals(MarketRejectionCode.STALE_QUOTE, exception.getCode());
+        assertEquals("market:current", exception.getSnapshotVersion());
+        assertEquals(50L, item.getNetPosition());
+        assertEquals(1_000L, balance.getAmount());
         verify(balanceRepository, never()).save(any());
         verify(marketItemRepository, never()).save(any());
     }

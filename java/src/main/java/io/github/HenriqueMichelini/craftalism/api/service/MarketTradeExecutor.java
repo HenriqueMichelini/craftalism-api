@@ -46,7 +46,13 @@ final class MarketTradeExecutor {
             );
         }
 
-        return applySell(playerUuid, item, quote, snapshotVersion);
+        return applySell(
+            playerUuid,
+            item,
+            quote,
+            snapshotVersion,
+            currentSnapshotVersion
+        );
     }
 
     private AppliedTrade applyBuy(
@@ -67,7 +73,7 @@ final class MarketTradeExecutor {
         verifyQuotedExecution(
             plan,
             quote,
-            "Quoted buy execution no longer matches the authoritative segment traversal."
+            currentSnapshotVersion
         );
         if (balance.getAmount() < plan.totalPrice()) {
             throw insufficientFunds(currentSnapshotVersion);
@@ -91,7 +97,8 @@ final class MarketTradeExecutor {
         UUID playerUuid,
         MarketItem item,
         MarketQuoteStore.StoredQuote quote,
-        String snapshotVersion
+        String snapshotVersion,
+        Supplier<String> currentSnapshotVersion
     ) {
         MarketTradePlanner.TradePlan plan = requireFullSellPlan(
             item,
@@ -104,7 +111,7 @@ final class MarketTradeExecutor {
         verifyQuotedExecution(
             plan,
             quote,
-            "Quoted sell execution no longer matches the authoritative segment traversal."
+            currentSnapshotVersion
         );
         balance.setUuid(playerUuid);
         balance.setAmount(balance.getAmount() + plan.totalPrice());
@@ -125,13 +132,18 @@ final class MarketTradeExecutor {
     private void verifyQuotedExecution(
         MarketTradePlanner.TradePlan plan,
         MarketQuoteStore.StoredQuote quote,
-        String message
+        Supplier<String> currentSnapshotVersion
     ) {
         if (
             plan.totalPrice() != quote.totalPrice() ||
             plan.unitPrice() != quote.unitPrice()
         ) {
-            throw new IllegalStateException(message);
+            throw rejection(
+                MarketRejectionCode.STALE_QUOTE,
+                "Quote is no longer valid.",
+                HttpStatus.CONFLICT,
+                currentSnapshotVersion.get()
+            );
         }
     }
 

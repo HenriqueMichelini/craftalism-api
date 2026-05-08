@@ -76,4 +76,6 @@ rtk ./gradlew test --tests io.github.HenriqueMichelini.craftalism.api.controller
 
 ## Completion Notes
 
-Leave empty until implemented.
+- Implemented service-level negative amount guards for `createBalance` and `setBalance`.
+- Added focused service tests for negative create and set rejection before persistence.
+- Validation passed: `rtk ./gradlew test --tests io.github.HenriqueMichelini.craftalism.api.service.BalanceServiceTest` from `java/`.

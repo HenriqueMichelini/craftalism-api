@@ -34,6 +34,7 @@ public class BalanceService {
 
     @Transactional
     public Balance createBalance(UUID uuid, long initialAmount) {
+        if (initialAmount < 0) throw new InvalidAmountException();
         if (
             repository.existsById(uuid)
         ) throw new BalanceAlreadyExistsException(uuid);
@@ -98,6 +99,7 @@ public class BalanceService {
 
     @Transactional
     public Balance setBalance(UUID uuid, long newAmount) {
+        if (newAmount < 0) throw new InvalidAmountException();
         Balance balance = getBalance(uuid);
         balance.setAmount(newAmount);
         return repository.save(balance);

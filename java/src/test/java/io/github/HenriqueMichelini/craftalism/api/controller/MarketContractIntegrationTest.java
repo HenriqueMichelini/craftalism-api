@@ -31,6 +31,8 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -41,7 +43,14 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
-@SpringBootTest(properties = "craftalism.market.quote-ttl-seconds=1")
+@SpringBootTest(
+    properties = {
+        "craftalism.market.quote-ttl-seconds=1",
+        "craftalism.market.quote-rate-limit.max-requests=100",
+        "craftalism.market.execute-rate-limit.max-requests=100",
+        "craftalism.market.rate-limit.window-seconds=60",
+    }
+)
 @AutoConfigureMockMvc
 @ActiveProfiles("local")
 class MarketContractIntegrationTest {
@@ -376,6 +385,65 @@ class MarketContractIntegrationTest {
             .andExpect(jsonPath("$.snapshotVersion").value(org.hamcrest.Matchers.startsWith("market:")));
     }
 
+    @ParameterizedTest
+    @ValueSource(longs = { 0L, -1L })
+    @WithMockJwt(playerUuid = "220e8400-e29b-41d4-a716-446655440000")
+    void quote_rejectsInvalidQuantityWithMarketRejection(long quantity) throws Exception {
+        String snapshotVersion = snapshotVersion();
+
+        mockMvc
+            .perform(
+                post("/api/market/quotes")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(
+                        """
+                        {
+                          "itemId": "wheat",
+                          "side": "BUY",
+                          "quantity": %d,
+                          "snapshotVersion": "%s"
+                        }
+                        """.formatted(quantity, snapshotVersion)
+                    )
+            )
+            .andExpect(status().isUnprocessableEntity())
+            .andExpect(jsonPath("$.status").value("REJECTED"))
+            .andExpect(jsonPath("$.code").value("INVALID_QUANTITY"))
+            .andExpect(jsonPath("$.message").value("Quantity must be positive."))
+            .andExpect(jsonPath("$.snapshotVersion").value(org.hamcrest.Matchers.startsWith("market:")));
+    }
+
+    @Test
+    void quote_rejectsRateLimitedRequestWithMarketRejection() throws Exception {
+        UUID rateLimitedPlayerUuid = UUID.fromString("330e8400-e29b-41d4-a716-446655440000");
+        playerRepository.save(new Player(rateLimitedPlayerUuid, "RateLimitedQuotePlayer"));
+        balanceRepository.save(new Balance(rateLimitedPlayerUuid, 1_000L));
+        String snapshotVersion = snapshotVersion();
+
+        for (int i = 0; i < 100; i++) {
+            mockMvc
+                .perform(
+                    post("/api/market/quotes")
+                        .with(playerJwt(rateLimitedPlayerUuid))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(quotePayload(snapshotVersion))
+                )
+                .andExpect(status().isOk());
+        }
+
+        mockMvc
+            .perform(
+                post("/api/market/quotes")
+                    .with(playerJwt(rateLimitedPlayerUuid))
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(quotePayload(snapshotVersion))
+            )
+            .andExpect(status().isTooManyRequests())
+            .andExpect(jsonPath("$.status").value("REJECTED"))
+            .andExpect(jsonPath("$.code").value("RATE_LIMITED"))
+            .andExpect(jsonPath("$.snapshotVersion").value(snapshotVersion));
+    }
+
     @Test
     @WithMockJwt(playerUuid = "220e8400-e29b-41d4-a716-446655440000")
     void execute_rejectsInsufficientFunds() throws Exception {
@@ -433,6 +501,202 @@ class MarketContractIntegrationTest {
         assertEquals(0L, item.getNetPosition());
         assertEquals(20L, balance.getAmount());
         assertEquals(MarketQuote.Status.CONSUMED, quote.getStatus());
+    }
+
+    @Test
+    @WithMockJwt(playerUuid = "220e8400-e29b-41d4-a716-446655440000")
+    void execute_postConsumeBuyPlanMismatchRejectsStaleQuoteAndConsumesQuote() throws Exception {
+        String snapshotVersion = snapshotVersion();
+
+        MvcResult quoteResult =
+            mockMvc
+                .perform(
+                    post("/api/market/quotes")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                            """
+                            {
+                              "itemId": "wheat",
+                              "side": "BUY",
+                              "quantity": 10,
+                              "snapshotVersion": "%s"
+                            }
+                            """.formatted(snapshotVersion)
+                        )
+                )
+                .andExpect(status().isOk())
+                .andReturn();
+
+        String quoteToken = jsonField(quoteResult.getResponse().getContentAsString(), "quoteToken");
+        String quotedSnapshotVersion = jsonField(
+            quoteResult.getResponse().getContentAsString(),
+            "snapshotVersion"
+        );
+
+        MarketQuote persistedQuote = marketQuoteRepository.findById(quoteToken).orElseThrow();
+        persistedQuote.setUnitPrice(persistedQuote.getUnitPrice() + 1L);
+        persistedQuote.setTotalPrice(persistedQuote.getTotalPrice() + 10L);
+        marketQuoteRepository.save(persistedQuote);
+
+        String executePayload =
+            """
+            {
+              "itemId": "wheat",
+              "side": "BUY",
+              "quantity": 10,
+              "quoteToken": "%s",
+              "snapshotVersion": "%s"
+            }
+            """.formatted(quoteToken, quotedSnapshotVersion);
+
+        mockMvc
+            .perform(
+                post("/api/market/execute")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(executePayload)
+            )
+            .andExpect(status().isConflict())
+            .andExpect(jsonPath("$.status").value("REJECTED"))
+            .andExpect(jsonPath("$.code").value("STALE_QUOTE"));
+
+        mockMvc
+            .perform(
+                post("/api/market/execute")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(executePayload)
+            )
+            .andExpect(status().isConflict())
+            .andExpect(jsonPath("$.status").value("REJECTED"))
+            .andExpect(jsonPath("$.code").value("STALE_QUOTE"));
+
+        MarketQuote quote = marketQuoteRepository.findById(quoteToken).orElseThrow();
+        MarketItem item = marketItemRepository.findById("wheat").orElseThrow();
+        Balance balance = balanceRepository.findById(playerUuid).orElseThrow();
+        assertEquals(0L, item.getNetPosition());
+        assertEquals(1_000L, balance.getAmount());
+        assertEquals(MarketQuote.Status.CONSUMED, quote.getStatus());
+    }
+
+    @Test
+    @WithMockJwt(playerUuid = "220e8400-e29b-41d4-a716-446655440000")
+    void execute_postConsumeSellPlanMismatchRejectsStaleQuoteAndConsumesQuote() throws Exception {
+        String snapshotVersion = snapshotVersion();
+
+        MvcResult quoteResult =
+            mockMvc
+                .perform(
+                    post("/api/market/quotes")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                            """
+                            {
+                              "itemId": "wheat",
+                              "side": "SELL",
+                              "quantity": 10,
+                              "snapshotVersion": "%s"
+                            }
+                            """.formatted(snapshotVersion)
+                        )
+                )
+                .andExpect(status().isOk())
+                .andReturn();
+
+        String quoteToken = jsonField(quoteResult.getResponse().getContentAsString(), "quoteToken");
+        String quotedSnapshotVersion = jsonField(
+            quoteResult.getResponse().getContentAsString(),
+            "snapshotVersion"
+        );
+
+        MarketQuote persistedQuote = marketQuoteRepository.findById(quoteToken).orElseThrow();
+        persistedQuote.setUnitPrice(persistedQuote.getUnitPrice() + 1L);
+        persistedQuote.setTotalPrice(persistedQuote.getTotalPrice() + 10L);
+        marketQuoteRepository.save(persistedQuote);
+
+        mockMvc
+            .perform(
+                post("/api/market/execute")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(
+                        """
+                        {
+                          "itemId": "wheat",
+                          "side": "SELL",
+                          "quantity": 10,
+                          "quoteToken": "%s",
+                          "snapshotVersion": "%s"
+                        }
+                        """.formatted(quoteToken, quotedSnapshotVersion)
+                    )
+            )
+            .andExpect(status().isConflict())
+            .andExpect(jsonPath("$.status").value("REJECTED"))
+            .andExpect(jsonPath("$.code").value("STALE_QUOTE"));
+
+        MarketQuote quote = marketQuoteRepository.findById(quoteToken).orElseThrow();
+        MarketItem item = marketItemRepository.findById("wheat").orElseThrow();
+        Balance balance = balanceRepository.findById(playerUuid).orElseThrow();
+        assertEquals(0L, item.getNetPosition());
+        assertEquals(1_000L, balance.getAmount());
+        assertEquals(MarketQuote.Status.CONSUMED, quote.getStatus());
+    }
+
+    @ParameterizedTest
+    @ValueSource(longs = { 0L, -1L })
+    @WithMockJwt(playerUuid = "220e8400-e29b-41d4-a716-446655440000")
+    void execute_rejectsInvalidQuantityWithMarketRejection(long quantity) throws Exception {
+        String snapshotVersion = snapshotVersion();
+
+        mockMvc
+            .perform(
+                post("/api/market/execute")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(
+                        """
+                        {
+                          "itemId": "wheat",
+                          "side": "BUY",
+                          "quantity": %d,
+                          "quoteToken": "unused-token",
+                          "snapshotVersion": "%s"
+                        }
+                        """.formatted(quantity, snapshotVersion)
+                    )
+            )
+            .andExpect(status().isUnprocessableEntity())
+            .andExpect(jsonPath("$.status").value("REJECTED"))
+            .andExpect(jsonPath("$.code").value("INVALID_QUANTITY"))
+            .andExpect(jsonPath("$.message").value("Quantity must be positive."))
+            .andExpect(jsonPath("$.snapshotVersion").value(org.hamcrest.Matchers.startsWith("market:")));
+    }
+
+    @Test
+    void execute_rejectsRateLimitedRequestWithMarketRejection() throws Exception {
+        UUID rateLimitedPlayerUuid = UUID.fromString("440e8400-e29b-41d4-a716-446655440000");
+        String snapshotVersion = snapshotVersion();
+
+        for (int i = 0; i < 100; i++) {
+            mockMvc
+                .perform(
+                    post("/api/market/execute")
+                        .with(playerJwt(rateLimitedPlayerUuid))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(executePayload("missing-token", snapshotVersion))
+                )
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("QUOTE_EXPIRED"));
+        }
+
+        mockMvc
+            .perform(
+                post("/api/market/execute")
+                    .with(playerJwt(rateLimitedPlayerUuid))
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(executePayload("missing-token", snapshotVersion))
+            )
+            .andExpect(status().isTooManyRequests())
+            .andExpect(jsonPath("$.status").value("REJECTED"))
+            .andExpect(jsonPath("$.code").value("RATE_LIMITED"))
+            .andExpect(jsonPath("$.snapshotVersion").value(snapshotVersion));
     }
 
     @Test
@@ -894,16 +1158,43 @@ class MarketContractIntegrationTest {
     }
 
     private RequestPostProcessor playerJwt() {
+        return playerJwt(playerUuid);
+    }
+
+    private RequestPostProcessor playerJwt(UUID jwtPlayerUuid) {
         return jwt()
             .jwt(jwt -> {
-                jwt.subject(playerUuid.toString());
-                jwt.claim("player_uuid", playerUuid.toString());
+                jwt.subject(jwtPlayerUuid.toString());
+                jwt.claim("player_uuid", jwtPlayerUuid.toString());
                 jwt.claim("scope", "api:read api:write");
             })
             .authorities(
                 new SimpleGrantedAuthority("SCOPE_api:read"),
                 new SimpleGrantedAuthority("SCOPE_api:write")
             );
+    }
+
+    private String quotePayload(String snapshotVersion) {
+        return """
+            {
+              "itemId": "wheat",
+              "side": "BUY",
+              "quantity": 10,
+              "snapshotVersion": "%s"
+            }
+            """.formatted(snapshotVersion);
+    }
+
+    private String executePayload(String quoteToken, String snapshotVersion) {
+        return """
+            {
+              "itemId": "wheat",
+              "side": "BUY",
+              "quantity": 10,
+              "quoteToken": "%s",
+              "snapshotVersion": "%s"
+            }
+            """.formatted(quoteToken, snapshotVersion);
     }
 
     private RequestPostProcessor minecraftServerClientJwt() {

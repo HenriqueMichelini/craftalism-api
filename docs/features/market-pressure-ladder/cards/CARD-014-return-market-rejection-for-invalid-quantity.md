@@ -2,7 +2,7 @@
 
 ## Status
 
-planned
+completed
 
 ## Objective
 
@@ -83,4 +83,7 @@ rtk ./gradlew test --tests io.github.HenriqueMichelini.craftalism.api.service.Ma
 
 ## Completion Notes
 
-Leave empty until implemented.
+- Removed `@Positive` from market quote and execute quantity DTO fields so zero and negative quantities can reach market rejection handling while null quantities still use generic validation.
+- Added market service validation that returns `INVALID_QUANTITY` with the current `snapshotVersion` before quote planning or quote-token lookup.
+- Added service and integration coverage for zero and negative quote and execute quantities.
+- Validation: `rtk ./gradlew test --tests io.github.HenriqueMichelini.craftalism.api.controller.MarketContractIntegrationTest --tests io.github.HenriqueMichelini.craftalism.api.service.MarketServiceTest` from `java/` passed.

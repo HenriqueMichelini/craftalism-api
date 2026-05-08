@@ -3,7 +3,6 @@ package io.github.HenriqueMichelini.craftalism.api.dto;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Positive;
 
 public record MarketExecuteRequestDTO(
     @Schema(description = "Market item identifier", example = "wheat")
@@ -16,7 +15,6 @@ public record MarketExecuteRequestDTO(
 
     @Schema(description = "Requested quantity", example = "32", minimum = "1")
     @NotNull(message = "Quantity is required")
-    @Positive(message = "Quantity must be positive")
     Long quantity,
 
     @Schema(
