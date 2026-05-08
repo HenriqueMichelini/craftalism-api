@@ -1,18 +1,18 @@
-FROM gradle:8.8-jdk17 AS builder
+FROM eclipse-temurin:17-jdk AS builder
 WORKDIR /app
 
 # Copy dependency files first for better layer caching
-COPY build.gradle settings.gradle ./
+COPY gradlew build.gradle settings.gradle ./
 COPY gradle ./gradle
 
 # Download dependencies (cached unless build files change)
-RUN gradle dependencies --no-daemon || true
+RUN ./gradlew --no-daemon dependencies
 
 # Copy source code
 COPY src ./src
 
 # Build the application
-RUN gradle build -x test --no-daemon
+RUN ./gradlew --no-daemon build
 
 FROM eclipse-temurin:17-jre-alpine
 WORKDIR /app
