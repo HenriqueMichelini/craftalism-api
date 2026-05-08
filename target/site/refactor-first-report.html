@@ -1,0 +1,854 @@
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+
+<head><title>Refactor First Report for craftalism-api 0.0.1-SNAPSHOT </title>
+<script async defer src="https://buttons.github.io/buttons.js"></script>
+<script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/svg-pan-zoom@3.6.1/dist/svg-pan-zoom.min.js"></script><script src="https://cdnjs.cloudflare.com/ajax/libs/sigma.js/2.4.0/sigma.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/graphology/0.25.4/graphology.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/graphlib/2.1.8/graphlib.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/graphlib-dot@0.6.4/dist/graphlib-dot.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/3d-force-graph"></script>
+</head>  <body class="composite">
+<div class="overlay" id="overlay" onclick="hidePopup()"></div><script>
+function sugiyamaLayout(graph) {
+    var layers = [];
+    var nodeLevels = {};
+    var nodes = graph.nodes();
+    //var edges = graph.edges();
+
+    // Step 1: Assign levels to nodes
+    function assignLevels() {
+        var visited = {};
+        var stack = [];
+
+        function visit(node, level) {
+            if (visited[node]) return;
+            visited[node] = true;
+            nodeLevels[node] = level;
+            if (!layers[level]) layers[level] = [];
+            layers[level].push(node);
+            stack.push(node);
+            graph.forEachNeighbor(node, function (neighbor) {
+                visit(neighbor, level + 1);
+            });
+        }
+
+        nodes.forEach(function (node) {
+            if (!visited[node]) visit(node, 0);
+        });
+    }
+
+    // Step 2: Reduce edge crossings
+    function reduceCrossings() {
+        for (var i = 0; i < layers.length - 1; i++) {
+            var layer = layers[i];
+            var nextLayer = layers[i + 1];
+            var positions = {};
+
+            nextLayer.forEach(function (node, index) {
+                positions[node] = index;
+            });
+
+            layer.sort(function (a, b) {
+                var aPos = 0, bPos = 0;
+                graph.forEachNeighbor(a, function (neighbor) {
+                    aPos += positions[neighbor] || 0;
+                });
+                graph.forEachNeighbor(b, function (neighbor) {
+                    bPos += positions[neighbor] || 0;
+                });
+                return aPos - bPos;
+            });
+        }
+    }
+
+    // Step 3: Assign positions to nodes
+    function assignPositions() {
+        var yStep = 100;
+        var xStep = 2000;
+
+        layers.forEach(function (layer, level) {
+            var layerWidth = layer.length * xStep;
+            var offsetX = ((screen.width - 200) - layerWidth) / 2; // Centering the nodes
+
+            layer.forEach(function (node, index) {
+                graph.setNodeAttribute(node, 'x', offsetX + index * xStep);
+                graph.setNodeAttribute(node, 'y', -level * yStep);
+            });
+        });
+    }
+
+    assignLevels();
+    reduceCrossings();
+    assignPositions();
+}
+
+function renderGraph(dot) {
+    // Parse the DOT graph using graphlib-dot
+    const graphlibGraph = graphlibDot.read(dot);
+
+    // Convert graphlib graph to graphology graph
+    const graphologyGraph = new graphology.Graph();
+    graphlibGraph.nodes().forEach(node => {
+        const attrs = graphlibGraph.node(node);
+        graphologyGraph.addNode(node, {
+            label: node,
+            color: attrs.color,
+            // x: Math.random(),
+            // y: Math.random(),
+            size: 5,
+        });
+    });
+
+    graphlibGraph.edges().forEach(edge => {
+        const attrs = graphlibGraph.edge(edge);
+        graphologyGraph.addEdge(edge.v, edge.w, {
+            color: attrs.color,
+            size: 1,
+            type: 'arrow',
+        });
+    });
+
+    sugiyamaLayout(graphologyGraph)
+
+    return graphologyGraph;
+}
+</script><script type="module">
+// SpriteText will only work as import
+        // this script block requires type=module since we are using an import
+        import SpriteText from "https://esm.sh/three-spritetext";
+
+        function createForceGraph(popupId, containerName, dot) {
+            // Add event listener for Escape key to close the popup
+            document.addEventListener('keydown', function (event) {
+                if (event.key === 'Escape') {
+                    hidePopup();
+                }
+            });
+
+            document.getElementById('overlay').style.display = 'block';
+            document.getElementById(popupId).style.display = 'block';
+            var container = document.getElementById(containerName);
+
+            // Parse the DOT graph using graphlib-dot
+            const graphlibGraph = graphlibDot.read(dot);
+
+            var nodes = [];
+            var links = [];
+
+            graphlibGraph.nodes().forEach(function (node) {
+                var nodeData = graphlibGraph.node(node);
+                nodes.push({
+                    id: node,
+                    color: nodeData.color || 'white',
+                });
+            });
+
+            graphlibGraph.edges().forEach(function (edge) {
+                links.push({
+                    source: edge.v,
+                    target: edge.w,
+                    color: graphlibGraph.edge(edge).color || 'white',
+                    weight: graphlibGraph.edge(edge).weight,
+                });
+            });
+
+            const gData = {
+                nodes: nodes,
+                links: links
+            };
+
+            // cross-link node objects
+            gData.links.forEach(link => {
+                const a = gData.nodes.find(node => node.id === link.source);
+                const b = gData.nodes.find(node => node.id === link.target);
+                !a.neighbors && (a.neighbors = []);
+                !b.neighbors && (b.neighbors = []);
+                a.neighbors.push(b);
+                b.neighbors.push(a);
+
+                !a.links && (a.links = []);
+                !b.links && (b.links = []);
+                a.links.push(link);
+                b.links.push(link);
+            });
+
+            const Graph = new ForceGraph3D(container)
+                .graphData(gData)
+                .nodeLabel('id')
+                .width(container.clientWidth)
+                .height(container.clientHeight);
+
+            if(gData.links.length + gData.nodes.length < 4000) {
+                console.log(gData.links.length + gData.nodes.length);
+
+
+                // use node labels instead of spheres
+                Graph.nodeThreeObject(node => {
+                    const sprite = new SpriteText(node.id);
+                    sprite.material.depthWrite = false; // make sprite background transparent
+                    sprite.color = node.color;
+                    sprite.textHeight = 4;
+                    return sprite;
+                });
+
+                // code to display weight as link text
+                // may be too much for browsers to handle
+                // Graph
+                //     .linkThreeObjectExtend(true)
+                //     .linkThreeObject(link => {
+                //         // extend link with text sprite
+                //         const sprite = new SpriteText(`${link.weight}`);
+                //         sprite.color = 'lightgrey';
+                //         sprite.textHeight = 3;
+                //         return sprite;
+                //     })
+                //     .linkPositionUpdate((sprite, {start, end}) => {
+                //         const middlePos = Object.assign(...['x', 'y', 'z'].map(c => ({
+                //             [c]: start[c] + (end[c] - start[c]) / 2 // calc middle point
+                //         })));
+                //
+                //         // Position sprite
+                //         Object.assign(sprite.position, middlePos);
+                //     });
+
+
+                // code to highlight nodes & links
+                // TODO: enable via control - see Manipulate Link Force Distance for example
+                const highlightNodes = new Set();
+                const highlightLinks = new Set();
+                let hoverNode = null;
+                Graph
+                    .nodeColor(node => highlightNodes.has(node) ? node === hoverNode ? 'rgb(255,0,0,1)' : 'rgba(255,160,0,0.8)' : 'rgba(0,255,255,0.6)')
+                    .linkWidth(link => highlightLinks.has(link) ? 4 : 1)
+                    .linkDirectionalParticles(link => highlightLinks.has(link) ? 4 : 0)
+                    .linkDirectionalParticleWidth(4)
+                    .onNodeHover(node => {
+                        // no state change
+                        if ((!node && !highlightNodes.size) || (node && hoverNode === node)) return;
+
+                        highlightNodes.clear();
+                        highlightLinks.clear();
+                        if (node) {
+                            highlightNodes.add(node);
+                            node.neighbors.forEach(neighbor => highlightNodes.add(neighbor));
+                            node.links.forEach(link => highlightLinks.add(link));
+                        }
+
+                        hoverNode = node || null;
+
+                        updateHighlight(Graph);
+                    })
+                    .onLinkHover(link => {
+                        highlightNodes.clear();
+                        highlightLinks.clear();
+
+                        if (link) {
+                            highlightLinks.add(link);
+                            highlightNodes.add(link.source);
+                            highlightNodes.add(link.target);
+                        }
+
+                        updateHighlight(Graph);
+                    });
+
+            }
+        }
+
+        // used by highlighting functionality
+        function updateHighlight(Graph) {
+            // trigger update of highlighted objects in scene
+            Graph
+                .nodeColor(Graph.nodeColor())
+                .linkWidth(Graph.linkWidth())
+                .linkDirectionalParticles(Graph.linkDirectionalParticles());
+        }
+
+        // needed to allow the button to open the graph
+        window.createForceGraph = createForceGraph;    </script><script>
+    function showPopup(popupId, containerName, dot) {
+        // Add event listener for Escape key to close the popup
+        document.addEventListener('keydown', function (event) {
+            if (event.key === 'Escape') {
+                hidePopup();
+            }
+        });                document.getElementById('overlay').style.display = 'block';
+        document.getElementById(popupId).style.display = 'block';
+
+        var graph = renderGraph(dot);
+        var container = document.getElementById(containerName);
+
+        // Render with Sigma.js
+        new Sigma(graph, container);
+    }
+
+    function hidePopup() {
+        document.getElementById('overlay').style.display = 'none';
+        var popups = document.getElementsByClassName('popup');
+        for (var i = 0; i < popups.length; i++) {
+            popups[i].style.display = 'none';
+        }
+
+        // Clear the graph containers to remove the previous graphs
+        var containers = document.querySelectorAll('[id^="graph-container"]');
+        containers.forEach(function(container) {
+            while (container.firstChild) {
+                container.removeChild(container.firstChild);
+            }
+        });
+// Remove the Escape key event listener
+            document.removeEventListener('keydown', function (event) {
+                if (event.key === 'Escape') {
+                    hidePopup();
+                }
+            });    }
+</script><style>
+        /* Popup container */
+        .popup {
+            position: fixed;
+            display: none;
+            width: 95%;
+            height: 95%;
+            background-color: white;
+            border: 1px solid #ccc;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 1000;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        /* Popup overlay */
+        .overlay {
+            position: fixed;
+            display: none;
+            width: 100%;
+            height: 100%;
+            top: 0;
+            left: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 999;
+        }
+
+        /* Close button */
+        .close-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            cursor: pointer;
+        }
+    </style>    <div id="banner">
+    </div>
+    <div id="breadcrumbs">
+      <div class="xleft">
+</div>
+      <div class="xright">      </div>
+    </div>
+    <div id="bodyColumn">
+      <div id="contentBox">
+<section>
+<h2><a href="https://github.com/refactorfirst/refactorfirst" target="_blank" title="Learn about RefactorFirst" aria-label="RefactorFirst">RefactorFirst</a> Report for craftalism-api 0.0.1-SNAPSHOT</h2>
+<a href="#EDGES">Edges To Remove</a>
+<br/>
+<a href="#CBO">Highly Coupled Classes</a>
+<br/>
+<a href="#CYCLES">Class Cycles</a>
+<h1 align="center">Class Map</h1><script>
+const classGraph_dot = `strict digraph G {
+MarketRejectionException -> MarketRejectionCode [ label = "3" weight = "3" ];
+MarketExceptionHandler -> MarketRejectionException [ label = "1" weight = "1" ];
+BalanceAlreadyExistsException -> BusinessException [ label = "2" weight = "2" ];
+BalanceNotFoundException -> BusinessException [ label = "2" weight = "2" ];
+InsufficientFundsException -> BusinessException [ label = "2" weight = "2" ];
+PlayerAlreadyExistsException -> BusinessException [ label = "2" weight = "2" ];
+PlayerNotFoundException -> BusinessException [ label = "3" weight = "3" ];
+InvalidAmountException -> BusinessException [ label = "2" weight = "2" ];
+IdempotencyConflictException -> BusinessException [ label = "2" weight = "2" ];
+MissingIdempotencyKeyException -> BusinessException [ label = "2" weight = "2" ];
+InvalidTransferException -> BusinessException [ label = "2" weight = "2" ];
+TransactionNotFoundException -> BusinessException [ label = "2" weight = "2" ];
+GlobalExceptionHandler -> BusinessException [ label = "1" weight = "1" ];
+PlayerController -> PlayerService [ label = "6" weight = "6" ];
+PlayerController -> PlayerMapper [ label = "2" weight = "2" ];
+PlayerController -> Player [ label = "4" weight = "4" ];
+PlayerController -> PlayerRequestDTO [ label = "1" weight = "1" ];
+BalanceController -> BalanceService [ label = "6" weight = "6" ];
+BalanceController -> BalanceMapper [ label = "2" weight = "2" ];
+BalanceController -> TransferService [ label = "3" weight = "3" ];
+BalanceController -> BalanceCreateRequestDTO [ label = "1" weight = "1" ];
+BalanceController -> Balance [ label = "4" weight = "4" ];
+BalanceController -> BalanceSetRequestDTO [ label = "1" weight = "1" ];
+BalanceController -> BalanceUpdateRequestDTO [ label = "2" weight = "2" ];
+BalanceController -> BalanceTransferRequestDTO [ label = "1" weight = "1" ];
+BalanceController -> BalanceTransferResponseDTO [ label = "1" weight = "1" ];
+TransactionController -> TransactionService [ label = "5" weight = "5" ];
+TransactionController -> TransactionMapper [ label = "2" weight = "2" ];
+TransactionController -> Transaction [ label = "2" weight = "2" ];
+TransactionController -> TransactionResponseDTO [ label = "3" weight = "3" ];
+TransactionController -> TransactionRequestDTO [ label = "1" weight = "1" ];
+TransferIncidentController -> TransferIncidentResponseDTO [ label = "3" weight = "3" ];
+TransferIncidentController -> TransferIncidentService [ label = "2" weight = "2" ];
+TransferIncidentController -> TransferIncident [ label = "1" weight = "1" ];
+MarketController -> MarketService [ label = "2" weight = "2" ];
+MarketController -> MarketQuoteRequestDTO [ label = "1" weight = "1" ];
+MarketController -> MarketExecuteRequestDTO [ label = "1" weight = "1" ];
+PlayerService -> Player [ label = "8" weight = "8" ];
+PlayerService -> PlayerRepository [ label = "2" weight = "2" ];
+BalanceService -> Balance [ label = "23" weight = "23" ];
+BalanceService -> BalanceRepository [ label = "3" weight = "3" ];
+TransactionService -> TransactionMapper [ label = "3" weight = "3" ];
+TransactionService -> TransactionRepository [ label = "4" weight = "4" ];
+TransactionService -> PlayerRepository [ label = "2" weight = "2" ];
+TransactionService -> TransactionRequestDTO [ label = "1" weight = "1" ];
+TransactionService -> Transaction [ label = "7" weight = "7" ];
+TransactionService -> TransactionResponseDTO [ label = "1" weight = "1" ];
+TransferService -> Balance [ label = "6" weight = "6" ];
+TransferService -> BalanceRepository [ label = "2" weight = "2" ];
+TransferService -> TransactionRepository [ label = "2" weight = "2" ];
+TransferService -> TransferIdempotencyRepository [ label = "2" weight = "2" ];
+TransferService -> TransactionMapper [ label = "3" weight = "3" ];
+TransferService -> TransferIncidentService [ label = "2" weight = "2" ];
+TransferService -> TransferIdempotencyRecord [ label = "5" weight = "5" ];
+TransferService -> Transaction [ label = "5" weight = "5" ];
+TransferService -> TransactionResponseDTO [ label = "1" weight = "1" ];
+TransferService -> BalanceTransferResponseDTO [ label = "1" weight = "1" ];
+TransferIncidentService -> TransferIncident [ label = "9" weight = "9" ];
+TransferIncidentService -> TransferIncidentRepository [ label = "2" weight = "2" ];
+MarketQuoteStore -> MarketQuote [ label = "14" weight = "14" ];
+MarketQuoteStore -> MarketQuoteRepository [ label = "5" weight = "5" ];
+MarketQuoteStore -> MarketQuoteStore_StoredQuote [ label = "4" weight = "4" ];
+MarketQuoteStore_StoredQuote -> MarketSide [ label = "1" weight = "1" ];
+MarketQuoteStore_StoredQuote -> MarketQuote_Status [ label = "1" weight = "1" ];
+MarketService -> MarketCatalogInitializer [ label = "2" weight = "2" ];
+MarketService -> MarketSnapshotService [ label = "2" weight = "2" ];
+MarketService -> MarketQuoteService [ label = "2" weight = "2" ];
+MarketService -> MarketExecuteService [ label = "2" weight = "2" ];
+MarketService -> MarketQuoteStore [ label = "5" weight = "5" ];
+MarketService -> MarketQuoteRepository [ label = "4" weight = "4" ];
+MarketService -> MarketTradePlanner [ label = "2" weight = "2" ];
+MarketService -> MarketPlayerResolver [ label = "1" weight = "1" ];
+MarketService -> MarketItemRepository [ label = "2" weight = "2" ];
+MarketService -> BalanceRepository [ label = "2" weight = "2" ];
+MarketService -> DefaultMarketCatalog [ label = "2" weight = "2" ];
+MarketService -> MarketReadService [ label = "2" weight = "2" ];
+MarketService -> MarketTradeExecutor [ label = "2" weight = "2" ];
+MarketService -> MarketRateLimiter [ label = "4" weight = "4" ];
+MarketService -> MarketQuoteRequestDTO [ label = "1" weight = "1" ];
+MarketService -> MarketExecuteRequestDTO [ label = "1" weight = "1" ];
+MarketService -> MarketSnapshotResponseDTO [ label = "1" weight = "1" ];
+MarketService -> MarketQuoteResponseDTO [ label = "1" weight = "1" ];
+MarketService -> MarketExecuteSuccessResponseDTO [ label = "1" weight = "1" ];
+MarketTradePlanner -> MarketPressurePricing [ label = "4" weight = "4" ];
+MarketTradePlanner -> MarketItem [ label = "15" weight = "15" ];
+MarketTradePlanner -> MarketTradePlanner_TradePlan [ label = "6" weight = "6" ];
+MarketTradePlanner -> MarketTradePlanner_Direction [ label = "2" weight = "2" ];
+DefaultMarketCatalog -> MarketSeedItem [ label = "2" weight = "2" ];
+MarketSnapshotProjector -> MarketSnapshotResponseDTO [ label = "2" weight = "2" ];
+MarketSnapshotProjector -> MarketTradePlanner [ label = "3" weight = "3" ];
+MarketSnapshotProjector -> MarketSnapshotItemDTO [ label = "4" weight = "4" ];
+MarketSnapshotProjector -> MarketSnapshotProjector_MarketSnapshotProjection [ label = "8" weight = "8" ];
+MarketSnapshotProjector -> MarketSnapshotCategoryDTO [ label = "3" weight = "3" ];
+MarketSnapshotProjector -> MarketItem [ label = "3" weight = "3" ];
+MarketPlayerResolver -> MarketRejectionException [ label = "1" weight = "1" ];
+MarketCatalogInitializer -> MarketItem [ label = "25" weight = "25" ];
+MarketCatalogInitializer -> MarketTradePlanner [ label = "3" weight = "3" ];
+MarketCatalogInitializer -> MarketItemRepository [ label = "3" weight = "3" ];
+MarketCatalogInitializer -> DefaultMarketCatalog [ label = "2" weight = "2" ];
+MarketCatalogInitializer -> MarketSeedItem [ label = "1" weight = "1" ];
+MarketReadService -> MarketReadService_MarketReadState [ label = "2" weight = "2" ];
+MarketReadService -> MarketTradePlanner [ label = "5" weight = "5" ];
+MarketReadService -> MarketItem [ label = "7" weight = "7" ];
+MarketReadService -> MarketItemRepository [ label = "3" weight = "3" ];
+MarketReadService_MarketReadState -> MarketItem [ label = "1" weight = "1" ];
+MarketTradeExecutor -> MarketTradePlanner [ label = "7" weight = "7" ];
+MarketTradeExecutor -> Balance [ label = "5" weight = "5" ];
+MarketTradeExecutor -> MarketItem [ label = "9" weight = "9" ];
+MarketTradeExecutor -> MarketTradeExecutor_AppliedTrade [ label = "5" weight = "5" ];
+MarketTradeExecutor -> BalanceRepository [ label = "2" weight = "2" ];
+MarketTradeExecutor -> MarketItemRepository [ label = "2" weight = "2" ];
+MarketTradeExecutor -> MarketQuoteStore_StoredQuote [ label = "4" weight = "4" ];
+MarketTradeExecutor -> MarketTradePlanner_TradePlan [ label = "7" weight = "7" ];
+MarketTradeExecutor -> MarketRejectionCode [ label = "1" weight = "1" ];
+MarketTradeExecutor -> MarketRejectionException [ label = "2" weight = "2" ];
+MarketPressurePricing -> MarketItem [ label = "3" weight = "3" ];
+MarketRateLimiter -> MarketRateLimiter_Counter [ label = "3" weight = "3" ];
+MarketSeedItemBuilder -> MarketSeedItem [ label = "2" weight = "2" ];
+MarketSnapshotService -> MarketSnapshotProjector [ label = "7" weight = "7" ];
+MarketSnapshotService -> MarketSnapshotService_CurrentSnapshot [ label = "3" weight = "3" ];
+MarketSnapshotService -> MarketReadService [ label = "4" weight = "4" ];
+MarketSnapshotService -> MarketReadService_MarketReadState [ label = "3" weight = "3" ];
+MarketSnapshotService -> MarketSnapshotProjector_MarketSnapshotProjection [ label = "3" weight = "3" ];
+MarketSnapshotService -> MarketItem [ label = "1" weight = "1" ];
+MarketSnapshotService_CurrentSnapshot -> MarketItem [ label = "1" weight = "1" ];
+MarketSnapshotService -> MarketSnapshotResponseDTO [ label = "1" weight = "1" ];
+MarketSnapshotService -> MarketSnapshotItemDTO [ label = "1" weight = "1" ];
+MarketQuoteService -> MarketQuoteStore [ label = "3" weight = "3" ];
+MarketQuoteService -> MarketQuoteResponseDTO [ label = "2" weight = "2" ];
+MarketQuoteService -> MarketSnapshotService [ label = "3" weight = "3" ];
+MarketQuoteService -> MarketTradePlanner [ label = "4" weight = "4" ];
+MarketQuoteService -> MarketPlayerResolver [ label = "3" weight = "3" ];
+MarketQuoteService -> MarketRateLimiter [ label = "2" weight = "2" ];
+MarketQuoteService -> MarketQuoteRequestDTO [ label = "1" weight = "1" ];
+MarketQuoteService -> MarketSnapshotService_CurrentSnapshot [ label = "2" weight = "2" ];
+MarketQuoteService -> MarketItem [ label = "4" weight = "4" ];
+MarketQuoteService -> MarketTradePlanner_TradePlan [ label = "5" weight = "5" ];
+MarketQuoteService -> MarketRejectionCode [ label = "1" weight = "1" ];
+MarketQuoteService -> MarketRejectionException [ label = "1" weight = "1" ];
+MarketExecuteService -> MarketExecuteSuccessResponseDTO [ label = "2" weight = "2" ];
+MarketExecuteService -> MarketSnapshotService [ label = "3" weight = "3" ];
+MarketExecuteService -> MarketItemRepository [ label = "2" weight = "2" ];
+MarketExecuteService -> MarketQuoteStore [ label = "2" weight = "2" ];
+MarketExecuteService -> MarketTradeExecutor [ label = "3" weight = "3" ];
+MarketExecuteService -> MarketPlayerResolver [ label = "3" weight = "3" ];
+MarketExecuteService -> MarketRateLimiter [ label = "2" weight = "2" ];
+MarketExecuteService -> MarketExecuteRequestDTO [ label = "1" weight = "1" ];
+MarketExecuteService -> MarketQuoteStore_StoredQuote [ label = "1" weight = "1" ];
+MarketExecuteService -> MarketItem [ label = "2" weight = "2" ];
+MarketExecuteService -> MarketTradeExecutor_AppliedTrade [ label = "1" weight = "1" ];
+MarketExecuteService -> MarketRejectionCode [ label = "1" weight = "1" ];
+MarketExecuteService -> MarketRejectionException [ label = "1" weight = "1" ];
+BalanceRepository -> Balance [ label = "2" weight = "2" ];
+PlayerRepository -> Player [ label = "1" weight = "1" ];
+TransactionRepository -> Transaction [ label = "2" weight = "2" ];
+MarketSegmentRepository -> MarketSegment [ label = "1" weight = "1" ];
+TransferIdempotencyRepository -> TransferIdempotencyRecord [ label = "1" weight = "1" ];
+MarketItemRepository -> MarketItem [ label = "3" weight = "3" ];
+MarketQuoteRepository -> MarketQuote_Status [ label = "5" weight = "5" ];
+MarketQuoteRepository -> MarketQuote [ label = "1" weight = "1" ];
+Balance -> Player [ label = "2" weight = "2" ];
+MarketSegment -> MarketSegmentId [ label = "9" weight = "9" ];
+MarketSegment -> MarketItem [ label = "3" weight = "3" ];
+TransferIdempotencyRecord -> TransferIdempotencyRecord_Status [ label = "3" weight = "3" ];
+MarketItem -> MarketSegment [ label = "7" weight = "7" color = "red" ];
+MarketQuote -> MarketSide [ label = "3" weight = "3" ];
+MarketQuote -> MarketQuote_Status [ label = "3" weight = "3" ];
+BalanceTransferResponseDTO -> TransactionResponseDTO [ label = "1" weight = "1" ];
+MarketQuoteRequestDTO -> MarketSide [ label = "1" weight = "1" ];
+MarketExecuteRequestDTO -> MarketSide [ label = "1" weight = "1" ];
+MarketSnapshotCategoryDTO -> MarketSnapshotItemDTO [ label = "1" weight = "1" ];
+MarketSnapshotResponseDTO -> MarketSnapshotCategoryDTO [ label = "1" weight = "1" ];
+MarketQuoteResponseDTO -> MarketSide [ label = "1" weight = "1" ];
+MarketExecuteSuccessResponseDTO -> MarketSide [ label = "1" weight = "1" ];
+MarketExecuteSuccessResponseDTO -> MarketSnapshotItemDTO [ label = "1" weight = "1" ];
+TransactionMapper -> TransactionResponseDTO [ label = "3" weight = "3" ];
+TransactionMapper -> Transaction [ label = "2" weight = "2" ];
+BalanceMapper -> BalanceResponseDTO [ label = "3" weight = "3" ];
+BalanceMapper -> Balance [ label = "2" weight = "2" ];
+PlayerMapper -> PlayerResponseDTO [ label = "3" weight = "3" ];
+PlayerMapper -> Player [ label = "2" weight = "2" ];
+MarketCatalogInitializer -> MarketService [ label = "3" weight = "3" ];
+MarketSnapshotProjector;
+BalanceController;
+MarketTradePlanner;
+BalanceMapper;
+TransferIncidentController;
+PlayerNotFoundException;
+BalanceRepository;
+BalanceTransferRequestDTO;
+BalanceService;
+DefaultMarketCatalog;
+MarketQuoteResponseDTO;
+TransferIncident;
+Balance;
+MarketRejectionException;
+TransferIdempotencyRecord_Status;
+TransferIdempotencyRecord;
+GlobalExceptionHandler;
+MarketQuote;
+MarketSegment;
+MarketQuoteRepository;
+TransferService;
+BalanceResponseDTO;
+MarketQuoteRequestDTO;
+TransferIdempotencyRepository;
+TransactionNotFoundException;
+BalanceAlreadyExistsException;
+PlayerMapper;
+PlayerAlreadyExistsException;
+MarketController;
+MarketSnapshotCategoryDTO;
+MarketReadService_MarketReadState;
+MarketSegmentRepository;
+MarketTradeExecutor_AppliedTrade;
+BalanceCreateRequestDTO;
+TransactionMapper;
+MarketSnapshotService;
+MarketTradeExecutor;
+MarketItem;
+IdempotencyConflictException;
+MarketSeedItemBuilder;
+TransactionRepository;
+Transaction;
+MarketRateLimiter;
+BusinessException;
+MarketSnapshotItemDTO;
+MarketExecuteRequestDTO;
+MarketTradePlanner_TradePlan;
+MarketCatalogInitializer;
+MarketCatalogInitializer;
+TransactionRequestDTO;
+MarketTradePlanner_Direction;
+MarketQuote_Status;
+MarketExecuteService;
+TransferIncidentRepository;
+TransferIncidentService;
+BalanceSetRequestDTO;
+MarketSide;
+MarketExceptionHandler;
+TransferIncidentResponseDTO;
+PlayerResponseDTO;
+TransactionService;
+MarketQuoteService;
+PlayerRequestDTO;
+MarketExecuteSuccessResponseDTO;
+InvalidTransferException;
+MarketSnapshotProjector_MarketSnapshotProjection;
+PlayerService;
+TransactionController;
+BalanceTransferResponseDTO;
+MarketQuoteStore;
+MarketSeedItem;
+InsufficientFundsException;
+Player;
+MarketReadService [color=red style=filled]
+;
+MarketService;
+MarketPlayerResolver;
+MissingIdempotencyKeyException;
+MarketSnapshotResponseDTO;
+MarketQuoteStore_StoredQuote;
+BalanceNotFoundException;
+MarketItemRepository;
+MarketSnapshotService_CurrentSnapshot;
+MarketSegmentId;
+InvalidAmountException;
+MarketPressurePricing;
+MarketRateLimiter_Counter;
+PlayerController;
+TransactionResponseDTO;
+MarketRejectionCode;
+PlayerRepository;
+BalanceUpdateRequestDTO;
+}`;
+</script>
+<button style="display: block; margin: 0 auto;" onclick="createForceGraph('popup-classGraph', 'graph-container-classGraph', classGraph_dot )">Show classGraph 3D Popup</button>
+<button style="display: block; margin: 0 auto;" onclick="showPopup('popup-classGraph', 'graph-container-classGraph', classGraph_dot )">Show classGraph 2D Popup</button>
+<div class="popup" id="popup-classGraph">
+<span class="close-btn" onclick="hidePopup()">×</span>
+    <div id="graph-container-classGraph" style="width: 100%; height: 100%;"></div>
+</div>
+<div align="center">
+Red lines represent relationships to remove.<br>
+Red nodes represent classes to remove.<br>
+Zoom in / out with your mouse wheel and click/move to drag the image.
+</div>
+<div align="center">Excludes classes that have no incoming and outgoing edges<br></div><div align="center">Number of classes: 96  Number of relationships: 182<br></div><div id="classGraph" style="width: 95%; margin: auto; border: thin solid black"></div>
+<script type="module">
+import { Graphviz } from "https://cdn.jsdelivr.net/npm/@hpcc-js/wasm/dist/index.js";
+    if (Graphviz) {
+        const graphviz = await Graphviz.load();
+        let svg = graphviz.layout(classGraph_dot, "svg", "dot");
+        // Set desired width and height
+
+        // Modify the SVG string to include width and height attributes
+        svg = svg.replace('<svg ', `<svg width="screen.width" height="screen.height"`);
+
+        document.getElementById("classGraph").innerHTML = svg;
+
+        // Make the SVG zoomable
+        svgPanZoom('#classGraph svg', {
+            zoomEnabled: true,
+            controlIconsEnabled: true
+        });
+    }
+</script>
+<br/>
+<div align="center">
+Show RefactorFirst some &#10084;&#65039;
+<br/>
+<a class="github-button" href="https://github.com/refactorfirst/refactorfirst" data-icon="octicon-star" data-size="large" data-show-count="true" aria-label="Star refactorfirst/refactorfirst on GitHub">Star</a>
+<a class="github-button" href="https://github.com/refactorfirst/refactorfirst/fork" data-icon="octicon-repo-forked" data-size="large" data-show-count="true" aria-label="Fork refactorfirst/refactorfirst on GitHub">Fork</a>
+<a class="github-button" href="https://github.com/refactorfirst/refactorfirst/subscription" data-icon="octicon-eye" data-size="large" data-show-count="true" aria-label="Watch refactorfirst/refactorfirst on GitHub">Watch</a>
+<a class="github-button" href="https://github.com/refactorfirst/refactorfirst/issues" data-icon="octicon-issue-opened" data-size="large" data-show-count="false" aria-label="Issue refactorfirst/refactorfirst on GitHub">Issue</a>
+<a class="github-button" href="https://github.com/sponsors/jimbethancourt" data-icon="octicon-heart" data-size="large" aria-label="Sponsor @jimbethancourt on GitHub">Sponsor</a>
+</div><br/>
+<div style="text-align: center;"><a id="EDGES"><h1>Relationship Removal Priority</h1></a></div>
+<h2 align="center">Refactor Starting with Priority 1</h2>
+<div style="text-align: center;">
+Current Cycle Count: 1<br>
+Number of Relationships to Remove: 1<br>
+Classes in bold should be broken apart<br>
+</div>
+<table align="center" border="5px">
+<thead>
+<tr>
+<th>Relationship</th>
+<th>Priority</th>
+<th>In Cycles</th>
+<th>Edge<br>Weight</th>
+<th>Source<br>Change Proneness Rank</th>
+<th>Target<br>Change Proneness Rank</th>
+</thead>
+<tbody>
+<tr>
+<td align="left">MarketItem &#8594; MarketSegment : 7</td>
+<td align="right">1</td>
+<td align="right">1</td>
+<td align="right">7</td>
+<td align="right">1</td>
+<td align="right">1</td>
+</tr>
+</tbody>
+</table>
+<br/>
+<br/>
+<br/>
+<br/>
+<hr/>
+<br/>
+<br/>
+<div style="text-align: center;"><a id="CBO"><h1>Highly Coupled Classes</h1></a></div><div id="series_chart_div_2" align="center"><script>      google.charts.load('current', {'packages':['corechart']});
+      google.charts.setOnLoadCallback(drawSeriesChart);
+
+    function drawSeriesChart() {
+
+      var data2 = google.visualization.arrayToDataTable([[ 'ID', 'Coupling Count', 'Change Proneness', 'Priority', 'Priority (Visual)'], ['MarketService.java',22,1,1,-1]]);
+
+      var options = {
+        title: 'Priority Ranking for Refactoring Highly Coupled Classes - ' +
+               'Start with Priority 1',
+        height: 900,         width: 1200,         explorer: {},         hAxis: {title: 'Coupling Count'},
+        vAxis: {title: 'Change Proneness'},
+        colorAxis: {colors: ['green', 'red']},
+        bubble: {textStyle: {fontSize: 11}}      };
+
+      var chart2 = new google.visualization.BubbleChart(document.getElementById('series_chart_div_2'));
+      chart2.draw(data2, options);
+    }
+</script></div>
+<div align="center">
+Show RefactorFirst some &#10084;&#65039;
+<br/>
+<a class="github-button" href="https://github.com/refactorfirst/refactorfirst" data-icon="octicon-star" data-size="large" data-show-count="true" aria-label="Star refactorfirst/refactorfirst on GitHub">Star</a>
+<a class="github-button" href="https://github.com/refactorfirst/refactorfirst/fork" data-icon="octicon-repo-forked" data-size="large" data-show-count="true" aria-label="Fork refactorfirst/refactorfirst on GitHub">Fork</a>
+<a class="github-button" href="https://github.com/refactorfirst/refactorfirst/subscription" data-icon="octicon-eye" data-size="large" data-show-count="true" aria-label="Watch refactorfirst/refactorfirst on GitHub">Watch</a>
+<a class="github-button" href="https://github.com/refactorfirst/refactorfirst/issues" data-icon="octicon-issue-opened" data-size="large" data-show-count="false" aria-label="Issue refactorfirst/refactorfirst on GitHub">Issue</a>
+<a class="github-button" href="https://github.com/sponsors/jimbethancourt" data-icon="octicon-heart" data-size="large" aria-label="Sponsor @jimbethancourt on GitHub">Sponsor</a>
+</div>       <h2>Coupling Between Objects Chart Legend:</h2>       <table border="5px">
+          <tbody>
+            <tr><td><strong>X-Axis:</strong> Number of objects the class is coupled to</td></tr>
+            <tr><td><strong>Y-Axis:</strong> Relative churn</td></tr>
+            <tr><td><strong>Color:</strong> Priority of what to fix first</td></tr>
+            <tr><td><strong>Circle size:</strong> Priority (Visual) of what to fix first</td></tr>
+          </tbody>
+        </table>        <br/><h2 align="center">Highly Coupled classes by the numbers: (Refactor starting with Priority 1)</h2><table align="center" border="5px"><thead><tr><th>Class</th><th>Priority</th><th>Change Proneness Rank</th><th>Coupling Count</th><th>Most Recent Commit Date</th><th>Commit Count</th></tr></thead><tbody><tr><td align="left">MarketService.java</td>
+<td align="right">1</td>
+<td align="right">1</td>
+<td align="right">22</td>
+<td align="right">5/8/26, 12:02 AM</td>
+<td align="right">23</td>
+</tr></tbody></table><br/>
+<br/>
+<br/>
+<br/>
+<hr/>
+<br/>
+<br/>
+<div style="text-align: center;"><a id="CYCLES"><h1>Class Cycles</h1></a></div>
+<h2 align="center">Class Cycles by the numbers:</h2>
+<table align="center" border="5px">
+<thead>
+<tr>
+<th>Cycle Name</th>
+<th>Priority</th>
+<th>Class Count</th>
+<th>Relationship Count</th>
+</thead>
+<tbody>
+<tr>
+<td align="left">MarketSegment</td>
+<td align="right">1</td>
+<td align="right">2</td>
+<td align="right">2</td>
+</tr>
+</tbody>
+</table>
+<br/>
+<br/>
+<hr/>
+<br/>
+<br/>
+<h2 align="center">Largest Class Cycle : MarketSegment</h2>
+<h3 align="center">Limiting number of cycles displayed to 1 to keep page load time fast</h3>
+<h1 align="center">Class Map</h1><script>
+const MarketSegment_dot = `strict digraph G {
+MarketSegment -> MarketItem [ label = "3" weight = "3" ];
+MarketItem -> MarketSegment [ label = "7" weight = "7" color = "red" ];
+MarketSegment;
+MarketItem;
+}`;
+</script>
+<button style="display: block; margin: 0 auto;" onclick="createForceGraph('popup-MarketSegment', 'graph-container-MarketSegment', MarketSegment_dot )">Show MarketSegment 3D Popup</button>
+<button style="display: block; margin: 0 auto;" onclick="showPopup('popup-MarketSegment', 'graph-container-MarketSegment', MarketSegment_dot )">Show MarketSegment 2D Popup</button>
+<div class="popup" id="popup-MarketSegment">
+<span class="close-btn" onclick="hidePopup()">×</span>
+    <div id="graph-container-MarketSegment" style="width: 100%; height: 100%;"></div>
+</div>
+<div align="center">
+Red lines represent relationships to remove.<br>
+Red nodes represent classes to remove.<br>
+Zoom in / out with your mouse wheel and click/move to drag the image.
+</div>
+<div id="MarketSegment" style="width: 95%; margin: auto; border: thin solid black"></div>
+<script type="module">
+import { Graphviz } from "https://cdn.jsdelivr.net/npm/@hpcc-js/wasm/dist/index.js";
+    if (Graphviz) {
+        const graphviz = await Graphviz.load();
+        let svg = graphviz.layout(MarketSegment_dot, "svg", "dot");
+        // Set desired width and height
+
+        // Modify the SVG string to include width and height attributes
+        svg = svg.replace('<svg ', `<svg width="screen.width" height="screen.height"`);
+
+        document.getElementById("MarketSegment").innerHTML = svg;
+
+        // Make the SVG zoomable
+        svgPanZoom('#MarketSegment svg', {
+            zoomEnabled: true,
+            controlIconsEnabled: true
+        });
+    }
+</script>
+<br/>
+<br/>
+<div align="center"><strong>Bold text indicates class or relationship to remove to decompose cycle</strong><div align="center">Number of classes: 2  Number of relationships: 2<br></div></div>
+<table align="center" border="5px">
+<thead>
+<tr>
+<th>Classes</th>
+<th>Relationships</th>
+</thead>
+<tbody>
+<tr><td align="left">MarketSegment</td>
+<td align="left">MarketSegment &#8594; MarketItem : 3<br/>
+</td>
+</tr>
+<tr><td align="left">MarketItem</td>
+<td align="left"><strong>MarketItem &#8594; MarketSegment : 7</strong><br/>
+</td>
+</tr>
+</tbody>
+</table>
+</section>
+      <div class="clear">
+        <hr/>
+      </div>
+<span id="publishDate">Last Published: 5/8/26, 9:50 PM      <div class="clear">
+        <hr/>
+      </div>
+</span></div>
+    </div>
+  </body>
+</html>

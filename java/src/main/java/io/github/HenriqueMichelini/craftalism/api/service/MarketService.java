@@ -4,47 +4,30 @@ import io.github.HenriqueMichelini.craftalism.api.dto.MarketExecuteRequestDTO;
 import io.github.HenriqueMichelini.craftalism.api.dto.MarketExecuteSuccessResponseDTO;
 import io.github.HenriqueMichelini.craftalism.api.dto.MarketQuoteRequestDTO;
 import io.github.HenriqueMichelini.craftalism.api.dto.MarketQuoteResponseDTO;
-import io.github.HenriqueMichelini.craftalism.api.dto.MarketSide;
 import io.github.HenriqueMichelini.craftalism.api.dto.MarketSnapshotResponseDTO;
-import io.github.HenriqueMichelini.craftalism.api.exceptions.MarketRejectionCode;
-import io.github.HenriqueMichelini.craftalism.api.exceptions.MarketRejectionException;
-import io.github.HenriqueMichelini.craftalism.api.model.MarketItem;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketQuote;
 import io.github.HenriqueMichelini.craftalism.api.repository.BalanceRepository;
 import io.github.HenriqueMichelini.craftalism.api.repository.MarketItemRepository;
 import io.github.HenriqueMichelini.craftalism.api.repository.MarketQuoteRepository;
 import java.time.Clock;
 import java.time.Duration;
-import java.time.Instant;
-import java.util.List;
-import java.util.UUID;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.HttpStatus;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-@Slf4j
 @Service
 public class MarketService {
 
-    private final MarketItemRepository marketItemRepository;
-    private final BalanceRepository balanceRepository;
     private final MarketQuoteStore quoteStore;
     private final MarketQuoteRepository marketQuoteRepository;
     private final MarketTradePlanner tradePlanner = new MarketTradePlanner();
-    private final MarketSnapshotProjector snapshotProjector =
-        new MarketSnapshotProjector(tradePlanner);
     private final MarketPlayerResolver playerResolver;
     private final MarketCatalogInitializer catalogInitializer;
-    private final MarketReadService marketReadService;
-    private final MarketTradeExecutor tradeExecutor;
-    private final MarketRateLimiter quoteRateLimiter;
-    private final MarketRateLimiter executeRateLimiter;
-    private final boolean marketEnabled;
-    private final long quoteTtlSeconds;
+    private final MarketSnapshotService marketSnapshotService;
+    private final MarketQuoteService marketQuoteService;
+    private final MarketExecuteService marketExecuteService;
 
     @Autowired
     public MarketService(
@@ -94,12 +77,8 @@ public class MarketService {
         long rateLimitWindowSeconds,
         Clock clock
     ) {
-        this.marketItemRepository = marketItemRepository;
-        this.balanceRepository = balanceRepository;
         this.quoteStore = quoteStore;
         this.marketQuoteRepository = marketQuoteRepository;
-        this.marketEnabled = marketEnabled;
-        this.quoteTtlSeconds = quoteTtlSeconds;
         this.playerResolver = new MarketPlayerResolver(
             trustedMinecraftServerClientId
         );
@@ -108,25 +87,47 @@ public class MarketService {
             defaultMarketCatalog,
             tradePlanner
         );
-        this.marketReadService = new MarketReadService(
+        MarketReadService marketReadService = new MarketReadService(
             marketItemRepository,
             tradePlanner
         );
-        this.tradeExecutor = new MarketTradeExecutor(
+        this.marketSnapshotService = new MarketSnapshotService(
+            marketReadService,
+            new MarketSnapshotProjector(tradePlanner)
+        );
+        MarketTradeExecutor tradeExecutor = new MarketTradeExecutor(
             balanceRepository,
             marketItemRepository,
             tradePlanner
         );
         Duration rateLimitWindow = Duration.ofSeconds(rateLimitWindowSeconds);
-        this.quoteRateLimiter = new MarketRateLimiter(
+        MarketRateLimiter quoteRateLimiter = new MarketRateLimiter(
             quoteRateLimitMaxRequests,
             rateLimitWindow,
             clock
         );
-        this.executeRateLimiter = new MarketRateLimiter(
+        MarketRateLimiter executeRateLimiter = new MarketRateLimiter(
             executeRateLimitMaxRequests,
             rateLimitWindow,
             clock
+        );
+        this.marketQuoteService = new MarketQuoteService(
+            marketSnapshotService,
+            quoteStore,
+            tradePlanner,
+            playerResolver,
+            quoteRateLimiter,
+            marketEnabled,
+            quoteTtlSeconds
+        );
+        this.marketExecuteService = new MarketExecuteService(
+            marketItemRepository,
+            marketSnapshotService,
+            quoteStore,
+            tradeExecutor,
+            playerResolver,
+            executeRateLimiter,
+            marketEnabled
         );
     }
 
@@ -137,30 +138,7 @@ public class MarketService {
 
     @Transactional
     public MarketSnapshotResponseDTO getSnapshot() {
-        long totalStartNanos = System.nanoTime();
-
-        MarketReadService.MarketReadState readState =
-            marketReadService.regeneratedItems();
-
-        long projectionStartNanos = System.nanoTime();
-        List<MarketSnapshotProjector.MarketSnapshotProjection> projections =
-            snapshotProjector.projections(readState.items());
-        long projectionBuildNanos = System.nanoTime() - projectionStartNanos;
-
-        long hashStartNanos = System.nanoTime();
-        String snapshotVersion = snapshotProjector.snapshotVersion(projections);
-        long hashNanos = System.nanoTime() - hashStartNanos;
-
-        long totalNanos = System.nanoTime() - totalStartNanos;
-        logSnapshotTiming(
-            readState,
-            projections,
-            projectionBuildNanos,
-            hashNanos,
-            totalNanos
-        );
-
-        return snapshotProjector.response(projections, snapshotVersion);
+        return marketSnapshotService.getSnapshot();
     }
 
     @Transactional
@@ -169,92 +147,10 @@ public class MarketService {
         MarketQuoteRequestDTO request,
         String playerUuidHeader
     ) {
-        ensureMarketOpen();
-
-        List<MarketItem> items = marketReadService.regeneratedItems().items();
-        String currentSnapshotVersion = snapshotProjector.snapshotVersion(
-            snapshotProjector.projections(items)
-        );
-        validateQuantity(request.quantity(), currentSnapshotVersion);
-
-        UUID playerUuid = playerResolver.resolvePlayerUuid(
+        return marketQuoteService.quote(
             authentication,
-            request.playerUuid(),
-            playerUuidHeader,
-            this::currentSnapshotVersion
-        );
-        enforceRateLimit(
-            quoteRateLimiter,
-            playerUuid,
-            currentSnapshotVersion
-        );
-        if (!currentSnapshotVersion.equals(request.snapshotVersion())) {
-            throw rejection(
-                MarketRejectionCode.STALE_QUOTE,
-                "Snapshot is no longer current.",
-                HttpStatus.CONFLICT,
-                currentSnapshotVersion
-            );
-        }
-
-        MarketItem item = items
-            .stream()
-            .filter(candidate -> candidate.getItemId().equals(request.itemId()))
-            .findFirst()
-            .orElseThrow(() ->
-                rejection(
-                    MarketRejectionCode.UNKNOWN_ITEM,
-                    "Market item does not exist.",
-                    HttpStatus.NOT_FOUND,
-                    currentSnapshotVersion
-                )
-            );
-
-        validateItemAvailability(item, currentSnapshotVersion);
-
-        MarketTradePlanner.TradePlan plan =
-            request.side() == MarketSide.BUY
-                ? requireFullBuyPlan(
-                      item,
-                      request.quantity(),
-                      currentSnapshotVersion
-                  )
-                : requireFullSellPlan(
-                      item,
-                      request.quantity(),
-                      currentSnapshotVersion
-                  );
-
-        Instant expiresAt = Instant.now().plusSeconds(quoteTtlSeconds);
-        String quoteToken = UUID.randomUUID().toString();
-
-        quoteStore.put(
-            new MarketQuoteStore.StoredQuote(
-                quoteToken,
-                playerUuid,
-                item.getItemId(),
-                request.side(),
-                request.quantity(),
-                plan.unitPrice(),
-                plan.totalPrice(),
-                currentSnapshotVersion,
-                expiresAt,
-                MarketQuote.Status.ACTIVE
-            )
-        );
-
-        return new MarketQuoteResponseDTO(
-            item.getItemId(),
-            request.side(),
-            request.quantity(),
-            Long.toString(plan.unitPrice()),
-            Long.toString(plan.totalPrice()),
-            item.getCurrency(),
-            quoteToken,
-            currentSnapshotVersion,
-            expiresAt,
-            item.isBlocked(),
-            item.isOperating()
+            request,
+            playerUuidHeader
         );
     }
 
@@ -264,244 +160,10 @@ public class MarketService {
         MarketExecuteRequestDTO request,
         String playerUuidHeader
     ) {
-        ensureMarketOpen();
-
-        String initialSnapshotVersion = currentSnapshotVersion();
-        validateQuantity(request.quantity(), initialSnapshotVersion);
-
-        UUID playerUuid = playerResolver.resolvePlayerUuid(
+        return marketExecuteService.execute(
             authentication,
-            request.playerUuid(),
-            playerUuidHeader,
-            this::currentSnapshotVersion
-        );
-        enforceRateLimit(
-            executeRateLimiter,
-            playerUuid,
-            initialSnapshotVersion
-        );
-        MarketQuoteStore.StoredQuote storedQuote = quoteStore
-            .get(request.quoteToken())
-            .orElseThrow(() ->
-                rejection(
-                    MarketRejectionCode.QUOTE_EXPIRED,
-                    "Quote has expired.",
-                    HttpStatus.CONFLICT,
-                    currentSnapshotVersion()
-                )
-            );
-
-        if (storedQuote.status() == MarketQuote.Status.EXPIRED) {
-            throw rejection(
-                MarketRejectionCode.QUOTE_EXPIRED,
-                "Quote has expired.",
-                HttpStatus.CONFLICT,
-                currentSnapshotVersion()
-            );
-        }
-
-        if (storedQuote.status() != MarketQuote.Status.ACTIVE) {
-            throw rejection(
-                MarketRejectionCode.STALE_QUOTE,
-                "Quote is no longer valid.",
-                HttpStatus.CONFLICT,
-                currentSnapshotVersion()
-            );
-        }
-
-        if (storedQuote.expiresAt().isBefore(Instant.now())) {
-            quoteStore.expire(request.quoteToken());
-            throw rejection(
-                MarketRejectionCode.QUOTE_EXPIRED,
-                "Quote has expired.",
-                HttpStatus.CONFLICT,
-                currentSnapshotVersion()
-            );
-        }
-
-        if (
-            !storedQuote.playerUuid().equals(playerUuid) ||
-            !storedQuote.itemId().equals(request.itemId()) ||
-            storedQuote.side() != request.side() ||
-            storedQuote.quantity() != request.quantity()
-        ) {
-            quoteStore.invalidate(request.quoteToken());
-            throw rejection(
-                MarketRejectionCode.STALE_QUOTE,
-                "Quote is no longer valid.",
-                HttpStatus.CONFLICT,
-                currentSnapshotVersion()
-            );
-        }
-
-        if (!storedQuote.snapshotVersion().equals(request.snapshotVersion())) {
-            quoteStore.invalidate(request.quoteToken());
-            throw rejection(
-                MarketRejectionCode.STALE_QUOTE,
-                "Quote is no longer valid.",
-                HttpStatus.CONFLICT,
-                currentSnapshotVersion()
-            );
-        }
-
-        String currentSnapshotVersion = currentSnapshotVersion();
-        if (!currentSnapshotVersion.equals(storedQuote.snapshotVersion())) {
-            quoteStore.invalidate(request.quoteToken());
-            throw rejection(
-                MarketRejectionCode.STALE_QUOTE,
-                "Quote is no longer valid.",
-                HttpStatus.CONFLICT,
-                currentSnapshotVersion
-            );
-        }
-
-        if (!quoteStore.consume(request.quoteToken())) {
-            throw rejection(
-                MarketRejectionCode.STALE_QUOTE,
-                "Quote is no longer valid.",
-                HttpStatus.CONFLICT,
-                currentSnapshotVersion()
-            );
-        }
-
-        MarketItem item = marketItemRepository
-            .findForUpdate(request.itemId())
-            .orElseThrow(() ->
-                rejection(
-                    MarketRejectionCode.UNKNOWN_ITEM,
-                    "Market item does not exist.",
-                    HttpStatus.NOT_FOUND,
-                    currentSnapshotVersion
-                )
-            );
-
-        validateItemAvailability(item, currentSnapshotVersion);
-        MarketTradeExecutor.AppliedTrade appliedTrade =
-            tradeExecutor.applyTrade(
-                playerUuid,
-                item,
-                storedQuote,
-                currentSnapshotVersion,
-                this::currentSnapshotVersion
-            );
-
-        return new MarketExecuteSuccessResponseDTO(
-            "SUCCESS",
-            item.getItemId(),
-            storedQuote.side(),
-            appliedTrade.executedQuantity(),
-            Long.toString(appliedTrade.unitPrice()),
-            Long.toString(appliedTrade.totalPrice()),
-            item.getCurrency(),
-            currentSnapshotVersion(),
-            snapshotProjector.toSnapshotItem(item)
-        );
-    }
-
-    private MarketTradePlanner.TradePlan requireFullBuyPlan(
-        MarketItem item,
-        long requestedQuantity,
-        String snapshotVersion
-    ) {
-        MarketTradePlanner.TradePlan plan = tradePlanner.buyPlan(
-            item,
-            requestedQuantity
-        );
-        if (plan.executedQuantity() != requestedQuantity) {
-            throw rejection(
-                MarketRejectionCode.INSUFFICIENT_STOCK,
-                "Requested quantity exceeds configured pressure bounds.",
-                HttpStatus.UNPROCESSABLE_ENTITY,
-                snapshotVersion
-            );
-        }
-        return plan;
-    }
-
-    private MarketTradePlanner.TradePlan requireFullSellPlan(
-        MarketItem item,
-        long requestedQuantity,
-        String snapshotVersion
-    ) {
-        MarketTradePlanner.TradePlan plan = tradePlanner.sellPlan(
-            item,
-            requestedQuantity
-        );
-        if (plan.executedQuantity() != requestedQuantity) {
-            throw rejection(
-                MarketRejectionCode.INSUFFICIENT_STOCK,
-                "Requested quantity exceeds configured pressure bounds.",
-                HttpStatus.UNPROCESSABLE_ENTITY,
-                snapshotVersion
-            );
-        }
-        return plan;
-    }
-
-    private void validateItemAvailability(
-        MarketItem item,
-        String snapshotVersion
-    ) {
-        if (item.isBlocked()) {
-            throw rejection(
-                MarketRejectionCode.ITEM_BLOCKED,
-                "Item is blocked from trading.",
-                HttpStatus.CONFLICT,
-                snapshotVersion
-            );
-        }
-        if (!item.isOperating()) {
-            throw rejection(
-                MarketRejectionCode.ITEM_NOT_OPERATING,
-                "Item is not currently operating.",
-                HttpStatus.CONFLICT,
-                snapshotVersion
-            );
-        }
-    }
-
-    private void validateQuantity(Long quantity, String snapshotVersion) {
-        if (quantity != null && quantity <= 0L) {
-            throw rejection(
-                MarketRejectionCode.INVALID_QUANTITY,
-                "Quantity must be positive.",
-                HttpStatus.UNPROCESSABLE_ENTITY,
-                snapshotVersion
-            );
-        }
-    }
-
-    private void ensureMarketOpen() {
-        if (!marketEnabled) {
-            throw rejection(
-                MarketRejectionCode.MARKET_CLOSED,
-                "Market is currently closed.",
-                HttpStatus.SERVICE_UNAVAILABLE,
-                currentSnapshotVersion()
-            );
-        }
-    }
-
-    private void enforceRateLimit(
-        MarketRateLimiter rateLimiter,
-        UUID playerUuid,
-        String snapshotVersion
-    ) {
-        if (!rateLimiter.tryAcquire(playerUuid)) {
-            throw rejection(
-                MarketRejectionCode.RATE_LIMITED,
-                "Market request rate limit exceeded.",
-                HttpStatus.TOO_MANY_REQUESTS,
-                snapshotVersion
-            );
-        }
-    }
-
-    private String currentSnapshotVersion() {
-        return snapshotProjector.snapshotVersion(
-            snapshotProjector.projections(
-                marketReadService.regeneratedItems().items()
-            )
+            request,
+            playerUuidHeader
         );
     }
 
@@ -514,42 +176,5 @@ public class MarketService {
     public long activeQuoteCount() {
         quoteStore.expireActiveQuotes();
         return marketQuoteRepository.countByStatus(MarketQuote.Status.ACTIVE);
-    }
-
-    private void logSnapshotTiming(
-        MarketReadService.MarketReadState readState,
-        List<MarketSnapshotProjector.MarketSnapshotProjection> projections,
-        long projectionBuildNanos,
-        long hashNanos,
-        long totalNanos
-    ) {
-        log.info(
-            "market.snapshot.timing totalMs={} fetchMs={} regenerationMs={} projectionBuildMs={} hashMs={} items={} regeneratedItems={}",
-            nanosToMillis(totalNanos),
-            nanosToMillis(readState.fetchNanos()),
-            nanosToMillis(readState.regenerationNanos()),
-            nanosToMillis(projectionBuildNanos),
-            nanosToMillis(hashNanos),
-            projections.size(),
-            readState.regeneratedItemCount()
-        );
-    }
-
-    private long nanosToMillis(long nanos) {
-        return nanos / 1_000_000L;
-    }
-
-    private MarketRejectionException rejection(
-        MarketRejectionCode code,
-        String message,
-        HttpStatus status,
-        String snapshotVersion
-    ) {
-        return new MarketRejectionException(
-            code,
-            message,
-            status,
-            snapshotVersion
-        );
     }
 }

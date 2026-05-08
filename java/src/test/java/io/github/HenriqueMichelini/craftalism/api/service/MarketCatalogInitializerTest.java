@@ -73,7 +73,7 @@ class MarketCatalogInitializerTest {
     @ParameterizedTest
     @MethodSource("invalidPressureSeeds")
     void marketSeedItem_rejectsInvalidPressureConfiguration(
-        MarketSeedItem.Builder seedBuilder
+        MarketSeedItemBuilder seedBuilder
     ) {
         assertThrows(IllegalArgumentException.class, seedBuilder::build);
     }
@@ -152,7 +152,7 @@ class MarketCatalogInitializerTest {
         return item;
     }
 
-    private static List<MarketSeedItem.Builder> invalidPressureSeeds() {
+    private static List<MarketSeedItemBuilder> invalidPressureSeeds() {
         return List.of(
             validSeedBuilder().baseUnitPrice(0L),
             validSeedBuilder().minUnitPrice(0L),
@@ -169,9 +169,8 @@ class MarketCatalogInitializerTest {
         );
     }
 
-    private static MarketSeedItem.Builder seedBuilderWithoutPriceSensitivity() {
-        return MarketSeedItem
-            .builder()
+    private static MarketSeedItemBuilder seedBuilderWithoutPriceSensitivity() {
+        return new MarketSeedItemBuilder()
             .itemId("test_item")
             .categoryId("test")
             .categoryDisplayName("Test")
@@ -186,9 +185,8 @@ class MarketCatalogInitializerTest {
             .regenIntervalSeconds(60L);
     }
 
-    private static MarketSeedItem.Builder validSeedBuilder() {
-        return MarketSeedItem
-            .builder()
+    private static MarketSeedItemBuilder validSeedBuilder() {
+        return new MarketSeedItemBuilder()
             .itemId("test_item")
             .categoryId("test")
             .categoryDisplayName("Test")

@@ -7,8 +7,7 @@ import org.springframework.stereotype.Component;
 public class DefaultMarketCatalog {
 
     private static final List<MarketSeedItem> ITEMS = List.of(
-        MarketSeedItem
-            .builder()
+        new MarketSeedItemBuilder()
             .itemId("wheat")
             .categoryId("farming")
             .categoryDisplayName("Farming")
@@ -23,8 +22,7 @@ public class DefaultMarketCatalog {
             .baseRegenQuantity(1L)
             .regenIntervalSeconds(60L)
             .build(),
-        MarketSeedItem
-            .builder()
+        new MarketSeedItemBuilder()
             .itemId("carrot")
             .categoryId("farming")
             .categoryDisplayName("Farming")
@@ -39,8 +37,7 @@ public class DefaultMarketCatalog {
             .baseRegenQuantity(1L)
             .regenIntervalSeconds(60L)
             .build(),
-        MarketSeedItem
-            .builder()
+        new MarketSeedItemBuilder()
             .itemId("iron_ingot")
             .categoryId("mining")
             .categoryDisplayName("Mining")
