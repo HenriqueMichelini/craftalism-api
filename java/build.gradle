@@ -44,6 +44,7 @@ sonar {
   properties {
     property "sonar.projectKey", "HenriqueMichelini_craftalism-api"
     property "sonar.organization", "henriquemichelini"
+    property "sonar.scanner.skipJreProvisioning", "true"
     def sonarToken = localEnvValue('SONAR_TOKEN')
     if (sonarToken != null) {
       property "sonar.token", sonarToken
