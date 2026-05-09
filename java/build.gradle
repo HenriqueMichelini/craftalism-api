@@ -43,7 +43,7 @@ def localEnvValue = { String key ->
 
 sonar {
     properties {
-        property "sonar.projectKey", "HenriqueMichelini_craftalism-api"
+        property "sonar.projectKey", "craftalism-api-key"
         property "sonar.sourceEncoding", "UTF-8"
         property "sonar.coverage.jacoco.xmlReportPaths", layout.buildDirectory.file("reports/jacoco/test/jacocoTestReport.xml").get().asFile.path
         property "sonar.scanner.skipJreProvisioning", "true"

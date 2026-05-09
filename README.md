@@ -241,6 +241,8 @@ The test suite includes unit tests and Spring MVC integration tests. Tests run a
 
 The Gradle build applies the SonarQube scanner and JaCoCo. Java analysis is performed by the SonarJava analyzer installed in the target SonarQube/SonarCloud server; the Gradle scanner sends compiled bytecode, JUnit results, and JaCoCo XML coverage.
 
+Project key: `craftalism-api-key`.
+
 ```bash
 cd java
 SONAR_TOKEN=<token> SONAR_HOST_URL=<sonarqube-url> SONAR_ORGANIZATION=<organization> ./gradlew sonar
