@@ -48,12 +48,10 @@ sonar {
         property "sonar.coverage.jacoco.xmlReportPaths", layout.buildDirectory.file("reports/jacoco/test/jacocoTestReport.xml").get().asFile.path
         property "sonar.scanner.skipJreProvisioning", "true"
 
-        def sonarHostUrl = localEnvValue('SONAR_HOST_URL')
-        if (sonarHostUrl != null) {
-            property "sonar.host.url", sonarHostUrl
-        }
+        def sonarHostUrl = localEnvValue('SONAR_HOST_URL') ?: 'https://sonarcloud.io'
+        property "sonar.host.url", sonarHostUrl
 
-        def sonarOrganization = localEnvValue('SONAR_ORGANIZATION') ?: (sonarHostUrl == null ? 'henriquemichelini' : null)
+        def sonarOrganization = localEnvValue('SONAR_ORGANIZATION') ?: (sonarHostUrl == 'https://sonarcloud.io' ? 'henriquemichelini' : null)
         if (sonarOrganization != null) {
             property "sonar.organization", sonarOrganization
         }
