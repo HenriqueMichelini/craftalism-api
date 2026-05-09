@@ -15,10 +15,39 @@ java {
     }
 }
 
+def localEnvValue = { String key ->
+    def environmentValue = System.getenv(key)
+    if (environmentValue != null && !environmentValue.isBlank()) {
+        return environmentValue
+    }
+
+    def envFile = rootProject.file('.env')
+    if (!envFile.isFile()) {
+        return null
+    }
+
+    def prefixPattern = ~/^\s*${java.util.regex.Pattern.quote(key)}\s*=\s*/
+    def matchingLine = envFile.readLines('UTF-8')
+            .find { line -> line ==~ /^\s*${java.util.regex.Pattern.quote(key)}\s*=.*/ }
+    if (matchingLine == null) {
+        return null
+    }
+
+    def value = matchingLine.replaceFirst(prefixPattern, '').trim()
+    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+        value = value.substring(1, value.length() - 1)
+    }
+    return value.isBlank() ? null : value
+}
+
 sonar {
   properties {
     property "sonar.projectKey", "HenriqueMichelini_craftalism-api"
     property "sonar.organization", "henriquemichelini"
+    def sonarToken = localEnvValue('SONAR_TOKEN')
+    if (sonarToken != null) {
+      property "sonar.token", sonarToken
+    }
   }
 }
 
