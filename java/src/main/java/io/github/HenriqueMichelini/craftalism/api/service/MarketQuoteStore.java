@@ -21,7 +21,7 @@ public class MarketQuoteStore {
 
     @Transactional
     public void put(StoredQuote quote) {
-        expireActiveQuotes();
+        expireActiveQuotesInCurrentTransaction();
 
         MarketQuote entity = new MarketQuote();
         entity.setQuoteToken(quote.quoteToken());
@@ -40,13 +40,13 @@ public class MarketQuoteStore {
 
     @Transactional
     public Optional<StoredQuote> get(String quoteToken) {
-        expireActiveQuotes();
+        expireActiveQuotesInCurrentTransaction();
         return marketQuoteRepository.findByQuoteToken(quoteToken).map(this::toStoredQuote);
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public boolean consume(String quoteToken) {
-        expireActiveQuotes();
+        expireActiveQuotesInCurrentTransaction();
         return (
             marketQuoteRepository.transitionStatus(
                 quoteToken,
@@ -84,6 +84,10 @@ public class MarketQuoteStore {
 
     @Transactional
     public void expireActiveQuotes() {
+        expireActiveQuotesInCurrentTransaction();
+    }
+
+    private void expireActiveQuotesInCurrentTransaction() {
         Instant now = Instant.now();
         marketQuoteRepository.expireActiveQuotes(
             now,
