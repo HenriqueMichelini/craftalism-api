@@ -48,6 +48,7 @@ class MarketCatalogInitializerTest {
 
         List<MarketItem> savedItems = new ArrayList<>();
         itemCaptor.getValue().forEach(savedItems::add);
+        assertEquals(11, savedItems.size());
         MarketItem wheat = savedItems
             .stream()
             .filter(item -> item.getItemId().equals("wheat"))
@@ -67,6 +68,17 @@ class MarketCatalogInitializerTest {
         assertEquals(0L, wheat.getNetPosition());
         assertNull(wheat.getMinNetPosition());
         assertNull(wheat.getMaxNetPosition());
+
+        MarketItem diamond = savedItems
+            .stream()
+            .filter(item -> item.getItemId().equals("diamond"))
+            .findFirst()
+            .orElseThrow();
+        assertEquals("mining", diamond.getCategoryId());
+        assertEquals("Diamond", diamond.getDisplayName());
+        assertEquals(900000L, diamond.getBaseUnitPrice());
+        assertEquals(450000L, diamond.getMinUnitPrice());
+        assertEquals(2700000L, diamond.getMaxUnitPrice());
     }
 
     @ParameterizedTest
@@ -110,6 +122,39 @@ class MarketCatalogInitializerTest {
         assertEquals(1L, savedItem.getMarketMomentum());
         assertEquals(115L, savedItem.getBuyUnitEstimate());
         assertEquals(100L, savedItem.getSellUnitEstimate());
+    }
+
+    @Test
+    void initializeCatalogIfEmpty_appendsMissingDefaultItems() {
+        when(marketItemRepository.count()).thenReturn(1L);
+        when(marketItemRepository.findAllForMarketRead()).thenReturn(
+            List.of(pressureItem())
+        );
+
+        MarketCatalogInitializer initializer = new MarketCatalogInitializer(
+            marketItemRepository,
+            new DefaultMarketCatalog(),
+            tradePlanner
+        );
+
+        initializer.initializeCatalogIfEmpty();
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Iterable<MarketItem>> itemCaptor =
+            ArgumentCaptor.forClass(Iterable.class);
+        verify(marketItemRepository).saveAll(itemCaptor.capture());
+
+        List<MarketItem> savedItems = new ArrayList<>();
+        itemCaptor.getValue().forEach(savedItems::add);
+        MarketItem diamond = savedItems
+            .stream()
+            .filter(item -> item.getItemId().equals("diamond"))
+            .findFirst()
+            .orElseThrow();
+
+        assertEquals(0L, diamond.getNetPosition());
+        assertEquals(900000L, diamond.getBuyUnitEstimate());
+        assertEquals("coins", diamond.getCurrency());
     }
 
     @Test

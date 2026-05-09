@@ -2,7 +2,7 @@
 
 ## Status
 
-planned
+completed
 
 ## Objective
 
@@ -82,3 +82,8 @@ Run from `java/`.
 
 ## Completion Notes
 
+- Removed the `MarketItem.segments` JPA relationship and the legacy `MarketSegment`, `MarketSegmentId`, and `MarketSegmentRepository` persistence surface.
+- Added forward migration `V16__drop_legacy_market_segments.sql` to drop `market_segments` without editing historical migrations.
+- Removed runtime tests that asserted empty `MarketItem` segment collections and kept migration coverage for legacy backfill plus final table removal.
+- Validation passed from `java/`: `rtk ./gradlew test --tests io.github.HenriqueMichelini.craftalism.api.service.MarketServiceTest --tests io.github.HenriqueMichelini.craftalism.api.service.MarketCatalogInitializerTest --tests io.github.HenriqueMichelini.craftalism.api.migration.MarketPressureStateMigrationTest`.
+- Validation passed from `java/`: `rtk ./gradlew test`.

@@ -3,7 +3,10 @@ package io.github.HenriqueMichelini.craftalism.api.service;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketItem;
 import io.github.HenriqueMichelini.craftalism.api.repository.MarketItemRepository;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 final class MarketCatalogInitializer {
 
@@ -33,28 +36,42 @@ final class MarketCatalogInitializer {
             return;
         }
 
-        recomputeExistingPressureProjections();
+        updateExistingCatalog();
     }
 
-    private void recomputeExistingPressureProjections() {
+    private void updateExistingCatalog() {
         List<MarketItem> items = marketItemRepository.findAllForMarketRead();
+        Set<String> existingItemIds = new HashSet<>();
+        List<MarketItem> itemsToSave = new ArrayList<>();
         boolean changed = false;
         for (MarketItem item : items) {
+            existingItemIds.add(item.getItemId());
             long previousCurrentStock = item.getCurrentStock();
             long previousMarketMomentum = item.getMarketMomentum();
             long previousBuyUnitEstimate = item.getBuyUnitEstimate();
             long previousSellUnitEstimate = item.getSellUnitEstimate();
 
             tradePlanner.recomputeDerivedProjections(item);
-            changed =
-                changed ||
+            boolean itemChanged =
                 previousCurrentStock != item.getCurrentStock() ||
                 previousMarketMomentum != item.getMarketMomentum() ||
                 previousBuyUnitEstimate != item.getBuyUnitEstimate() ||
                 previousSellUnitEstimate != item.getSellUnitEstimate();
+            if (itemChanged) {
+                itemsToSave.add(item);
+                changed = true;
+            }
         }
+
+        for (MarketSeedItem seed : defaultMarketCatalog.items()) {
+            if (!existingItemIds.contains(seed.itemId())) {
+                itemsToSave.add(seedItem(seed));
+                changed = true;
+            }
+        }
+
         if (changed) {
-            marketItemRepository.saveAll(items);
+            marketItemRepository.saveAll(itemsToSave);
         }
     }
 
