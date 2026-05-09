@@ -67,7 +67,6 @@ class MarketCatalogInitializerTest {
         assertEquals(0L, wheat.getNetPosition());
         assertNull(wheat.getMinNetPosition());
         assertNull(wheat.getMaxNetPosition());
-        assertEquals(0, wheat.getSegments().size());
     }
 
     @ParameterizedTest
@@ -111,7 +110,6 @@ class MarketCatalogInitializerTest {
         assertEquals(1L, savedItem.getMarketMomentum());
         assertEquals(115L, savedItem.getBuyUnitEstimate());
         assertEquals(100L, savedItem.getSellUnitEstimate());
-        assertEquals(0, savedItem.getSegments().size());
     }
 
     @Test

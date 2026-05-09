@@ -514,7 +514,6 @@ class MarketServiceTest {
         assertEquals(0L, carrot.getCurrentStock());
         assertEquals(10_000L, carrot.getBuyUnitEstimate());
         assertEquals(9_616L, carrot.getSellUnitEstimate());
-        assertEquals(0, carrot.getSegments().size());
     }
 
     @Test

@@ -6,7 +6,6 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import io.github.HenriqueMichelini.craftalism.api.repository.MarketItemRepository;
-import io.github.HenriqueMichelini.craftalism.api.repository.MarketSegmentRepository;
 import jakarta.persistence.EntityManagerFactory;
 import org.hibernate.SessionFactory;
 import org.hibernate.stat.Statistics;
@@ -34,9 +33,6 @@ class MarketBootstrapPerformanceIntegrationTest {
     private MarketItemRepository marketItemRepository;
 
     @Autowired
-    private MarketSegmentRepository marketSegmentRepository;
-
-    @Autowired
     private EntityManagerFactory entityManagerFactory;
 
     @BeforeEach
@@ -47,7 +43,6 @@ class MarketBootstrapPerformanceIntegrationTest {
     @Test
     void startup_bootstrapsCatalogBeforeAnyMarketRequest() {
         assertEquals(3L, marketItemRepository.count());
-        assertEquals(0L, marketSegmentRepository.count());
     }
 
     @Test

@@ -65,7 +65,6 @@ class MarketTradeExecutorTest {
             0,
             BigDecimal.ZERO.compareTo(item.getVariationPercent())
         );
-        assertEquals(0, item.getSegments().size());
         verify(balanceRepository).save(balance);
         verify(marketItemRepository).save(item);
     }
@@ -104,7 +103,6 @@ class MarketTradeExecutorTest {
             0,
             new BigDecimal("-4.00").compareTo(item.getVariationPercent())
         );
-        assertEquals(0, item.getSegments().size());
         verify(marketItemRepository).save(item);
     }
 
@@ -135,7 +133,6 @@ class MarketTradeExecutorTest {
             0,
             BigDecimal.ZERO.compareTo(item.getVariationPercent())
         );
-        assertEquals(0, item.getSegments().size());
         assertEquals(49L, balance.getAmount());
         verify(balanceRepository, never()).save(any());
         verify(marketItemRepository, never()).save(any());

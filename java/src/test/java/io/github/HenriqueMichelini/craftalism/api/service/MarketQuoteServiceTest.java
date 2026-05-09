@@ -3,13 +3,18 @@ package io.github.HenriqueMichelini.craftalism.api.service;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import io.github.HenriqueMichelini.craftalism.api.dto.MarketQuoteRequestDTO;
 import io.github.HenriqueMichelini.craftalism.api.dto.MarketQuoteResponseDTO;
 import io.github.HenriqueMichelini.craftalism.api.dto.MarketSide;
+import io.github.HenriqueMichelini.craftalism.api.exceptions.MarketRejectionCode;
+import io.github.HenriqueMichelini.craftalism.api.exceptions.MarketRejectionException;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketItem;
 import io.github.HenriqueMichelini.craftalism.api.repository.MarketItemRepository;
 import java.math.BigDecimal;
@@ -103,6 +108,104 @@ class MarketQuoteServiceTest {
         assertEquals(50L, storedQuote.totalPrice());
         assertEquals(response.snapshotVersion(), storedQuote.snapshotVersion());
         assertEquals(response.expiresAt(), storedQuote.expiresAt());
+    }
+
+    @Test
+    void quote_rejectsUnknownItemWithoutStoringQuote() {
+        MarketItem item = marketItem(5L);
+        when(marketItemRepository.findAllForMarketRead()).thenReturn(List.of(item));
+        String snapshotVersion = marketSnapshotService
+            .getSnapshot()
+            .snapshotVersion();
+
+        MarketRejectionException exception = assertThrows(
+            MarketRejectionException.class,
+            () ->
+                marketQuoteService.quote(
+                    authentication(),
+                    new MarketQuoteRequestDTO(
+                        "carrot",
+                        MarketSide.BUY,
+                        10L,
+                        snapshotVersion,
+                        null
+                    ),
+                    null
+                )
+        );
+
+        assertEquals(MarketRejectionCode.UNKNOWN_ITEM, exception.getCode());
+        assertEquals(snapshotVersion, exception.getSnapshotVersion());
+        verify(quoteStore, never()).put(
+            any(MarketQuoteStore.StoredQuote.class)
+        );
+    }
+
+    @Test
+    void quote_rejectsBlockedItemWithoutStoringQuote() {
+        MarketItem item = marketItem(5L);
+        item.setBlocked(true);
+        when(marketItemRepository.findAllForMarketRead()).thenReturn(List.of(item));
+        String snapshotVersion = marketSnapshotService
+            .getSnapshot()
+            .snapshotVersion();
+
+        MarketRejectionException exception = assertThrows(
+            MarketRejectionException.class,
+            () ->
+                marketQuoteService.quote(
+                    authentication(),
+                    new MarketQuoteRequestDTO(
+                        "wheat",
+                        MarketSide.BUY,
+                        10L,
+                        snapshotVersion,
+                        null
+                    ),
+                    null
+                )
+        );
+
+        assertEquals(MarketRejectionCode.ITEM_BLOCKED, exception.getCode());
+        assertEquals(snapshotVersion, exception.getSnapshotVersion());
+        verify(quoteStore, never()).put(
+            any(MarketQuoteStore.StoredQuote.class)
+        );
+    }
+
+    @Test
+    void quote_rejectsNonOperatingItemWithoutStoringQuote() {
+        MarketItem item = marketItem(5L);
+        item.setOperating(false);
+        when(marketItemRepository.findAllForMarketRead()).thenReturn(List.of(item));
+        String snapshotVersion = marketSnapshotService
+            .getSnapshot()
+            .snapshotVersion();
+
+        MarketRejectionException exception = assertThrows(
+            MarketRejectionException.class,
+            () ->
+                marketQuoteService.quote(
+                    authentication(),
+                    new MarketQuoteRequestDTO(
+                        "wheat",
+                        MarketSide.BUY,
+                        10L,
+                        snapshotVersion,
+                        null
+                    ),
+                    null
+                )
+        );
+
+        assertEquals(
+            MarketRejectionCode.ITEM_NOT_OPERATING,
+            exception.getCode()
+        );
+        assertEquals(snapshotVersion, exception.getSnapshotVersion());
+        verify(quoteStore, never()).put(
+            any(MarketQuoteStore.StoredQuote.class)
+        );
     }
 
     private Clock fixedClock() {

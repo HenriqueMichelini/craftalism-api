@@ -5,7 +5,6 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 
 import io.github.HenriqueMichelini.craftalism.api.dto.MarketSnapshotItemDTO;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketItem;
-import io.github.HenriqueMichelini.craftalism.api.model.MarketSegment;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
@@ -135,19 +134,6 @@ class MarketSnapshotProjectorTest {
     }
 
     @Test
-    void snapshotVersion_staysStableWhenLegacySegmentRowsChange() {
-        MarketItem item = pressureItem();
-        MarketSegment segment = segment(0L, 50L, 50L, 100L);
-        item.setSegments(List.of(segment));
-        String baseline = snapshotVersion(item);
-
-        segment.setRemainingCapacity(10L);
-        segment.setUnitPrice(125L);
-
-        assertEquals(baseline, snapshotVersion(item));
-    }
-
-    @Test
     void toSnapshotItem_projectsPositivePressureFields() {
         MarketItem item = pressureItem();
         item.setNetPosition(50L);
@@ -218,17 +204,4 @@ class MarketSnapshotProjectorTest {
         return item;
     }
 
-    private MarketSegment segment(
-        long index,
-        long maxCapacity,
-        long remainingCapacity,
-        long unitPrice
-    ) {
-        MarketSegment segment = new MarketSegment();
-        segment.setSegmentIndex(index);
-        segment.setMaxCapacity(maxCapacity);
-        segment.setRemainingCapacity(remainingCapacity);
-        segment.setUnitPrice(unitPrice);
-        return segment;
-    }
 }

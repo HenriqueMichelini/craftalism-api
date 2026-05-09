@@ -44,6 +44,7 @@ class MarketPressureStateMigrationTest {
             assertColumnExists(connection, "market_items", "net_position");
             assertColumnExists(connection, "market_items", "min_net_position");
             assertColumnExists(connection, "market_items", "max_net_position");
+            assertTableMissing(connection, "market_segments");
 
             try (
                 PreparedStatement statement = connection.prepareStatement(
@@ -199,5 +200,16 @@ class MarketPressureStateMigrationTest {
         }
 
         throw new AssertionError("Missing column " + tableName + "." + columnName);
+    }
+
+    private static void assertTableMissing(Connection connection, String tableName)
+        throws SQLException {
+        try (
+            ResultSet tables = connection.getMetaData().getTables(null, null, tableName, null)
+        ) {
+            if (tables.next()) {
+                throw new AssertionError("Unexpected table " + tableName);
+            }
+        }
     }
 }
