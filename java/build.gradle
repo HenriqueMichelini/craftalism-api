@@ -1,5 +1,6 @@
 plugins {
     id 'java'
+    id 'jacoco'
     id 'org.springframework.boot' version '3.5.7'
     id 'io.spring.dependency-management' version '1.1.7'
     id "org.sonarqube" version "7.3.0.8198"
@@ -41,15 +42,27 @@ def localEnvValue = { String key ->
 }
 
 sonar {
-  properties {
-    property "sonar.projectKey", "HenriqueMichelini_craftalism-api"
-    property "sonar.organization", "henriquemichelini"
-    property "sonar.scanner.skipJreProvisioning", "true"
-    def sonarToken = localEnvValue('SONAR_TOKEN')
-    if (sonarToken != null) {
-      property "sonar.token", sonarToken
+    properties {
+        property "sonar.projectKey", "HenriqueMichelini_craftalism-api"
+        property "sonar.sourceEncoding", "UTF-8"
+        property "sonar.coverage.jacoco.xmlReportPaths", layout.buildDirectory.file("reports/jacoco/test/jacocoTestReport.xml").get().asFile.path
+        property "sonar.scanner.skipJreProvisioning", "true"
+
+        def sonarHostUrl = localEnvValue('SONAR_HOST_URL')
+        if (sonarHostUrl != null) {
+            property "sonar.host.url", sonarHostUrl
+        }
+
+        def sonarOrganization = localEnvValue('SONAR_ORGANIZATION') ?: (sonarHostUrl == null ? 'henriquemichelini' : null)
+        if (sonarOrganization != null) {
+            property "sonar.organization", sonarOrganization
+        }
+
+        def sonarToken = localEnvValue('SONAR_TOKEN')
+        if (sonarToken != null) {
+            property "sonar.token", sonarToken
+        }
     }
-  }
 }
 
 repositories {
@@ -102,10 +115,25 @@ dependencies {
 
     testCompileOnly 'org.projectlombok:lombok'
     testAnnotationProcessor 'org.projectlombok:lombok'
-    }
+}
 
 tasks.named('test') {
     useJUnitPlatform()
+    finalizedBy tasks.named('jacocoTestReport')
+}
+
+tasks.named('jacocoTestReport') {
+    dependsOn tasks.named('test')
+    reports {
+        xml.required = true
+        html.required = true
+    }
+}
+
+tasks.named('sonar') {
+    dependsOn tasks.named('classes')
+    dependsOn tasks.named('test')
+    dependsOn tasks.named('jacocoTestReport')
 }
 
 tasks.named('bootJar') {

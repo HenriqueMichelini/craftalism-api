@@ -10,6 +10,10 @@ on:
 jobs:
   backend-quality:
     runs-on: ubuntu-latest
+    env:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+      SONAR_ORGANIZATION: ${{ secrets.SONAR_ORGANIZATION }}
 
     defaults:
       run:
@@ -31,3 +35,7 @@ jobs:
 
       - name: Build and run checks
         run: ./gradlew --no-daemon build
+
+      - name: Run SonarQube analysis
+        if: env.SONAR_TOKEN != ''
+        run: ./gradlew --no-daemon sonar

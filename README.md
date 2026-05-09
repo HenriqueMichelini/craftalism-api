@@ -237,6 +237,17 @@ cd java
 
 The test suite includes unit tests and Spring MVC integration tests. Tests run against H2 with mock security tokens where needed.
 
+## SonarQube Analysis
+
+The Gradle build applies the SonarQube scanner and JaCoCo. Java analysis is performed by the SonarJava analyzer installed in the target SonarQube/SonarCloud server; the Gradle scanner sends compiled bytecode, JUnit results, and JaCoCo XML coverage.
+
+```bash
+cd java
+SONAR_TOKEN=<token> SONAR_HOST_URL=<sonarqube-url> SONAR_ORGANIZATION=<organization> ./gradlew sonar
+```
+
+`SONAR_HOST_URL` is optional when using the default SonarCloud endpoint configured for this project. `SONAR_ORGANIZATION` is only needed for SonarCloud or SonarQube setups that require it; when no host URL is provided, the project defaults to the `henriquemichelini` organization. In GitHub Actions, configure `SONAR_TOKEN` and optionally `SONAR_HOST_URL`/`SONAR_ORGANIZATION` as repository secrets to enable the SonarQube analysis step in the quality-gates workflow.
+
 ---
 
 ## Project Structure
