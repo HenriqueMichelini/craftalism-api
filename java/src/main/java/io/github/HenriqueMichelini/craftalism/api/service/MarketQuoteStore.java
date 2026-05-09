@@ -82,7 +82,7 @@ public class MarketQuoteStore {
         marketQuoteRepository.deleteAll();
     }
 
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    @Transactional
     public void expireActiveQuotes() {
         Instant now = Instant.now();
         marketQuoteRepository.expireActiveQuotes(
