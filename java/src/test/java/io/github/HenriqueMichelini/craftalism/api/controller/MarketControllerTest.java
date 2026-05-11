@@ -10,8 +10,18 @@ import io.github.HenriqueMichelini.craftalism.api.dto.MarketExecuteRequestDTO;
 import io.github.HenriqueMichelini.craftalism.api.dto.MarketExecuteSuccessResponseDTO;
 import io.github.HenriqueMichelini.craftalism.api.dto.MarketQuoteRequestDTO;
 import io.github.HenriqueMichelini.craftalism.api.dto.MarketQuoteResponseDTO;
+import io.github.HenriqueMichelini.craftalism.api.dto.MarketSide;
 import io.github.HenriqueMichelini.craftalism.api.dto.MarketSnapshotResponseDTO;
+import io.github.HenriqueMichelini.craftalism.api.dto.MarketTradeHistoryDTO;
+import io.github.HenriqueMichelini.craftalism.api.dto.MarketTradeHistoryFilterDTO;
 import io.github.HenriqueMichelini.craftalism.api.service.MarketService;
+import io.github.HenriqueMichelini.craftalism.api.service.MarketTradeHistoryReadService;
+import java.time.Instant;
+import java.util.UUID;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -26,6 +36,9 @@ class MarketControllerTest {
 
     @Mock
     private MarketService marketService;
+
+    @Mock
+    private MarketTradeHistoryReadService tradeHistoryReadService;
 
     @InjectMocks
     private MarketController controller;
@@ -68,5 +81,60 @@ class MarketControllerTest {
         assertEquals(HttpStatus.OK, result.getStatusCode());
         assertSame(response, result.getBody());
         verify(marketService).execute(authentication, request, null);
+    }
+
+    @Test
+    void getTrades_returnsOk() {
+        UUID playerUuid = UUID.fromString("110e8400-e29b-41d4-a716-446655440000");
+        Instant executedFrom = Instant.parse("2026-05-01T00:00:00Z");
+        Instant executedTo = Instant.parse("2026-05-02T00:00:00Z");
+        Pageable pageable = PageRequest.of(0, 20);
+        Page<MarketTradeHistoryDTO> response = new PageImpl<>(java.util.List.of());
+        when(
+            tradeHistoryReadService.findTrades(
+                new MarketTradeHistoryFilterDTO(
+                    playerUuid,
+                    "wheat",
+                    MarketSide.BUY,
+                    executedFrom,
+                    executedTo
+                ),
+                pageable
+            )
+        ).thenReturn(response);
+
+        ResponseEntity<Page<MarketTradeHistoryDTO>> result = controller.getTrades(
+            playerUuid,
+            "wheat",
+            MarketSide.BUY,
+            executedFrom,
+            executedTo,
+            pageable
+        );
+
+        assertEquals(HttpStatus.OK, result.getStatusCode());
+        assertSame(response, result.getBody());
+        verify(tradeHistoryReadService).findTrades(
+            new MarketTradeHistoryFilterDTO(
+                playerUuid,
+                "wheat",
+                MarketSide.BUY,
+                executedFrom,
+                executedTo
+            ),
+            pageable
+        );
+    }
+
+    @Test
+    void getTrade_returnsOk() {
+        MarketTradeHistoryDTO response = mock(MarketTradeHistoryDTO.class);
+        when(tradeHistoryReadService.getTrade(10L)).thenReturn(response);
+
+        ResponseEntity<MarketTradeHistoryDTO> result = controller.getTrade(10L);
+
+        assertEquals(HttpStatus.OK, result.getStatusCode());
+        assertSame(response, result.getBody());
+        verify(tradeHistoryReadService).getTrade(10L);
     }
 }

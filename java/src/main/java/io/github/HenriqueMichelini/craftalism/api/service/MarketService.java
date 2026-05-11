@@ -9,6 +9,7 @@ import io.github.HenriqueMichelini.craftalism.api.model.MarketQuote;
 import io.github.HenriqueMichelini.craftalism.api.repository.BalanceRepository;
 import io.github.HenriqueMichelini.craftalism.api.repository.MarketItemRepository;
 import io.github.HenriqueMichelini.craftalism.api.repository.MarketQuoteRepository;
+import io.github.HenriqueMichelini.craftalism.api.repository.MarketTradeHistoryRepository;
 import java.time.Clock;
 import java.time.Duration;
 import org.springframework.beans.factory.annotation.Value;
@@ -35,6 +36,7 @@ public class MarketService {
         BalanceRepository balanceRepository,
         MarketQuoteStore quoteStore,
         MarketQuoteRepository marketQuoteRepository,
+        MarketTradeHistoryRepository marketTradeHistoryRepository,
         DefaultMarketCatalog defaultMarketCatalog,
         @Value("${craftalism.market.enabled:true}") boolean marketEnabled,
         @Value(
@@ -52,6 +54,7 @@ public class MarketService {
             balanceRepository,
             quoteStore,
             marketQuoteRepository,
+            marketTradeHistoryRepository,
             defaultMarketCatalog,
             marketEnabled,
             quoteTtlSeconds,
@@ -68,6 +71,7 @@ public class MarketService {
         BalanceRepository balanceRepository,
         MarketQuoteStore quoteStore,
         MarketQuoteRepository marketQuoteRepository,
+        MarketTradeHistoryRepository marketTradeHistoryRepository,
         DefaultMarketCatalog defaultMarketCatalog,
         boolean marketEnabled,
         long quoteTtlSeconds,
@@ -98,6 +102,7 @@ public class MarketService {
         MarketTradeExecutor tradeExecutor = new MarketTradeExecutor(
             balanceRepository,
             marketItemRepository,
+            marketTradeHistoryRepository,
             tradePlanner
         );
         Duration rateLimitWindow = Duration.ofSeconds(rateLimitWindowSeconds);

@@ -5,8 +5,12 @@ import io.github.HenriqueMichelini.craftalism.api.dto.MarketExecuteSuccessRespon
 import io.github.HenriqueMichelini.craftalism.api.dto.MarketQuoteRequestDTO;
 import io.github.HenriqueMichelini.craftalism.api.dto.MarketQuoteResponseDTO;
 import io.github.HenriqueMichelini.craftalism.api.dto.MarketRejectionResponseDTO;
+import io.github.HenriqueMichelini.craftalism.api.dto.MarketSide;
 import io.github.HenriqueMichelini.craftalism.api.dto.MarketSnapshotResponseDTO;
+import io.github.HenriqueMichelini.craftalism.api.dto.MarketTradeHistoryDTO;
+import io.github.HenriqueMichelini.craftalism.api.dto.MarketTradeHistoryFilterDTO;
 import io.github.HenriqueMichelini.craftalism.api.service.MarketService;
+import io.github.HenriqueMichelini.craftalism.api.service.MarketTradeHistoryReadService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -15,12 +19,19 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import java.time.Instant;
+import java.util.UUID;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -29,9 +40,14 @@ import org.springframework.web.bind.annotation.RestController;
 public class MarketController {
 
     private final MarketService marketService;
+    private final MarketTradeHistoryReadService tradeHistoryReadService;
 
-    public MarketController(MarketService marketService) {
+    public MarketController(
+        MarketService marketService,
+        MarketTradeHistoryReadService tradeHistoryReadService
+    ) {
         this.marketService = marketService;
+        this.tradeHistoryReadService = tradeHistoryReadService;
     }
 
     @Operation(
@@ -48,6 +64,40 @@ public class MarketController {
     @GetMapping("/snapshot")
     public ResponseEntity<MarketSnapshotResponseDTO> getSnapshot() {
         return ResponseEntity.ok(marketService.getSnapshot());
+    }
+
+    @Operation(
+        summary = "List market trades",
+        description = "Returns committed successful market executions."
+    )
+    @GetMapping("/trades")
+    public ResponseEntity<Page<MarketTradeHistoryDTO>> getTrades(
+        @RequestParam(required = false) UUID playerUuid,
+        @RequestParam(required = false) String itemId,
+        @RequestParam(required = false) MarketSide side,
+        @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant executedFrom,
+        @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant executedTo,
+        Pageable pageable
+    ) {
+        MarketTradeHistoryFilterDTO filter = new MarketTradeHistoryFilterDTO(
+            playerUuid,
+            itemId,
+            side,
+            executedFrom,
+            executedTo
+        );
+        return ResponseEntity.ok(tradeHistoryReadService.findTrades(filter, pageable));
+    }
+
+    @Operation(
+        summary = "Get market trade",
+        description = "Returns one committed successful market execution."
+    )
+    @GetMapping("/trades/{id}")
+    public ResponseEntity<MarketTradeHistoryDTO> getTrade(
+        @PathVariable Long id
+    ) {
+        return ResponseEntity.ok(tradeHistoryReadService.getTrade(id));
     }
 
     @Operation(

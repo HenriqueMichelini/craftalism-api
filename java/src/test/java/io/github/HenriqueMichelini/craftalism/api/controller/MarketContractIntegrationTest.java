@@ -8,13 +8,16 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import io.github.HenriqueMichelini.craftalism.api.dto.MarketSide;
 import io.github.HenriqueMichelini.craftalism.api.model.Balance;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketItem;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketQuote;
+import io.github.HenriqueMichelini.craftalism.api.model.MarketTradeHistory;
 import io.github.HenriqueMichelini.craftalism.api.model.Player;
 import io.github.HenriqueMichelini.craftalism.api.repository.BalanceRepository;
 import io.github.HenriqueMichelini.craftalism.api.repository.MarketItemRepository;
 import io.github.HenriqueMichelini.craftalism.api.repository.MarketQuoteRepository;
+import io.github.HenriqueMichelini.craftalism.api.repository.MarketTradeHistoryRepository;
 import io.github.HenriqueMichelini.craftalism.api.repository.PlayerRepository;
 import io.github.HenriqueMichelini.craftalism.api.security.WithMockJwt;
 import io.github.HenriqueMichelini.craftalism.api.service.MarketQuoteStore;
@@ -73,11 +76,15 @@ class MarketContractIntegrationTest {
     @Autowired
     private MarketQuoteRepository marketQuoteRepository;
 
+    @Autowired
+    private MarketTradeHistoryRepository marketTradeHistoryRepository;
+
     private UUID playerUuid;
 
     @BeforeEach
     void setUp() {
         marketQuoteStore.clear();
+        marketTradeHistoryRepository.deleteAll();
         balanceRepository.deleteAll();
         playerRepository.deleteAll();
         marketItemRepository.deleteAll();
@@ -100,6 +107,54 @@ class MarketContractIntegrationTest {
             .andExpect(jsonPath("$.categories[0].items[0].marketSegment").value(0))
             .andExpect(jsonPath("$.categories[0].items[0].pressureMagnitude").value(0))
             .andExpect(jsonPath("$.categories[0].items[0].currentStock").doesNotExist());
+    }
+
+    @Test
+    void tradeHistory_requiresReadScope() throws Exception {
+        mockMvc
+            .perform(get("/api/market/trades"))
+            .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void tradeHistory_listFiltersAndDetailRequireReadScope() throws Exception {
+        MarketTradeHistory first = marketTradeHistoryRepository.save(
+            tradeHistory(playerUuid, "wheat", MarketSide.BUY, Instant.parse("2026-05-01T10:00:00Z"))
+        );
+        marketTradeHistoryRepository.save(
+            tradeHistory(playerUuid, "wheat", MarketSide.SELL, Instant.parse("2026-05-01T11:00:00Z"))
+        );
+        marketTradeHistoryRepository.save(
+            tradeHistory(UUID.fromString("330e8400-e29b-41d4-a716-446655440000"), "wheat", MarketSide.BUY, Instant.parse("2026-05-01T12:00:00Z"))
+        );
+
+        mockMvc
+            .perform(
+                get("/api/market/trades")
+                    .with(playerJwt())
+                    .param("playerUuid", playerUuid.toString())
+                    .param("itemId", "wheat")
+                    .param("side", "BUY")
+                    .param("executedFrom", "2026-05-01T10:00:00Z")
+                    .param("executedTo", "2026-05-01T10:00:00Z")
+            )
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.content.length()").value(1))
+            .andExpect(jsonPath("$.content[0].id").value(first.getId()))
+            .andExpect(jsonPath("$.content[0].playerUuid").value(playerUuid.toString()))
+            .andExpect(jsonPath("$.content[0].itemId").value("wheat"))
+            .andExpect(jsonPath("$.content[0].side").value("BUY"))
+            .andExpect(jsonPath("$.content[0].quantity").value(10))
+            .andExpect(jsonPath("$.content[0].unitPrice").value("5"))
+            .andExpect(jsonPath("$.content[0].totalPrice").value("50"))
+            .andExpect(jsonPath("$.content[0].currency").value("coins"))
+            .andExpect(jsonPath("$.content[0].snapshotVersion").value("market:snapshot"));
+
+        mockMvc
+            .perform(get("/api/market/trades/{id}", first.getId()).with(playerJwt()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.id").value(first.getId()))
+            .andExpect(jsonPath("$.itemId").value("wheat"));
     }
 
     @Test
@@ -185,10 +240,18 @@ class MarketContractIntegrationTest {
         Balance balance = balanceRepository.findById(playerUuid).orElseThrow();
         MarketItem item = marketItemRepository.findById("wheat").orElseThrow();
         MarketQuote quote = marketQuoteRepository.findById(quoteToken).orElseThrow();
+        MarketTradeHistory history = marketTradeHistoryRepository.findAll().get(0);
         assertEquals(950L, balance.getAmount());
         assertEquals(0L, item.getCurrentStock());
         assertEquals(10L, item.getNetPosition());
         assertEquals(MarketQuote.Status.CONSUMED, quote.getStatus());
+        assertEquals(1L, marketTradeHistoryRepository.count());
+        assertEquals(playerUuid, history.getPlayerUuid());
+        assertEquals("wheat", history.getItemId());
+        assertEquals("coins", history.getCurrency());
+        assertEquals(10L, history.getQuantity());
+        assertEquals(5L, history.getUnitPrice());
+        assertEquals(50L, history.getTotalPrice());
     }
 
     @Test
@@ -822,6 +885,7 @@ class MarketContractIntegrationTest {
         MarketItem persistedItem = marketItemRepository.findById("wheat").orElseThrow();
         assertEquals(1L, persistedItem.getNetPosition());
         assertEquals(MarketQuote.Status.INVALIDATED, quote.getStatus());
+        assertEquals(0L, marketTradeHistoryRepository.count());
     }
 
     @Test
@@ -890,6 +954,7 @@ class MarketContractIntegrationTest {
         MarketItem item = marketItemRepository.findById("wheat").orElseThrow();
         assertEquals(10L, item.getNetPosition());
         assertEquals(MarketQuote.Status.CONSUMED, quote.getStatus());
+        assertEquals(1L, marketTradeHistoryRepository.count());
     }
 
     @Test
@@ -953,9 +1018,16 @@ class MarketContractIntegrationTest {
 
         Balance balance = balanceRepository.findById(playerUuid).orElseThrow();
         MarketItem updatedItem = marketItemRepository.findByItemId("wheat").orElseThrow();
+        MarketTradeHistory history = marketTradeHistoryRepository.findAll().get(0);
         assertEquals(1_050L, balance.getAmount());
         assertEquals(-10L, updatedItem.getNetPosition());
         assertEquals(0L, updatedItem.getCurrentStock());
+        assertEquals(1L, marketTradeHistoryRepository.count());
+        assertEquals(playerUuid, history.getPlayerUuid());
+        assertEquals("wheat", history.getItemId());
+        assertEquals(10L, history.getQuantity());
+        assertEquals(5L, history.getUnitPrice());
+        assertEquals(50L, history.getTotalPrice());
     }
 
     @Test
@@ -1246,5 +1318,24 @@ class MarketContractIntegrationTest {
         item.setOperating(true);
         item.setLastUpdatedAt(Instant.parse("2026-04-12T18:29:42Z"));
         return item;
+    }
+
+    private MarketTradeHistory tradeHistory(
+        UUID playerUuid,
+        String itemId,
+        MarketSide side,
+        Instant executedAt
+    ) {
+        MarketTradeHistory history = new MarketTradeHistory();
+        history.setPlayerUuid(playerUuid);
+        history.setItemId(itemId);
+        history.setSide(side);
+        history.setQuantity(10L);
+        history.setUnitPrice(5L);
+        history.setTotalPrice(50L);
+        history.setCurrency("coins");
+        history.setSnapshotVersion("market:snapshot");
+        history.setExecutedAt(executedAt);
+        return history;
     }
 }

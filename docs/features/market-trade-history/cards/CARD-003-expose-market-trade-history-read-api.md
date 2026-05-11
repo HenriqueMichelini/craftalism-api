@@ -2,7 +2,7 @@
 
 ## Status
 
-planned
+completed
 
 ## Objective
 
@@ -93,3 +93,5 @@ Run from `java/`.
 `feat(craftalism-api): expose market trade history reads`
 
 ## Completion Notes
+
+Exposed protected `GET /api/market/trades` and `GET /api/market/trades/{id}` endpoints with pageable/filterable reads, default newest ordering, DTO mapping, not-found behavior, and security coverage.

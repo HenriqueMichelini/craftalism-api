@@ -5,8 +5,10 @@ import io.github.HenriqueMichelini.craftalism.api.exceptions.MarketRejectionCode
 import io.github.HenriqueMichelini.craftalism.api.exceptions.MarketRejectionException;
 import io.github.HenriqueMichelini.craftalism.api.model.Balance;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketItem;
+import io.github.HenriqueMichelini.craftalism.api.model.MarketTradeHistory;
 import io.github.HenriqueMichelini.craftalism.api.repository.BalanceRepository;
 import io.github.HenriqueMichelini.craftalism.api.repository.MarketItemRepository;
+import io.github.HenriqueMichelini.craftalism.api.repository.MarketTradeHistoryRepository;
 import java.time.Instant;
 import java.util.UUID;
 import java.util.function.Supplier;
@@ -16,15 +18,18 @@ final class MarketTradeExecutor {
 
     private final BalanceRepository balanceRepository;
     private final MarketItemRepository marketItemRepository;
+    private final MarketTradeHistoryRepository marketTradeHistoryRepository;
     private final MarketTradePlanner tradePlanner;
 
     MarketTradeExecutor(
         BalanceRepository balanceRepository,
         MarketItemRepository marketItemRepository,
+        MarketTradeHistoryRepository marketTradeHistoryRepository,
         MarketTradePlanner tradePlanner
     ) {
         this.balanceRepository = balanceRepository;
         this.marketItemRepository = marketItemRepository;
+        this.marketTradeHistoryRepository = marketTradeHistoryRepository;
         this.tradePlanner = tradePlanner;
     }
 
@@ -86,6 +91,7 @@ final class MarketTradeExecutor {
         item.setLastUpdatedAt(Instant.now());
         tradePlanner.recomputeDerivedProjections(item);
         marketItemRepository.save(item);
+        saveTradeHistory(playerUuid, item, quote, plan);
         return new AppliedTrade(
             plan.executedQuantity(),
             plan.unitPrice(),
@@ -122,6 +128,7 @@ final class MarketTradeExecutor {
         item.setLastUpdatedAt(Instant.now());
         tradePlanner.recomputeDerivedProjections(item);
         marketItemRepository.save(item);
+        saveTradeHistory(playerUuid, item, quote, plan);
         return new AppliedTrade(
             plan.executedQuantity(),
             plan.unitPrice(),
@@ -196,6 +203,25 @@ final class MarketTradeExecutor {
             HttpStatus.UNPROCESSABLE_ENTITY,
             currentSnapshotVersion.get()
         );
+    }
+
+    private void saveTradeHistory(
+        UUID playerUuid,
+        MarketItem item,
+        MarketQuoteStore.StoredQuote quote,
+        MarketTradePlanner.TradePlan plan
+    ) {
+        MarketTradeHistory history = new MarketTradeHistory();
+        history.setPlayerUuid(playerUuid);
+        history.setItemId(item.getItemId());
+        history.setSide(quote.side());
+        history.setQuantity(plan.executedQuantity());
+        history.setUnitPrice(plan.unitPrice());
+        history.setTotalPrice(plan.totalPrice());
+        history.setCurrency(item.getCurrency());
+        history.setSnapshotVersion(quote.snapshotVersion());
+        history.setExecutedAt(Instant.now());
+        marketTradeHistoryRepository.save(history);
     }
 
     private MarketRejectionException rejection(

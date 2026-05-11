@@ -1,6 +1,7 @@
 package io.github.HenriqueMichelini.craftalism.api.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
@@ -13,8 +14,10 @@ import io.github.HenriqueMichelini.craftalism.api.exceptions.MarketRejectionExce
 import io.github.HenriqueMichelini.craftalism.api.model.Balance;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketItem;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketQuote;
+import io.github.HenriqueMichelini.craftalism.api.model.MarketTradeHistory;
 import io.github.HenriqueMichelini.craftalism.api.repository.BalanceRepository;
 import io.github.HenriqueMichelini.craftalism.api.repository.MarketItemRepository;
+import io.github.HenriqueMichelini.craftalism.api.repository.MarketTradeHistoryRepository;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.Optional;
@@ -37,6 +40,9 @@ class MarketTradeExecutorTest {
 
     @Mock
     private MarketItemRepository marketItemRepository;
+
+    @Mock
+    private MarketTradeHistoryRepository marketTradeHistoryRepository;
 
     private final MarketTradePlanner tradePlanner = new MarketTradePlanner();
 
@@ -67,6 +73,20 @@ class MarketTradeExecutorTest {
         );
         verify(balanceRepository).save(balance);
         verify(marketItemRepository).save(item);
+        ArgumentCaptor<MarketTradeHistory> historyCaptor = ArgumentCaptor.forClass(
+            MarketTradeHistory.class
+        );
+        verify(marketTradeHistoryRepository).save(historyCaptor.capture());
+        MarketTradeHistory history = historyCaptor.getValue();
+        assertEquals(PLAYER_UUID, history.getPlayerUuid());
+        assertEquals("wheat", history.getItemId());
+        assertEquals(MarketSide.BUY, history.getSide());
+        assertEquals(10L, history.getQuantity());
+        assertEquals(5L, history.getUnitPrice());
+        assertEquals(50L, history.getTotalPrice());
+        assertEquals("coins", history.getCurrency());
+        assertEquals("market:snapshot", history.getSnapshotVersion());
+        assertNotNull(history.getExecutedAt());
     }
 
     @Test
@@ -94,10 +114,17 @@ class MarketTradeExecutorTest {
             Balance.class
         );
         verify(balanceRepository).save(balanceCaptor.capture());
+        ArgumentCaptor<MarketTradeHistory> historyCaptor = ArgumentCaptor.forClass(
+            MarketTradeHistory.class
+        );
+        verify(marketTradeHistoryRepository).save(historyCaptor.capture());
 
         assertEquals(51L, appliedTrade.executedQuantity());
         assertEquals(-1L, item.getNetPosition());
         assertEquals(5_096L, balanceCaptor.getValue().getAmount());
+        assertEquals(MarketSide.SELL, historyCaptor.getValue().getSide());
+        assertEquals(51L, historyCaptor.getValue().getQuantity());
+        assertEquals(5_096L, historyCaptor.getValue().getTotalPrice());
         assertEquals(0L, item.getCurrentStock());
         assertEquals(
             0,
@@ -136,6 +163,7 @@ class MarketTradeExecutorTest {
         assertEquals(49L, balance.getAmount());
         verify(balanceRepository, never()).save(any());
         verify(marketItemRepository, never()).save(any());
+        verify(marketTradeHistoryRepository, never()).save(any());
     }
 
     @Test
@@ -165,6 +193,7 @@ class MarketTradeExecutorTest {
         assertEquals(1_000L, balance.getAmount());
         verify(balanceRepository, never()).save(any());
         verify(marketItemRepository, never()).save(any());
+        verify(marketTradeHistoryRepository, never()).save(any());
     }
 
     @Test
@@ -199,12 +228,14 @@ class MarketTradeExecutorTest {
         assertEquals(1_000L, balance.getAmount());
         verify(balanceRepository, never()).save(any());
         verify(marketItemRepository, never()).save(any());
+        verify(marketTradeHistoryRepository, never()).save(any());
     }
 
     private MarketTradeExecutor executor() {
         return new MarketTradeExecutor(
             balanceRepository,
             marketItemRepository,
+            marketTradeHistoryRepository,
             tradePlanner
         );
     }

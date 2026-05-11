@@ -2,7 +2,7 @@
 
 ## Status
 
-planned
+completed
 
 ## Objective
 
@@ -82,3 +82,4 @@ Run from `java/`.
 
 ## Completion Notes
 
+Successful market execute now writes one trade-history record after balance settlement and market state mutation; rejected and failed execution paths do not save trade history.

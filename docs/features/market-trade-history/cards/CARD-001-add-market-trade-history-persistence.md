@@ -2,7 +2,7 @@
 
 ## Status
 
-planned
+completed
 
 ## Objective
 
@@ -78,3 +78,4 @@ Run from `java/`.
 
 ## Completion Notes
 
+Implemented `market_trade_history` persistence with V17 migration, JPA entity, Spring Data repository, and migration coverage for required columns and indexes.

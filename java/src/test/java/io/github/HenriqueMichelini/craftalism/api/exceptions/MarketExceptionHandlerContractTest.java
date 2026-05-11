@@ -10,6 +10,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import io.github.HenriqueMichelini.craftalism.api.controller.MarketController;
 import io.github.HenriqueMichelini.craftalism.api.dto.MarketQuoteRequestDTO;
 import io.github.HenriqueMichelini.craftalism.api.service.MarketService;
+import io.github.HenriqueMichelini.craftalism.api.service.MarketTradeHistoryReadService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -26,13 +27,16 @@ class MarketExceptionHandlerContractTest {
     @Mock
     private MarketService marketService;
 
+    @Mock
+    private MarketTradeHistoryReadService tradeHistoryReadService;
+
     private MockMvc mockMvc;
 
     @BeforeEach
     void setUp() {
         mockMvc =
             MockMvcBuilders
-                .standaloneSetup(new MarketController(marketService))
+                .standaloneSetup(new MarketController(marketService, tradeHistoryReadService))
                 .setControllerAdvice(
                     new MarketExceptionHandler(),
                     new GlobalExceptionHandler()

@@ -8,8 +8,11 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import io.github.HenriqueMichelini.craftalism.api.config.SecurityConfig;
+import io.github.HenriqueMichelini.craftalism.api.controller.MarketController;
 import io.github.HenriqueMichelini.craftalism.api.controller.PlayerController;
 import io.github.HenriqueMichelini.craftalism.api.mapper.PlayerMapper;
+import io.github.HenriqueMichelini.craftalism.api.service.MarketService;
+import io.github.HenriqueMichelini.craftalism.api.service.MarketTradeHistoryReadService;
 import io.github.HenriqueMichelini.craftalism.api.service.PlayerService;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -20,7 +23,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
-@WebMvcTest(PlayerController.class)
+@WebMvcTest({ PlayerController.class, MarketController.class })
 @Import(SecurityConfig.class)
 class SecurityFilterChainTest {
 
@@ -33,6 +36,12 @@ class SecurityFilterChainTest {
     @MockitoBean
     PlayerMapper playerMapper;
 
+    @MockitoBean
+    MarketService marketService;
+
+    @MockitoBean
+    MarketTradeHistoryReadService marketTradeHistoryReadService;
+
     @Test
     void noToken_canGetPublicReadEndpoint() throws Exception {
         when(playerService.getAllPlayers()).thenReturn(List.of());
@@ -40,6 +49,19 @@ class SecurityFilterChainTest {
         mockMvc
             .perform(get("/api/players"))
             .andExpect(status().isOk());
+    }
+
+    @Test
+    void noToken_cannotGetMarketTradeHistory() throws Exception {
+        mockMvc
+            .perform(get("/api/market/trades"))
+            .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @WithMockJwt(scopes = { "api:read" })
+    void readScope_canGetMarketTradeHistory() throws Exception {
+        mockMvc.perform(get("/api/market/trades")).andExpect(status().isOk());
     }
 
     @Test

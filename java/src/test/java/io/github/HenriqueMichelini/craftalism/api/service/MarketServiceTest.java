@@ -19,9 +19,11 @@ import io.github.HenriqueMichelini.craftalism.api.exceptions.MarketRejectionExce
 import io.github.HenriqueMichelini.craftalism.api.model.Balance;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketItem;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketQuote;
+import io.github.HenriqueMichelini.craftalism.api.model.MarketTradeHistory;
 import io.github.HenriqueMichelini.craftalism.api.repository.BalanceRepository;
 import io.github.HenriqueMichelini.craftalism.api.repository.MarketItemRepository;
 import io.github.HenriqueMichelini.craftalism.api.repository.MarketQuoteRepository;
+import io.github.HenriqueMichelini.craftalism.api.repository.MarketTradeHistoryRepository;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
@@ -55,6 +57,9 @@ class MarketServiceTest {
     @Mock
     private MarketQuoteStore quoteStore;
 
+    @Mock
+    private MarketTradeHistoryRepository marketTradeHistoryRepository;
+
     private MarketService marketService;
 
     @BeforeEach
@@ -64,6 +69,7 @@ class MarketServiceTest {
             balanceRepository,
             quoteStore,
             marketQuoteRepository,
+            marketTradeHistoryRepository,
             new DefaultMarketCatalog(),
             true,
             60L,
@@ -166,6 +172,7 @@ class MarketServiceTest {
         assertNotNull(response.updatedItem());
         verify(balanceRepository).save(balance);
         verify(marketItemRepository).save(item);
+        verify(marketTradeHistoryRepository).save(any(MarketTradeHistory.class));
     }
 
     @Test
@@ -319,6 +326,7 @@ class MarketServiceTest {
         assertEquals(1_000L, balance.getAmount());
         verify(quoteStore).consume("mismatched-buy-quote");
         verify(balanceRepository, never()).save(any());
+        verify(marketTradeHistoryRepository, never()).save(any());
         verify(marketItemRepository, never()).save(any());
     }
 
@@ -371,6 +379,7 @@ class MarketServiceTest {
         assertEquals(1_000L, balance.getAmount());
         verify(quoteStore).consume("mismatched-sell-quote");
         verify(balanceRepository, never()).save(any());
+        verify(marketTradeHistoryRepository, never()).save(any());
         verify(marketItemRepository, never()).save(any());
     }
 
@@ -623,6 +632,7 @@ class MarketServiceTest {
             balanceRepository,
             quoteStore,
             marketQuoteRepository,
+            marketTradeHistoryRepository,
             new DefaultMarketCatalog(),
             true,
             60L,
