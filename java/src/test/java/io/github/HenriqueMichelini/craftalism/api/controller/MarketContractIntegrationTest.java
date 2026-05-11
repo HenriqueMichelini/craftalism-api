@@ -110,14 +110,14 @@ class MarketContractIntegrationTest {
     }
 
     @Test
-    void tradeHistory_requiresReadScope() throws Exception {
+    void tradeHistory_isPublicRead() throws Exception {
         mockMvc
             .perform(get("/api/market/trades"))
-            .andExpect(status().isUnauthorized());
+            .andExpect(status().isOk());
     }
 
     @Test
-    void tradeHistory_listFiltersAndDetailRequireReadScope() throws Exception {
+    void tradeHistory_listFiltersAndDetailArePublicRead() throws Exception {
         MarketTradeHistory first = marketTradeHistoryRepository.save(
             tradeHistory(playerUuid, "wheat", MarketSide.BUY, Instant.parse("2026-05-01T10:00:00Z"))
         );
@@ -151,7 +151,7 @@ class MarketContractIntegrationTest {
             .andExpect(jsonPath("$.content[0].snapshotVersion").value("market:snapshot"));
 
         mockMvc
-            .perform(get("/api/market/trades/{id}", first.getId()).with(playerJwt()))
+            .perform(get("/api/market/trades/{id}", first.getId()))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.id").value(first.getId()))
             .andExpect(jsonPath("$.itemId").value("wheat"));

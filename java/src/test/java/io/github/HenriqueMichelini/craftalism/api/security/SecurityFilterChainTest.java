@@ -52,10 +52,10 @@ class SecurityFilterChainTest {
     }
 
     @Test
-    void noToken_cannotGetMarketTradeHistory() throws Exception {
+    void noToken_canGetMarketTradeHistory() throws Exception {
         mockMvc
             .perform(get("/api/market/trades"))
-            .andExpect(status().isUnauthorized());
+            .andExpect(status().isOk());
     }
 
     @Test

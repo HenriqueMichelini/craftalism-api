@@ -11,7 +11,7 @@ Define repo-local backend ownership, stable rules, and validation boundaries for
 
 ## Repository Ownership
 
-`craftalism-api` owns market trade-history persistence, read API behavior, authorization requirements, response DTOs, filtering, pagination, and backend tests.
+`craftalism-api` owns market trade-history persistence, read API behavior, access policy, response DTOs, filtering, pagination, and backend tests.
 
 `craftalism-dashboard` consumes the trade-history API and must be planned separately after the API response shape and endpoint semantics are stable.
 
@@ -26,7 +26,6 @@ Define repo-local backend ownership, stable rules, and validation boundaries for
 ## Non-Goals
 
 - Do not implement dashboard or client behavior in this repository.
-- Do not expose market trade history as a public endpoint.
 - Do not expose quotes, rejected attempts, pending quotes, expired quotes, or quote lifecycle records as trade history.
 - Do not redefine market quote, execute, pressure-ladder, balance, or transfer semantics.
 
@@ -78,8 +77,8 @@ List responses use the repository-standard Spring `Page<MarketTradeHistoryDTO>` 
 
 ## Security and Permission Rules
 
-- Trade-history endpoints require `api:read`.
-- Do not make `GET /api/market/trades` or `GET /api/market/trades/{id}` public like `GET /api/market/snapshot`.
+- Trade-history endpoints are public read endpoints under the current MVP `GET /api/**` policy.
+- `GET /api/market/trades` and `GET /api/market/trades/{id}` do not require a bearer token.
 - Do not weaken existing write-scope requirements for quote or execute endpoints.
 
 ## Error and Failure Rules

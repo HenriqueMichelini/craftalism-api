@@ -10,7 +10,7 @@ Expose read-only API endpoints for paged, filterable market trade history and de
 
 ## Context
 
-Dashboard and ops consumers need market-specific trade history after API response shape and endpoint semantics are stable. These endpoints are read-only but must require `api:read`, unlike the public market snapshot.
+Dashboard and ops consumers need market-specific trade history after API response shape and endpoint semantics are stable. These endpoints are read-only and follow the current MVP public `GET /api/**` policy.
 
 Depends on:
 
@@ -27,7 +27,7 @@ Depends on:
 
 ## Expected Behavior
 
-`GET /api/market/trades` returns a pageable list of committed successful market executions filtered by optional `playerUuid`, `itemId`, `side`, `executedFrom`, and `executedTo` parameters. `GET /api/market/trades/{id}` returns one trade history record by id. Both endpoints require `api:read`.
+`GET /api/market/trades` returns a pageable list of committed successful market executions filtered by optional `playerUuid`, `itemId`, `side`, `executedFrom`, and `executedTo` parameters. `GET /api/market/trades/{id}` returns one trade history record by id. Both endpoints are public reads under the current MVP `GET /api/**` policy.
 
 ## Acceptance Criteria
 
@@ -37,7 +37,7 @@ Depends on:
 - [ ] List responses use the repository-standard Spring `Page<MarketTradeHistoryDTO>` JSON shape and support zero-based `page`, `size`, and repeated `sort=property,direction` query parameters.
 - [ ] Default list ordering is newest first by `executedAt,DESC`, then `id,DESC`.
 - [ ] `GET /api/market/trades/{id}` returns the matching trade history record or repository-standard not-found behavior.
-- [ ] Both endpoints require `api:read` and are not permitted by the broad public GET API rule.
+- [ ] Both endpoints are permitted by the broad public GET API rule.
 - [ ] `GET /api/market/snapshot` remains public.
 - [ ] Quote and execute authorization requirements remain unchanged.
 - [ ] Controller, service, repository, security, and contract integration tests cover list, filters, detail lookup, and access control.
@@ -86,7 +86,7 @@ Run from `java/`.
 - Dashboard or client cards.
 - Write-side trade history persistence.
 - Changing snapshot, quote, or execute response shapes.
-- Adding public access to trade history.
+- Requiring dashboard authentication for trade-history reads.
 
 ## Suggested Commit Message
 
@@ -94,4 +94,4 @@ Run from `java/`.
 
 ## Completion Notes
 
-Exposed protected `GET /api/market/trades` and `GET /api/market/trades/{id}` endpoints with pageable/filterable reads, default newest ordering, DTO mapping, not-found behavior, and security coverage.
+Exposed public-read `GET /api/market/trades` and `GET /api/market/trades/{id}` endpoints with pageable/filterable reads, default newest ordering, DTO mapping, not-found behavior, and security coverage.

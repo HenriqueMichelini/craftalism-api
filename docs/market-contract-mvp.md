@@ -207,7 +207,7 @@ Required semantics:
 
 ## Trade History Contract
 
-Trade history is API-side operational history for completed market executions. It is not a quote feed and is not a public market snapshot.
+Trade history is API-side operational history for completed market executions. It is not a quote feed, but it follows the current MVP public read policy for `GET /api/**`.
 
 List endpoint:
 
@@ -223,8 +223,8 @@ GET /api/market/trades/{id}
 
 Access:
 
-- Requires `api:read`.
-- Must not be public like `GET /api/market/snapshot`.
+- Public read; no bearer token is required.
+- Write-side market operations remain protected separately by the quote and execute scope rules.
 
 List filters:
 

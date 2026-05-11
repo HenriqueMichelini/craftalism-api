@@ -207,6 +207,8 @@ Base path: `/api`. Full interactive documentation is available at `http://localh
 | Method | Path | Scope | Description |
 |---|---|---|---|
 | `GET` | `/market/snapshot` | public | Return the authoritative market snapshot with an opaque `snapshotVersion`. |
+| `GET` | `/market/trades` | public | List committed successful market executions. |
+| `GET` | `/market/trades/{id}` | public | Get one committed successful market execution. |
 | `POST` | `/market/quotes` | `api:write` | Create a quote-backed market trade for the authenticated player context. |
 | `POST` | `/market/execute` | `api:write` | Execute a trade using a required `quoteToken` and `snapshotVersion`. |
 
