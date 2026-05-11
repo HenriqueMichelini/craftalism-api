@@ -31,9 +31,11 @@ Depends on:
 
 ## Acceptance Criteria
 
-- [ ] `GET /api/market/trades` returns pageable trade history records with `playerUuid`, `itemId`, `side`, `quantity`, `unitPrice`, `totalPrice`, `currency`, `snapshotVersion`, and `executedAt`.
+- [ ] `GET /api/market/trades` returns pageable trade history records with `id`, `playerUuid`, `itemId`, `side`, `quantity`, `unitPrice`, `totalPrice`, `currency`, `snapshotVersion`, and `executedAt`.
 - [ ] List filters for `playerUuid`, `itemId`, `side`, `executedFrom`, and `executedTo` are optional and composable.
 - [ ] `executedFrom` and `executedTo` apply inclusive timestamp bounds.
+- [ ] List responses use the repository-standard Spring `Page<MarketTradeHistoryDTO>` JSON shape and support zero-based `page`, `size`, and repeated `sort=property,direction` query parameters.
+- [ ] Default list ordering is newest first by `executedAt,DESC`, then `id,DESC`.
 - [ ] `GET /api/market/trades/{id}` returns the matching trade history record or repository-standard not-found behavior.
 - [ ] Both endpoints require `api:read` and are not permitted by the broad public GET API rule.
 - [ ] `GET /api/market/snapshot` remains public.
@@ -91,4 +93,3 @@ Run from `java/`.
 `feat(craftalism-api): expose market trade history reads`
 
 ## Completion Notes
-

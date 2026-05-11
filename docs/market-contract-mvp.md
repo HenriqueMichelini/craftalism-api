@@ -234,7 +234,9 @@ List filters:
 - `executedFrom`
 - `executedTo`
 
-List responses are pageable. `executedFrom` and `executedTo` are inclusive instant bounds.
+List responses use the repository-standard Spring `Page<MarketTradeHistoryDTO>` JSON shape and support Spring Data pageable query parameters: zero-based `page`, `size`, and repeated `sort=property,direction` values. The default ordering is newest first by `executedAt,DESC`, then `id,DESC` for deterministic ordering when multiple trades share the same execution timestamp.
+
+`executedFrom` and `executedTo` are inclusive instant bounds.
 
 Trade history record:
 

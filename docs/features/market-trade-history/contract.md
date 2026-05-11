@@ -33,7 +33,7 @@ Define repo-local backend ownership, stable rules, and validation boundaries for
 ## Domain Rules
 
 - A trade history record represents one committed successful market execution.
-- Records include `playerUuid`, `itemId`, `side`, `quantity`, `unitPrice`, `totalPrice`, `currency`, `snapshotVersion`, and `executedAt`.
+- Records include `id`, `playerUuid`, `itemId`, `side`, `quantity`, `unitPrice`, `totalPrice`, `currency`, `snapshotVersion`, and `executedAt`.
 - `side` uses the existing market side values.
 - Monetary values use the same string-encoded integer representation as market quote and execute DTOs.
 - `snapshotVersion` remains opaque and must not be parsed by clients.
@@ -67,6 +67,14 @@ Define repo-local backend ownership, stable rules, and validation boundaries for
 - pageable request parameters
 
 Filters are optional and composable. `executedFrom` and `executedTo` are inclusive instant bounds.
+
+Pageable requests use Spring Data pageable query parameters:
+
+- `page`: zero-based page index
+- `size`: page size
+- `sort`: repeated `property,direction` values
+
+List responses use the repository-standard Spring `Page<MarketTradeHistoryDTO>` JSON shape. The default ordering is newest first by `executedAt,DESC`, then `id,DESC` for deterministic ordering when multiple trades share the same execution timestamp.
 
 ## Security and Permission Rules
 
