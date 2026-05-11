@@ -205,6 +205,65 @@ Required semantics:
 
 ---
 
+## Trade History Contract
+
+Trade history is API-side operational history for completed market executions. It is not a quote feed and is not a public market snapshot.
+
+List endpoint:
+
+```text
+GET /api/market/trades
+```
+
+Detail endpoint:
+
+```text
+GET /api/market/trades/{id}
+```
+
+Access:
+
+- Requires `api:read`.
+- Must not be public like `GET /api/market/snapshot`.
+
+List filters:
+
+- `playerUuid`
+- `itemId`
+- `side`
+- `executedFrom`
+- `executedTo`
+
+List responses are pageable. `executedFrom` and `executedTo` are inclusive instant bounds.
+
+Trade history record:
+
+```json
+{
+  "id": 123,
+  "playerUuid": "220e8400-e29b-41d4-a716-446655440000",
+  "itemId": "wheat",
+  "side": "BUY",
+  "quantity": 32,
+  "unitPrice": "50000",
+  "totalPrice": "1600000",
+  "currency": "coins",
+  "snapshotVersion": "opaque-version-token",
+  "executedAt": "2026-04-12T18:31:05Z"
+}
+```
+
+Required semantics:
+
+- A trade history record represents one committed successful `/api/market/execute`.
+- The record is persisted in the same transaction as the successful execute after the trade is applied.
+- Rejected attempts, pending quotes, expired quotes, and quote lifecycle records are not trade history.
+- Read endpoints expose only committed successful executions.
+- `snapshotVersion` remains opaque to clients.
+- Monetary values use the same string-encoded integer representation as quote and execute responses.
+
+---
+
 ## Rejection Contract
 
 Response:
