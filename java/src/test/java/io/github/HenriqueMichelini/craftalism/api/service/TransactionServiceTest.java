@@ -5,22 +5,33 @@ import static org.mockito.Mockito.*;
 
 import io.github.HenriqueMichelini.craftalism.api.dto.TransactionRequestDTO;
 import io.github.HenriqueMichelini.craftalism.api.dto.TransactionResponseDTO;
+import io.github.HenriqueMichelini.craftalism.api.dto.TransactionFilterDTO;
 import io.github.HenriqueMichelini.craftalism.api.exceptions.InvalidAmountException;
 import io.github.HenriqueMichelini.craftalism.api.exceptions.PlayerNotFoundException;
+import io.github.HenriqueMichelini.craftalism.api.exceptions.TableFilterValidationException;
 import io.github.HenriqueMichelini.craftalism.api.exceptions.TransactionNotFoundException;
 import io.github.HenriqueMichelini.craftalism.api.mapper.TransactionMapper;
 import io.github.HenriqueMichelini.craftalism.api.model.Transaction;
 import io.github.HenriqueMichelini.craftalism.api.repository.PlayerRepository;
 import io.github.HenriqueMichelini.craftalism.api.repository.TransactionRepository;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentMatchers;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 
 @ExtendWith(MockitoExtension.class)
 class TransactionServiceTest {
@@ -36,6 +47,22 @@ class TransactionServiceTest {
 
     @InjectMocks
     private TransactionService service;
+
+    private TransactionFilterDTO emptyFilter;
+
+    @BeforeEach
+    void setUp() {
+        emptyFilter = new TransactionFilterDTO(
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
+    }
 
     @Test
     void processTransaction_success_savesAndReturnsMappedDto() {
@@ -135,6 +162,142 @@ class TransactionServiceTest {
         assertSame(txs, result);
         verify(repository).findAll();
         verifyNoInteractions(mapper);
+    }
+
+    @Test
+    void findTransactions_withoutSort_appliesDefaultSortAndMapsPage() {
+        Transaction tx = mock(Transaction.class);
+        TransactionResponseDTO dto = mock(TransactionResponseDTO.class);
+        PageRequest pageable = PageRequest.of(0, 20);
+        when(repository.findAll(
+            ArgumentMatchers.<Specification<Transaction>>any(),
+            any(Pageable.class)
+        )).thenReturn(new PageImpl<>(List.of(tx)));
+        when(mapper.toDto(tx)).thenReturn(dto);
+
+        Page<TransactionResponseDTO> result = service.findTransactions(
+            emptyFilter,
+            pageable
+        );
+
+        assertEquals(List.of(dto), result.getContent());
+        ArgumentCaptor<Pageable> pageableCaptor = ArgumentCaptor.forClass(
+            Pageable.class
+        );
+        verify(repository).findAll(
+            ArgumentMatchers.<Specification<Transaction>>any(),
+            pageableCaptor.capture()
+        );
+        assertEquals(
+            Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("id")),
+            pageableCaptor.getValue().getSort()
+        );
+    }
+
+    @Test
+    void findTransactions_withExplicitAllowedSort_preservesSort() {
+        PageRequest pageable = PageRequest.of(
+            1,
+            10,
+            Sort.by(Sort.Order.asc("amount"))
+        );
+        when(repository.findAll(
+            ArgumentMatchers.<Specification<Transaction>>any(),
+            any(Pageable.class)
+        )).thenReturn(Page.empty(pageable));
+
+        service.findTransactions(emptyFilter, pageable);
+
+        ArgumentCaptor<Pageable> pageableCaptor = ArgumentCaptor.forClass(
+            Pageable.class
+        );
+        verify(repository).findAll(
+            ArgumentMatchers.<Specification<Transaction>>any(),
+            pageableCaptor.capture()
+        );
+        assertEquals(pageable.getSort(), pageableCaptor.getValue().getSort());
+    }
+
+    @Test
+    void findTransactions_acceptsComposableFiltersBeforePaging() {
+        UUID from = UUID.randomUUID();
+        UUID to = UUID.randomUUID();
+        TransactionFilterDTO filter = new TransactionFilterDTO(
+            from.toString().substring(0, 8),
+            "contains",
+            to.toString(),
+            "exact",
+            100L,
+            500L,
+            Instant.parse("2026-05-01T00:00:00Z"),
+            Instant.parse("2026-05-12T23:59:59Z")
+        );
+        PageRequest pageable = PageRequest.of(0, 5);
+        when(repository.findAll(
+            ArgumentMatchers.<Specification<Transaction>>any(),
+            any(Pageable.class)
+        )).thenReturn(Page.empty(pageable));
+
+        service.findTransactions(filter, pageable);
+
+        verify(repository).findAll(
+            ArgumentMatchers.<Specification<Transaction>>any(),
+            any(Pageable.class)
+        );
+    }
+
+    @Test
+    void findTransactions_rejectsInvalidRangesAndSort() {
+        assertThrows(TableFilterValidationException.class, () ->
+            service.findTransactions(
+                new TransactionFilterDTO(
+                    null,
+                    null,
+                    null,
+                    null,
+                    500L,
+                    100L,
+                    null,
+                    null
+                ),
+                PageRequest.of(0, 20)
+            )
+        );
+
+        assertThrows(TableFilterValidationException.class, () ->
+            service.findTransactions(
+                emptyFilter,
+                PageRequest.of(0, 20, Sort.by("unsupported"))
+            )
+        );
+
+        verify(repository, never()).findAll(
+            ArgumentMatchers.<Specification<Transaction>>any(),
+            any(Pageable.class)
+        );
+    }
+
+    @Test
+    void findTransactions_rejectsInvalidExactUuid() {
+        TransactionFilterDTO filter = new TransactionFilterDTO(
+            "not-a-uuid",
+            "exact",
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
+
+        assertThrows(TableFilterValidationException.class, () ->
+            service.findTransactions(filter, PageRequest.of(0, 20))
+        );
+
+        verify(repository, never()).findAll(
+            ArgumentMatchers.<Specification<Transaction>>any(),
+            any(Pageable.class)
+        );
     }
 
     @Test

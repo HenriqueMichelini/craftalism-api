@@ -72,17 +72,25 @@ public class MarketController {
     )
     @GetMapping("/trades")
     public ResponseEntity<Page<MarketTradeHistoryDTO>> getTrades(
-        @RequestParam(required = false) UUID playerUuid,
+        @RequestParam(required = false) String playerUuid,
+        @RequestParam(required = false) String playerUuidMatch,
         @RequestParam(required = false) String itemId,
+        @RequestParam(required = false) String itemIdMatch,
         @RequestParam(required = false) MarketSide side,
+        @RequestParam(required = false) Long minTotalPrice,
+        @RequestParam(required = false) Long maxTotalPrice,
         @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant executedFrom,
         @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant executedTo,
         Pageable pageable
     ) {
         MarketTradeHistoryFilterDTO filter = new MarketTradeHistoryFilterDTO(
             playerUuid,
+            playerUuidMatch,
             itemId,
+            itemIdMatch,
             side,
+            minTotalPrice,
+            maxTotalPrice,
             executedFrom,
             executedTo
         );

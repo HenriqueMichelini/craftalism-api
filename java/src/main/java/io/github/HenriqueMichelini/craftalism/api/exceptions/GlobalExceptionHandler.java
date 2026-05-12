@@ -15,6 +15,7 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.context.request.ServletWebRequest;
 import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
@@ -73,9 +74,32 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         ConstraintViolationException ex,
         HttpServletRequest request
     ) {
+        return validationProblem(ex.getMessage(), request);
+    }
+
+    @ExceptionHandler(TableFilterValidationException.class)
+    public ProblemDetail handleTableFilterValidation(
+        TableFilterValidationException ex,
+        HttpServletRequest request
+    ) {
+        return validationProblem(ex.getMessage(), request);
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ProblemDetail handleTypeMismatch(
+        MethodArgumentTypeMismatchException ex,
+        HttpServletRequest request
+    ) {
+        return validationProblem("Invalid request parameter: " + ex.getName(), request);
+    }
+
+    private ProblemDetail validationProblem(
+        String message,
+        HttpServletRequest request
+    ) {
         ProblemDetail problem = buildProblemDetail(
             HttpStatus.BAD_REQUEST,
-            ex.getMessage(),
+            message,
             request
         );
 

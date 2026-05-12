@@ -9,6 +9,7 @@ import io.github.HenriqueMichelini.craftalism.api.mapper.TransactionMapper;
 import io.github.HenriqueMichelini.craftalism.api.model.Transaction;
 import io.github.HenriqueMichelini.craftalism.api.service.TransactionService;
 import java.net.URI;
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -18,6 +19,9 @@ import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
@@ -47,25 +51,47 @@ public class TransactionControllerTest {
     @InjectMocks
     private TransactionController controller;
 
-    // @Test
-    // void getAllTransactions_returnsOkAndMappedList() {
-    //     Transaction tx = mock(Transaction.class);
-    //     TransactionResponseDTO dto = mock(TransactionResponseDTO.class);
+    @Test
+    void getAllTransactions_returnsOkAndFilteredPage() {
+        TransactionResponseDTO dto = mock(TransactionResponseDTO.class);
+        PageRequest pageable = PageRequest.of(0, 20);
+        Page<TransactionResponseDTO> page = new PageImpl<>(List.of(dto));
+        Instant createdFrom = Instant.parse("2026-05-01T00:00:00Z");
+        Instant createdTo = Instant.parse("2026-05-12T23:59:59Z");
 
-    //     when(service.getAllTransactions()).thenReturn(List.of(tx));
-    //     when(mapper.toDto(any())).thenReturn(dto);
+        when(service.findTransactions(any(), eq(pageable))).thenReturn(page);
 
-    //     ResponseEntity<List<TransactionResponseDTO>> resp =
-    //         controller.getAllTransactions();
+        ResponseEntity<Page<TransactionResponseDTO>> resp =
+            controller.getAllTransactions(
+                "550e8400",
+                "contains",
+                "550e8400-e29b-41d4-a716-446655440001",
+                "exact",
+                100L,
+                500L,
+                createdFrom,
+                createdTo,
+                pageable
+            );
 
-    //     assertEquals(HttpStatus.OK, resp.getStatusCode());
-    //     assertNotNull(resp.getBody());
-    //     assertEquals(1, resp.getBody().size());
-    //     assertSame(dto, resp.getBody().get(0));
-
-    //     verify(service, times(1)).getAllTransactions();
-    //     verify(mapper, times(1)).toDto(tx);
-    // }
+        assertEquals(HttpStatus.OK, resp.getStatusCode());
+        assertSame(page, resp.getBody());
+        verify(service).findTransactions(
+            argThat(filter ->
+                filter.fromPlayerUuid().equals("550e8400") &&
+                filter.fromPlayerUuidMatch().equals("contains") &&
+                filter.toPlayerUuid().equals(
+                    "550e8400-e29b-41d4-a716-446655440001"
+                ) &&
+                filter.toPlayerUuidMatch().equals("exact") &&
+                filter.minAmount().equals(100L) &&
+                filter.maxAmount().equals(500L) &&
+                filter.createdFrom().equals(createdFrom) &&
+                filter.createdTo().equals(createdTo)
+            ),
+            eq(pageable)
+        );
+    }
 
     @Test
     void getTransactionById_returnsOkAndMappedDto() {

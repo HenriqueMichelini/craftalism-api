@@ -1,5 +1,6 @@
 package io.github.HenriqueMichelini.craftalism.api.controller;
 
+import io.github.HenriqueMichelini.craftalism.api.dto.TransactionFilterDTO;
 import io.github.HenriqueMichelini.craftalism.api.dto.TransactionRequestDTO;
 import io.github.HenriqueMichelini.craftalism.api.dto.TransactionResponseDTO;
 import io.github.HenriqueMichelini.craftalism.api.mapper.TransactionMapper;
@@ -15,9 +16,13 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import java.time.Instant;
 import java.net.URI;
 import java.util.List;
 import java.util.UUID;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
@@ -63,9 +68,28 @@ public class TransactionController {
         }
     )
     @GetMapping
-    public ResponseEntity<List<TransactionResponseDTO>> getAllTransactions() {
-        List<Transaction> transactions = service.getAllTransactions();
-        return ResponseEntity.ok(mapper.toDto(transactions));
+    public ResponseEntity<Page<TransactionResponseDTO>> getAllTransactions(
+        @RequestParam(required = false) String fromPlayerUuid,
+        @RequestParam(required = false) String fromPlayerUuidMatch,
+        @RequestParam(required = false) String toPlayerUuid,
+        @RequestParam(required = false) String toPlayerUuidMatch,
+        @RequestParam(required = false) Long minAmount,
+        @RequestParam(required = false) Long maxAmount,
+        @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant createdFrom,
+        @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant createdTo,
+        Pageable pageable
+    ) {
+        TransactionFilterDTO filter = new TransactionFilterDTO(
+            fromPlayerUuid,
+            fromPlayerUuidMatch,
+            toPlayerUuid,
+            toPlayerUuidMatch,
+            minAmount,
+            maxAmount,
+            createdFrom,
+            createdTo
+        );
+        return ResponseEntity.ok(service.findTransactions(filter, pageable));
     }
 
     @Operation(

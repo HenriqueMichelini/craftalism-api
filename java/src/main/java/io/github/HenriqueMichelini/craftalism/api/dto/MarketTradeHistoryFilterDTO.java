@@ -1,12 +1,15 @@
 package io.github.HenriqueMichelini.craftalism.api.dto;
 
 import java.time.Instant;
-import java.util.UUID;
 
 public record MarketTradeHistoryFilterDTO(
-    UUID playerUuid,
+    String playerUuid,
+    String playerUuidMatch,
     String itemId,
+    String itemIdMatch,
     MarketSide side,
+    Long minTotalPrice,
+    Long maxTotalPrice,
     Instant executedFrom,
     Instant executedTo
 ) {}

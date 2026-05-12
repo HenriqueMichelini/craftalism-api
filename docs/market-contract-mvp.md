@@ -229,14 +229,26 @@ Access:
 List filters:
 
 - `playerUuid`
+- `playerUuidMatch`
 - `itemId`
+- `itemIdMatch`
 - `side`
+- `minTotalPrice`
+- `maxTotalPrice`
 - `executedFrom`
 - `executedTo`
 
-List responses use the repository-standard Spring `Page<MarketTradeHistoryDTO>` JSON shape and support Spring Data pageable query parameters: zero-based `page`, `size`, and repeated `sort=property,direction` values. The default ordering is newest first by `executedAt,DESC`, then `id,DESC` for deterministic ordering when multiple trades share the same execution timestamp.
+All filters are optional and composable. Filters apply before pagination and
+sorting. Text match modes accept `contains` and
+`exact`; default mode is `contains` when `playerUuid` or `itemId` is present and
+its match mode parameter is omitted. UUID `exact` matching requires a valid UUID
+value. `side` uses canonical `BUY` or `SELL`; dashboard-owned `type`
+terminology is not an API alias. `minTotalPrice` and `maxTotalPrice` are
+inclusive non-negative integer bounds. `executedFrom` and `executedTo` are
+inclusive instant bounds. Invalid filter values return the repository-standard
+validation `ProblemDetail` response with HTTP `400`.
 
-`executedFrom` and `executedTo` are inclusive instant bounds.
+List responses use the repository-standard Spring `Page<MarketTradeHistoryDTO>` JSON shape and support Spring Data pageable query parameters: zero-based `page`, `size`, and repeated `sort=property,direction` values. Empty filtered and unfiltered results return HTTP `200` with an empty `content` array and page metadata. Supported sort properties are `id`, `playerUuid`, `itemId`, `side`, `quantity`, `unitPrice`, `totalPrice`, and `executedAt`. The default ordering is newest first by `executedAt,DESC`, then `id,DESC` for deterministic ordering when multiple trades share the same execution timestamp.
 
 Trade history record:
 

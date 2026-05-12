@@ -133,8 +133,12 @@ class MarketContractIntegrationTest {
                 get("/api/market/trades")
                     .with(playerJwt())
                     .param("playerUuid", playerUuid.toString())
+                    .param("playerUuidMatch", "exact")
                     .param("itemId", "wheat")
+                    .param("itemIdMatch", "exact")
                     .param("side", "BUY")
+                    .param("minTotalPrice", "50")
+                    .param("maxTotalPrice", "50")
                     .param("executedFrom", "2026-05-01T10:00:00Z")
                     .param("executedTo", "2026-05-01T10:00:00Z")
             )
@@ -155,6 +159,18 @@ class MarketContractIntegrationTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.id").value(first.getId()))
             .andExpect(jsonPath("$.itemId").value("wheat"));
+    }
+
+    @Test
+    void tradeHistory_invalidDashboardFilterReturnsValidationProblem() throws Exception {
+        mockMvc
+            .perform(
+                get("/api/market/trades")
+                    .param("itemId", "wheat")
+                    .param("itemIdMatch", "prefix")
+            )
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.type").value("https://api.craftalism.com/errors/validation"));
     }
 
     @Test

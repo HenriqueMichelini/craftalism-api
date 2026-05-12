@@ -1,8 +1,9 @@
-# Table Filters API Contract Plan
+# Table Filters API Contract Evidence
 
 ## Purpose
 
-Define the API-side filtering contract required to unblock `craftalism-dashboard` table filter `CARD-001`.
+Define the implemented API-side filtering contract required to unblock
+`craftalism-dashboard` table filter `CARD-001`.
 
 The dashboard needs stable backend-owned semantics before it can build API-backed filter controls for Transactions and Market Trades. This repository owns the API behavior, validation, pagination, sorting, response shapes, and backend tests for the affected endpoints.
 
@@ -13,20 +14,28 @@ Affected API resources:
 - `GET /api/transactions`
 - `GET /api/market/trades`
 
-This plan does not implement production code. It defines the target contract and the implementation cards needed to make the contract real.
+This document records repo-local API behavior implemented by
+`craftalism-api`. Shared-root contract publication remains owned outside this
+repository.
 
 ## Existing API Evidence
 
-`GET /api/market/trades` already supports pageable, filterable reads with:
+`GET /api/market/trades` supports pageable, filterable reads with:
 
 - `playerUuid`
+- `playerUuidMatch`
 - `itemId`
+- `itemIdMatch`
 - `side`
+- `minTotalPrice`
+- `maxTotalPrice`
 - `executedFrom`
 - `executedTo`
 - Spring Data `page`, `size`, and repeated `sort=property,direction`
 
-`GET /api/transactions` currently returns an unpaged `List<TransactionResponseDTO>` and separate sender/receiver lookup routes. It needs a paged, filterable list contract before dashboard filters can safely consume it.
+`GET /api/transactions` returns a paged, filterable
+`Page<TransactionResponseDTO>` for dashboard table reads. Separate transaction
+detail and sender/receiver lookup routes remain available.
 
 ## Query Parameter Format
 
@@ -197,7 +206,7 @@ Adding filters must not weaken write-scope requirements for protected write rout
 - Existing transaction detail and sender/receiver lookup routes remain available.
 - Existing unfiltered list requests remain supported.
 - `GET /api/market/trades` keeps its current canonical filter names and `Page<MarketTradeHistoryDTO>` response shape.
-- If `GET /api/transactions` changes from `List<TransactionResponseDTO>` to `Page<TransactionResponseDTO>`, consumers must be updated in the same release plan or a compatibility endpoint/window must be documented before implementation.
+- `GET /api/transactions` now returns the repository-standard `Page<TransactionResponseDTO>` JSON shape for list reads.
 
 ## Testing Strategy
 
@@ -225,6 +234,20 @@ Security tests should confirm public read access remains available and write aut
 - `CARD-003`: Extend market trade history filters for dashboard table controls.
 - `CARD-004`: Prepare shared table filter contract evidence for dashboard consumption.
 
+## Shared Contract Follow-Up
+
+Shared-root contract changes are outside this repository. The owning
+shared-contract repository should promote this API evidence for
+`craftalism-dashboard` consumption, including:
+
+- `GET /api/transactions` filter query parameters, validation behavior,
+  pagination, sorting, and `Page<TransactionResponseDTO>` response shape.
+- `GET /api/market/trades` filter query parameters, validation behavior,
+  pagination, sorting, and `Page<MarketTradeHistoryDTO>` response shape.
+- The rule that API filters apply before pagination and sorting.
+- Canonical API `side` values `BUY` and `SELL`; dashboard-owned `type`
+  terminology remains a dashboard mapping, not an API alias.
+
 ## Assumptions
 
 - Spring Data `Page<T>` is the repository-standard response shape for pageable table endpoints.
@@ -235,4 +258,3 @@ Security tests should confirm public read access remains available and write aut
 ## Open Questions
 
 - Should unsupported query parameters remain ignored by Spring MVC defaults or be rejected explicitly for stricter dashboard feedback?
-- Should `GET /api/transactions` preserve a legacy list response through a separate endpoint during the transition to `Page<TransactionResponseDTO>`?

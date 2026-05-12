@@ -7,6 +7,7 @@ import io.github.HenriqueMichelini.craftalism.api.dto.MarketSide;
 import io.github.HenriqueMichelini.craftalism.api.dto.MarketTradeHistoryDTO;
 import io.github.HenriqueMichelini.craftalism.api.dto.MarketTradeHistoryFilterDTO;
 import io.github.HenriqueMichelini.craftalism.api.exceptions.MarketTradeHistoryNotFoundException;
+import io.github.HenriqueMichelini.craftalism.api.exceptions.TableFilterValidationException;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketTradeHistory;
 import io.github.HenriqueMichelini.craftalism.api.repository.MarketTradeHistoryRepository;
 import java.time.Instant;
@@ -52,9 +53,13 @@ class MarketTradeHistoryReadServiceTest {
 
         Page<MarketTradeHistoryDTO> page = service.findTrades(
             new MarketTradeHistoryFilterDTO(
-                PLAYER_UUID,
+                PLAYER_UUID.toString(),
+                "exact",
                 "wheat",
+                "exact",
                 MarketSide.BUY,
+                null,
+                null,
                 Instant.parse("2026-05-01T10:00:00Z"),
                 Instant.parse("2026-05-01T11:00:00Z")
             ),
@@ -64,6 +69,106 @@ class MarketTradeHistoryReadServiceTest {
         assertEquals(2, page.getTotalElements());
         assertEquals(newerMatch.getId(), page.getContent().get(0).id());
         assertEquals(olderMatch.getId(), page.getContent().get(1).id());
+    }
+
+    @Test
+    void findTrades_supportsContainsMatchModesAndTotalPriceBounds() {
+        MarketTradeHistory match = repository.save(
+            history(
+                PLAYER_UUID,
+                "polished_wheat",
+                MarketSide.BUY,
+                Instant.parse("2026-05-01T10:00:00Z")
+            )
+        );
+        repository.save(
+            history(
+                UUID.fromString("220e8400-e29b-41d4-a716-446655440000"),
+                "polished_wheat",
+                MarketSide.BUY,
+                Instant.parse("2026-05-01T11:00:00Z")
+            )
+        );
+        repository.save(
+            history(
+                PLAYER_UUID,
+                "carrot",
+                MarketSide.BUY,
+                Instant.parse("2026-05-01T12:00:00Z")
+            )
+        );
+
+        Page<MarketTradeHistoryDTO> page = service.findTrades(
+            new MarketTradeHistoryFilterDTO(
+                "110e8400",
+                "contains",
+                "WHEAT",
+                "contains",
+                MarketSide.BUY,
+                40L,
+                60L,
+                null,
+                null
+            ),
+            PageRequest.of(0, 20)
+        );
+
+        assertEquals(1, page.getTotalElements());
+        assertEquals(match.getId(), page.getContent().get(0).id());
+    }
+
+    @Test
+    void findTrades_rejectsInvalidFilters() {
+        assertThrows(TableFilterValidationException.class, () ->
+            service.findTrades(
+                new MarketTradeHistoryFilterDTO(
+                    "not-a-uuid",
+                    "exact",
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null
+                ),
+                PageRequest.of(0, 20)
+            )
+        );
+
+        assertThrows(TableFilterValidationException.class, () ->
+            service.findTrades(
+                new MarketTradeHistoryFilterDTO(
+                    null,
+                    null,
+                    "wheat",
+                    "prefix",
+                    null,
+                    null,
+                    null,
+                    null,
+                    null
+                ),
+                PageRequest.of(0, 20)
+            )
+        );
+
+        assertThrows(TableFilterValidationException.class, () ->
+            service.findTrades(
+                new MarketTradeHistoryFilterDTO(
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    100L,
+                    50L,
+                    null,
+                    null
+                ),
+                PageRequest.of(0, 20)
+            )
+        );
     }
 
     @Test

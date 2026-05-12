@@ -59,13 +59,22 @@ Define repo-local backend ownership, stable rules, and validation boundaries for
 `GET /api/market/trades` supports:
 
 - `playerUuid`
+- `playerUuidMatch`
 - `itemId`
+- `itemIdMatch`
 - `side`
+- `minTotalPrice`
+- `maxTotalPrice`
 - `executedFrom`
 - `executedTo`
 - pageable request parameters
 
-Filters are optional and composable. `executedFrom` and `executedTo` are inclusive instant bounds.
+Filters are optional and composable. Text match modes accept `contains` and
+`exact`; default mode is `contains` when a text filter is present and its match
+mode is omitted. UUID `exact` matching requires a valid UUID value. `side` uses
+canonical `BUY` or `SELL`; dashboard-owned `type` terminology is not an API
+alias. `minTotalPrice` and `maxTotalPrice` are inclusive non-negative integer
+bounds. `executedFrom` and `executedTo` are inclusive instant bounds.
 
 Pageable requests use Spring Data pageable query parameters:
 

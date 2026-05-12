@@ -17,7 +17,6 @@ import io.github.HenriqueMichelini.craftalism.api.dto.MarketTradeHistoryFilterDT
 import io.github.HenriqueMichelini.craftalism.api.service.MarketService;
 import io.github.HenriqueMichelini.craftalism.api.service.MarketTradeHistoryReadService;
 import java.time.Instant;
-import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
@@ -85,7 +84,7 @@ class MarketControllerTest {
 
     @Test
     void getTrades_returnsOk() {
-        UUID playerUuid = UUID.fromString("110e8400-e29b-41d4-a716-446655440000");
+        String playerUuid = "110e8400-e29b-41d4-a716-446655440000";
         Instant executedFrom = Instant.parse("2026-05-01T00:00:00Z");
         Instant executedTo = Instant.parse("2026-05-02T00:00:00Z");
         Pageable pageable = PageRequest.of(0, 20);
@@ -94,8 +93,12 @@ class MarketControllerTest {
             tradeHistoryReadService.findTrades(
                 new MarketTradeHistoryFilterDTO(
                     playerUuid,
+                    "exact",
                     "wheat",
+                    "contains",
                     MarketSide.BUY,
+                    10L,
+                    100L,
                     executedFrom,
                     executedTo
                 ),
@@ -105,8 +108,12 @@ class MarketControllerTest {
 
         ResponseEntity<Page<MarketTradeHistoryDTO>> result = controller.getTrades(
             playerUuid,
+            "exact",
             "wheat",
+            "contains",
             MarketSide.BUY,
+            10L,
+            100L,
             executedFrom,
             executedTo,
             pageable
@@ -117,8 +124,12 @@ class MarketControllerTest {
         verify(tradeHistoryReadService).findTrades(
             new MarketTradeHistoryFilterDTO(
                 playerUuid,
+                "exact",
                 "wheat",
+                "contains",
                 MarketSide.BUY,
+                10L,
+                100L,
                 executedFrom,
                 executedTo
             ),
