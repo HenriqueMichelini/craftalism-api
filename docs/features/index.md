@@ -18,6 +18,7 @@ Feature `index.md`, `notes.md`, card indexes, wiki pages, ADRs, and architecture
 | `balance-integrity` | planned | Preserve authoritative non-negative balance invariants across service, API, and persistence boundaries. |
 | `market-pressure-ladder` | planned | Replace legacy segment stock behavior with authoritative pressure-ladder market pricing and state. |
 | `market-trade-history` | planned | Persist and expose committed market executions for dashboard and ops trade-history reads. |
+| `table-filters` | planned | Define and implement API-backed table filter contracts for dashboard-admin resource tables. |
 
 ## Feature Documentation Rules
 
