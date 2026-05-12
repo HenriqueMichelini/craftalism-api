@@ -174,6 +174,39 @@ class MarketContractIntegrationTest {
     }
 
     @Test
+    void tradeHistory_uuidContainsFilterUsesCanonicalUuidText() throws Exception {
+        MarketTradeHistory match = marketTradeHistoryRepository.save(
+            tradeHistory(playerUuid, "wheat", MarketSide.BUY, Instant.parse("2026-05-01T10:00:00Z"))
+        );
+        marketTradeHistoryRepository.save(
+            tradeHistory(UUID.fromString("330e8400-e29b-41d4-a716-446655440000"), "wheat", MarketSide.BUY, Instant.parse("2026-05-01T11:00:00Z"))
+        );
+
+        mockMvc
+            .perform(
+                get("/api/market/trades")
+                    .param("playerUuid", "220E8400")
+                    .param("playerUuidMatch", "contains")
+            )
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.content.length()").value(1))
+            .andExpect(jsonPath("$.content[0].id").value(match.getId()))
+            .andExpect(jsonPath("$.content[0].playerUuid").value(playerUuid.toString()));
+    }
+
+    @Test
+    void tradeHistory_invalidExactUuidReturnsValidationProblem() throws Exception {
+        mockMvc
+            .perform(
+                get("/api/market/trades")
+                    .param("playerUuid", "abc")
+                    .param("playerUuidMatch", "exact")
+            )
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.type").value("https://api.craftalism.com/errors/validation"));
+    }
+
+    @Test
     void quote_requiresWriteScope() throws Exception {
         String snapshotVersion = snapshotVersion();
 

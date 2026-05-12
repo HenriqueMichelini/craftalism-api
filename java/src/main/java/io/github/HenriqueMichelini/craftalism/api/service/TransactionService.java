@@ -18,6 +18,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
+import org.hibernate.query.criteria.JpaExpression;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -193,7 +194,9 @@ public class TransactionService {
                 return builder.equal(root.get(property), parseUuid(value));
             }
 
-            Expression<String> uuidText = builder.lower(root.get(property).as(String.class));
+            Expression<String> uuidText = builder.lower(
+                ((JpaExpression<?>) root.get(property)).cast(String.class)
+            );
             return builder.like(
                 uuidText,
                 "%" + value.trim().toLowerCase(Locale.ROOT) + "%"

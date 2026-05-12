@@ -13,6 +13,7 @@ import java.time.Instant;
 import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
+import org.hibernate.query.criteria.JpaExpression;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -163,7 +164,9 @@ public class MarketTradeHistoryReadService {
                 return builder.equal(root.get("playerUuid"), parseUuid(playerUuid));
             }
 
-            Expression<String> uuidText = builder.lower(root.get("playerUuid").as(String.class));
+            Expression<String> uuidText = builder.lower(
+                ((JpaExpression<?>) root.get("playerUuid")).cast(String.class)
+            );
             return builder.like(
                 uuidText,
                 "%" + playerUuid.trim().toLowerCase(Locale.ROOT) + "%"
