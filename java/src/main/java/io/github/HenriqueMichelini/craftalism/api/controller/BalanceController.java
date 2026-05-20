@@ -118,6 +118,14 @@ public class BalanceController {
                 responseCode = "409",
                 description = "Balance already exists for this UUID"
             ),
+            @ApiResponse(
+                responseCode = "404",
+                description = "Player not found for the given UUID"
+            ),
+            @ApiResponse(
+                responseCode = "422",
+                description = "Invalid amount"
+            ),
         }
     )
     @PostMapping
@@ -166,6 +174,72 @@ public class BalanceController {
     ) {
         Balance updated = service.setBalance(uuid, request.amount());
         return ResponseEntity.ok(mapper.toDto(updated));
+    }
+
+    @Operation(
+        summary = "Update balance amount",
+        description = "Overwrites a player's balance amount. Amount must be zero or positive."
+    )
+    @ApiResponses(
+        {
+            @ApiResponse(
+                responseCode = "200",
+                description = "Balance updated successfully",
+                content = @Content(
+                    schema = @Schema(implementation = BalanceResponseDTO.class)
+                )
+            ),
+            @ApiResponse(
+                responseCode = "400",
+                description = "Invalid request body"
+            ),
+            @ApiResponse(
+                responseCode = "404",
+                description = "Balance not found"
+            ),
+            @ApiResponse(
+                responseCode = "422",
+                description = "Invalid amount"
+            ),
+        }
+    )
+    @PatchMapping("/{uuid}")
+    public ResponseEntity<BalanceResponseDTO> updateBalance(
+        @Parameter(
+            description = "Player balance UUID",
+            example = "550e8400-e29b-41d4-a716-446655440000"
+        ) @PathVariable UUID uuid,
+        @RequestBody @Valid BalanceSetRequestDTO request
+    ) {
+        Balance updated = service.setBalance(uuid, request.amount());
+        return ResponseEntity.ok(mapper.toDto(updated));
+    }
+
+    @Operation(
+        summary = "Delete balance",
+        description = "Deletes an existing player balance."
+    )
+    @ApiResponses(
+        {
+            @ApiResponse(
+                responseCode = "204",
+                description = "Balance deleted successfully"
+            ),
+            @ApiResponse(
+                responseCode = "404",
+                description = "Balance not found"
+            ),
+        }
+    )
+    @DeleteMapping("/{uuid}")
+    public ResponseEntity<Void> deleteBalance(
+        @Parameter(
+            description = "Player balance UUID",
+            example = "550e8400-e29b-41d4-a716-446655440000"
+        ) @PathVariable UUID uuid
+    ) {
+        service.deleteBalance(uuid);
+        return ResponseEntity.noContent().build();
     }
 
     @Operation(

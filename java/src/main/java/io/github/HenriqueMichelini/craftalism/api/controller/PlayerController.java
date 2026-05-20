@@ -2,6 +2,7 @@ package io.github.HenriqueMichelini.craftalism.api.controller;
 
 import io.github.HenriqueMichelini.craftalism.api.dto.PlayerRequestDTO;
 import io.github.HenriqueMichelini.craftalism.api.dto.PlayerResponseDTO;
+import io.github.HenriqueMichelini.craftalism.api.dto.PlayerUpdateRequestDTO;
 import io.github.HenriqueMichelini.craftalism.api.mapper.PlayerMapper;
 import io.github.HenriqueMichelini.craftalism.api.model.Player;
 import io.github.HenriqueMichelini.craftalism.api.service.PlayerService;
@@ -140,7 +141,7 @@ public class PlayerController {
                 description = "Player already exists with the given UUID or name"
             ),
             @ApiResponse(
-                responseCode = "422",
+                responseCode = "400",
                 description = "Invalid player data"
             ),
         }
@@ -160,5 +161,81 @@ public class PlayerController {
         return ResponseEntity.created(
             URI.create("/api/players/" + created.getUuid())
         ).body(mapper.toDto(created));
+    }
+
+    @Operation(
+        summary = "Update player",
+        description = "Updates an existing player's name. UUIDs are immutable."
+    )
+    @ApiResponses(
+        {
+            @ApiResponse(
+                responseCode = "200",
+                description = "Player updated successfully",
+                content = @Content(
+                    schema = @Schema(implementation = PlayerResponseDTO.class)
+                )
+            ),
+            @ApiResponse(
+                responseCode = "404",
+                description = "Player not found for the given UUID"
+            ),
+            @ApiResponse(
+                responseCode = "409",
+                description = "Player already exists with the given name"
+            ),
+            @ApiResponse(
+                responseCode = "400",
+                description = "Invalid player data"
+            ),
+        }
+    )
+    @PatchMapping("/{uuid}")
+    public ResponseEntity<PlayerResponseDTO> updatePlayer(
+        @Parameter(
+            description = "Player unique identifier",
+            example = "550e8400-e29b-41d4-a716-446655440000"
+        ) @PathVariable UUID uuid,
+        @RequestBody(
+            description = "Player data to update",
+            required = true,
+            content = @Content(
+                schema = @Schema(implementation = PlayerUpdateRequestDTO.class)
+            )
+        ) @Valid @org.springframework.web.bind.annotation.RequestBody PlayerUpdateRequestDTO dto
+    ) {
+        Player updated = service.updatePlayer(uuid, dto.name());
+        return ResponseEntity.ok(mapper.toDto(updated));
+    }
+
+    @Operation(
+        summary = "Delete player",
+        description = "Deletes an unreferenced player."
+    )
+    @ApiResponses(
+        {
+            @ApiResponse(
+                responseCode = "204",
+                description = "Player deleted successfully"
+            ),
+            @ApiResponse(
+                responseCode = "404",
+                description = "Player not found for the given UUID"
+            ),
+            @ApiResponse(
+                responseCode = "409",
+                description = "Player is referenced and cannot be deleted"
+            ),
+        }
+    )
+    @DeleteMapping("/{uuid}")
+    public ResponseEntity<Void> deletePlayer(
+        @Parameter(
+            description = "Player unique identifier",
+            example = "550e8400-e29b-41d4-a716-446655440000"
+        ) @PathVariable UUID uuid
+    ) {
+        service.deletePlayer(uuid);
+        return ResponseEntity.noContent().build();
     }
 }

@@ -15,6 +15,7 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.context.request.ServletWebRequest;
 import org.springframework.web.context.request.WebRequest;
@@ -91,6 +92,25 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         HttpServletRequest request
     ) {
         return validationProblem("Invalid request parameter: " + ex.getName(), request);
+    }
+
+    @Override
+    protected ResponseEntity<Object> handleHttpMessageNotReadable(
+        HttpMessageNotReadableException ex,
+        HttpHeaders headers,
+        HttpStatusCode status,
+        WebRequest request
+    ) {
+        HttpServletRequest servletRequest = (
+            (ServletWebRequest) request
+        ).getRequest();
+
+        ProblemDetail problem = validationProblem(
+            "Malformed request body",
+            servletRequest
+        );
+
+        return ResponseEntity.badRequest().body(problem);
     }
 
     private ProblemDetail validationProblem(

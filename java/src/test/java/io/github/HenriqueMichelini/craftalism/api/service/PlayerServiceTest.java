@@ -4,11 +4,15 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 import io.github.HenriqueMichelini.craftalism.api.exceptions.PlayerAlreadyExistsException;
+import io.github.HenriqueMichelini.craftalism.api.exceptions.PlayerInUseException;
+import io.github.HenriqueMichelini.craftalism.api.exceptions.PlayerNameAlreadyExistsException;
 import io.github.HenriqueMichelini.craftalism.api.exceptions.PlayerNotFoundException;
 import io.github.HenriqueMichelini.craftalism.api.model.Player;
+import io.github.HenriqueMichelini.craftalism.api.repository.BalanceRepository;
 import io.github.HenriqueMichelini.craftalism.api.repository.PlayerRepository;
 import java.util.Optional;
 import java.util.UUID;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -21,6 +25,9 @@ class PlayerServiceTest {
 
     @Mock
     private PlayerRepository repository;
+
+    @Mock
+    private BalanceRepository balanceRepository;
 
     @InjectMocks
     private PlayerService service;
@@ -121,5 +128,124 @@ class PlayerServiceTest {
 
         verify(repository).existsById(uuid);
         verify(repository, never()).save(any());
+    }
+
+    @Test
+    void createPlayer_existingName_throwsException() {
+        UUID uuid = UUID.randomUUID();
+        String rawName = " Existing ";
+        String trimmedName = "Existing";
+
+        when(repository.existsById(uuid)).thenReturn(false);
+        when(repository.findByName(trimmedName)).thenReturn(
+            Optional.of(new Player(UUID.randomUUID(), trimmedName))
+        );
+
+        assertThrows(PlayerNameAlreadyExistsException.class, () ->
+            service.createPlayer(uuid, rawName)
+        );
+
+        verify(repository).existsById(uuid);
+        verify(repository).findByName(trimmedName);
+        verify(repository, never()).save(any());
+    }
+
+    @Test
+    void updatePlayer_success_updatesNameOnly() {
+        UUID uuid = UUID.randomUUID();
+        Player player = new Player(uuid, "OldName");
+
+        when(repository.findById(uuid)).thenReturn(Optional.of(player));
+        when(repository.findByName("NewName")).thenReturn(Optional.empty());
+        when(repository.save(player)).thenReturn(player);
+
+        Player result = service.updatePlayer(uuid, " NewName ");
+
+        assertSame(player, result);
+        assertEquals(uuid, result.getUuid());
+        assertEquals("NewName", result.getName());
+        verify(repository).save(player);
+    }
+
+    @Test
+    void updatePlayer_sameNameOnSamePlayer_succeeds() {
+        UUID uuid = UUID.randomUUID();
+        Player player = new Player(uuid, "SameName");
+
+        when(repository.findById(uuid)).thenReturn(Optional.of(player));
+        when(repository.findByName("SameName")).thenReturn(Optional.of(player));
+        when(repository.save(player)).thenReturn(player);
+
+        Player result = service.updatePlayer(uuid, "SameName");
+
+        assertEquals("SameName", result.getName());
+        verify(repository).save(player);
+    }
+
+    @Test
+    void updatePlayer_existingNameOnDifferentPlayer_throwsException() {
+        UUID uuid = UUID.randomUUID();
+        Player player = new Player(uuid, "OldName");
+        Player other = new Player(UUID.randomUUID(), "TakenName");
+
+        when(repository.findById(uuid)).thenReturn(Optional.of(player));
+        when(repository.findByName("TakenName")).thenReturn(Optional.of(other));
+
+        assertThrows(PlayerNameAlreadyExistsException.class, () ->
+            service.updatePlayer(uuid, "TakenName")
+        );
+
+        verify(repository, never()).save(any());
+    }
+
+    @Test
+    void deletePlayer_success_deletesAndFlushes() {
+        UUID uuid = UUID.randomUUID();
+        Player player = new Player(uuid, "DeleteMe");
+
+        when(repository.findById(uuid)).thenReturn(Optional.of(player));
+        when(balanceRepository.existsById(uuid)).thenReturn(false);
+
+        service.deletePlayer(uuid);
+
+        verify(balanceRepository).existsById(uuid);
+        verify(repository).delete(player);
+        verify(repository).flush();
+    }
+
+    @Test
+    void deletePlayer_referencedByBalance_throwsConflictException() {
+        UUID uuid = UUID.randomUUID();
+        Player player = new Player(uuid, "InUse");
+
+        when(repository.findById(uuid)).thenReturn(Optional.of(player));
+        when(balanceRepository.existsById(uuid)).thenReturn(true);
+
+        assertThrows(PlayerInUseException.class, () ->
+            service.deletePlayer(uuid)
+        );
+
+        verify(balanceRepository).existsById(uuid);
+        verify(repository, never()).delete(any());
+        verify(repository, never()).flush();
+    }
+
+    @Test
+    void deletePlayer_otherReferenceViolation_throwsConflictException() {
+        UUID uuid = UUID.randomUUID();
+        Player player = new Player(uuid, "InUse");
+
+        when(repository.findById(uuid)).thenReturn(Optional.of(player));
+        when(balanceRepository.existsById(uuid)).thenReturn(false);
+        doThrow(new DataIntegrityViolationException("fk"))
+            .when(repository)
+            .flush();
+
+        assertThrows(PlayerInUseException.class, () ->
+            service.deletePlayer(uuid)
+        );
+
+        verify(repository).delete(player);
+        verify(repository).flush();
     }
 }

@@ -3,6 +3,7 @@ package io.github.HenriqueMichelini.craftalism.api.service;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -48,7 +49,10 @@ class MarketCatalogInitializerTest {
 
         List<MarketItem> savedItems = new ArrayList<>();
         itemCaptor.getValue().forEach(savedItems::add);
-        assertEquals(11, savedItems.size());
+        assertEquals(
+            new DefaultMarketCatalog().items().size(),
+            savedItems.size()
+        );
         MarketItem wheat = savedItems
             .stream()
             .filter(item -> item.getItemId().equals("wheat"))
@@ -79,6 +83,48 @@ class MarketCatalogInitializerTest {
         assertEquals(900000L, diamond.getBaseUnitPrice());
         assertEquals(450000L, diamond.getMinUnitPrice());
         assertEquals(2700000L, diamond.getMaxUnitPrice());
+    }
+
+    @Test
+    void defaultMarketCatalog_containsRequestedLogsOresAndMobDrops() {
+        List<MarketSeedItem> items = new DefaultMarketCatalog().items();
+
+        assertSeed(items, "spruce_log", "forestry", "Forestry", 25_000L);
+        assertSeed(items, "oak_log", "forestry", "Forestry", 25_000L);
+        assertSeed(items, "birch_log", "forestry", "Forestry", 25_000L);
+        assertSeed(items, "jungle_log", "forestry", "Forestry", 25_000L);
+        assertSeed(items, "acacia_log", "forestry", "Forestry", 45_000L);
+        assertSeed(items, "dark_oak_log", "forestry", "Forestry", 45_000L);
+        assertSeed(items, "mangrove_log", "forestry", "Forestry", 75_000L);
+        assertSeed(items, "cherry_log", "forestry", "Forestry", 75_000L);
+        assertSeed(items, "pale_oak_log", "forestry", "Forestry", 75_000L);
+
+        assertSeed(items, "redstone_dust", "mining", "Mining", 35_000L);
+        assertSeed(items, "lapis_lazuli", "mining", "Mining", 35_000L);
+        assertSeed(items, "emerald", "mining", "Mining", 750_000L);
+
+        assertSeed(items, "rotten_flesh", "mob_drops", "Mob Drops", 2_000L);
+        assertSeed(items, "bone", "mob_drops", "Mob Drops", 8_000L);
+        assertSeed(items, "string", "mob_drops", "Mob Drops", 8_000L);
+        assertSeed(items, "gunpowder", "mob_drops", "Mob Drops", 18_000L);
+        assertSeed(items, "ender_pearl", "mob_drops", "Mob Drops", 45_000L);
+        assertSeed(items, "blaze_rod", "mob_drops", "Mob Drops", 60_000L);
+        assertSeed(items, "ghast_tear", "mob_drops", "Mob Drops", 90_000L);
+        assertSeed(
+            items,
+            "wither_skeleton_skull",
+            "mob_drops",
+            "Mob Drops",
+            250_000L
+        );
+        assertSeed(
+            items,
+            "totem_of_undying",
+            "mob_drops",
+            "Mob Drops",
+            300_000L
+        );
+        assertSeed(items, "trident", "mob_drops", "Mob Drops", 350_000L);
     }
 
     @ParameterizedTest
@@ -243,5 +289,26 @@ class MarketCatalogInitializerTest {
             .priceSensitivity("0.0800")
             .baseRegenQuantity(1L)
             .regenIntervalSeconds(60L);
+    }
+
+    private static void assertSeed(
+        List<MarketSeedItem> items,
+        String itemId,
+        String categoryId,
+        String categoryDisplayName,
+        long baseUnitPrice
+    ) {
+        MarketSeedItem item = items
+            .stream()
+            .filter(seed -> seed.itemId().equals(itemId))
+            .findFirst()
+            .orElseThrow();
+
+        assertEquals(categoryId, item.categoryId());
+        assertEquals(categoryDisplayName, item.categoryDisplayName());
+        assertEquals(baseUnitPrice, item.baseUnitPrice());
+        assertEquals(baseUnitPrice / 2L, item.minUnitPrice());
+        assertEquals(baseUnitPrice * 3L, item.maxUnitPrice());
+        assertTrue(item.baseRegenQuantity() > 0L);
     }
 }

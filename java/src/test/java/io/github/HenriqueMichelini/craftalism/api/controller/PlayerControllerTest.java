@@ -5,6 +5,7 @@ import static org.mockito.Mockito.*;
 
 import io.github.HenriqueMichelini.craftalism.api.dto.PlayerRequestDTO;
 import io.github.HenriqueMichelini.craftalism.api.dto.PlayerResponseDTO;
+import io.github.HenriqueMichelini.craftalism.api.dto.PlayerUpdateRequestDTO;
 import io.github.HenriqueMichelini.craftalism.api.mapper.PlayerMapper;
 import io.github.HenriqueMichelini.craftalism.api.model.Player;
 import io.github.HenriqueMichelini.craftalism.api.service.PlayerService;
@@ -97,5 +98,40 @@ class PlayerControllerTest {
 
         verify(service, times(1)).createPlayer(uuid, name);
         verify(mapper, times(1)).toDto(created);
+    }
+
+    @Test
+    void updatePlayer_returnsOkAndMappedDto() {
+        UUID uuid = UUID.randomUUID();
+        String name = "UPDATED";
+
+        PlayerUpdateRequestDTO req = mock(PlayerUpdateRequestDTO.class);
+        Player updated = mock(Player.class);
+        PlayerResponseDTO dto = mock(PlayerResponseDTO.class);
+
+        when(req.name()).thenReturn(name);
+        when(service.updatePlayer(uuid, name)).thenReturn(updated);
+        when(mapper.toDto(updated)).thenReturn(dto);
+
+        ResponseEntity<PlayerResponseDTO> resp = controller.updatePlayer(
+            uuid,
+            req
+        );
+
+        assertEquals(HttpStatus.OK, resp.getStatusCode());
+        assertSame(dto, resp.getBody());
+        verify(service).updatePlayer(uuid, name);
+        verify(mapper).toDto(updated);
+    }
+
+    @Test
+    void deletePlayer_returnsNoContent() {
+        UUID uuid = UUID.randomUUID();
+
+        ResponseEntity<Void> resp = controller.deletePlayer(uuid);
+
+        assertEquals(HttpStatus.NO_CONTENT, resp.getStatusCode());
+        assertNull(resp.getBody());
+        verify(service).deletePlayer(uuid);
     }
 }

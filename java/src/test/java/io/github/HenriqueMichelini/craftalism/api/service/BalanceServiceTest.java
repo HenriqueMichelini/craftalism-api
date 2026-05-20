@@ -6,6 +6,7 @@ import static org.mockito.Mockito.*;
 import io.github.HenriqueMichelini.craftalism.api.exceptions.*;
 import io.github.HenriqueMichelini.craftalism.api.model.Balance;
 import io.github.HenriqueMichelini.craftalism.api.repository.BalanceRepository;
+import io.github.HenriqueMichelini.craftalism.api.repository.PlayerRepository;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -21,6 +22,9 @@ class BalanceServiceTest {
 
     @Mock
     private BalanceRepository repository;
+
+    @Mock
+    private PlayerRepository playerRepository;
 
     @InjectMocks
     private BalanceService service;
@@ -50,6 +54,7 @@ class BalanceServiceTest {
         UUID uuid = UUID.randomUUID();
         long initialAmount = 0L;
 
+        when(playerRepository.existsById(uuid)).thenReturn(true);
         when(repository.existsById(uuid)).thenReturn(false);
 
         Balance saved = new Balance();
@@ -67,6 +72,7 @@ class BalanceServiceTest {
         assertEquals(uuid, captor.getValue().getUuid());
         assertEquals(0L, captor.getValue().getAmount());
         verify(repository).existsById(uuid);
+        verify(playerRepository).existsById(uuid);
     }
 
     @Test
@@ -74,6 +80,7 @@ class BalanceServiceTest {
         UUID uuid = UUID.randomUUID();
         long initialAmount = 100_000_000L;
 
+        when(playerRepository.existsById(uuid)).thenReturn(true);
         when(repository.existsById(uuid)).thenReturn(false);
 
         Balance saved = new Balance();
@@ -93,6 +100,7 @@ class BalanceServiceTest {
     @Test
     void createBalance_alreadyExists_throwsException() {
         UUID uuid = UUID.randomUUID();
+        when(playerRepository.existsById(uuid)).thenReturn(true);
         when(repository.existsById(uuid)).thenReturn(true);
 
         assertThrows(BalanceAlreadyExistsException.class, () ->
@@ -100,6 +108,22 @@ class BalanceServiceTest {
         );
 
         verify(repository).existsById(uuid);
+        verify(playerRepository).existsById(uuid);
+        verify(repository, never()).save(any());
+    }
+
+    @Test
+    void createBalance_unknownPlayer_throwsPlayerNotFound() {
+        UUID uuid = UUID.randomUUID();
+
+        when(playerRepository.existsById(uuid)).thenReturn(false);
+
+        assertThrows(PlayerNotFoundException.class, () ->
+            service.createBalance(uuid, 0L)
+        );
+
+        verify(playerRepository).existsById(uuid);
+        verify(repository, never()).existsById(any());
         verify(repository, never()).save(any());
     }
 
@@ -337,5 +361,30 @@ class BalanceServiceTest {
             service.createBalance(uuid, -1L)
         );
         verify(repository, never()).save(any());
+    }
+
+    @Test
+    void deleteBalance_success_deletesExistingBalance() {
+        UUID uuid = UUID.randomUUID();
+        Balance balance = new Balance(uuid, 100L);
+
+        when(repository.findById(uuid)).thenReturn(Optional.of(balance));
+
+        service.deleteBalance(uuid);
+
+        verify(repository).delete(balance);
+    }
+
+    @Test
+    void deleteBalance_missing_throwsNotFound() {
+        UUID uuid = UUID.randomUUID();
+
+        when(repository.findById(uuid)).thenReturn(Optional.empty());
+
+        assertThrows(BalanceNotFoundException.class, () ->
+            service.deleteBalance(uuid)
+        );
+
+        verify(repository, never()).delete(any());
     }
 }

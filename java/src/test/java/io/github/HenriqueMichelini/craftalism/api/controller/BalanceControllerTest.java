@@ -160,6 +160,41 @@ class BalanceControllerTest {
     }
 
     @Test
+    void updateBalance_returnsOk() {
+        UUID uuid = UUID.randomUUID();
+        long amount = 500L;
+
+        BalanceSetRequestDTO request = mock(BalanceSetRequestDTO.class);
+        Balance updated = mock(Balance.class);
+        BalanceResponseDTO dto = mock(BalanceResponseDTO.class);
+
+        when(request.amount()).thenReturn(amount);
+        when(service.setBalance(uuid, amount)).thenReturn(updated);
+        when(mapper.toDto(updated)).thenReturn(dto);
+
+        ResponseEntity<BalanceResponseDTO> resp = controller.updateBalance(
+            uuid,
+            request
+        );
+
+        assertEquals(HttpStatus.OK, resp.getStatusCode());
+        assertSame(dto, resp.getBody());
+        verify(service).setBalance(uuid, amount);
+        verify(mapper).toDto(updated);
+    }
+
+    @Test
+    void deleteBalance_returnsNoContent() {
+        UUID uuid = UUID.randomUUID();
+
+        ResponseEntity<Void> resp = controller.deleteBalance(uuid);
+
+        assertEquals(HttpStatus.NO_CONTENT, resp.getStatusCode());
+        assertNull(resp.getBody());
+        verify(service).deleteBalance(uuid);
+    }
+
+    @Test
     void deposit_returnsOk() {
         UUID uuid = UUID.randomUUID();
         long amount = 300L;

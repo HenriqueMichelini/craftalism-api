@@ -5,8 +5,10 @@ import io.github.HenriqueMichelini.craftalism.api.exceptions.BalanceNotFoundExce
 import io.github.HenriqueMichelini.craftalism.api.exceptions.InsufficientFundsException;
 import io.github.HenriqueMichelini.craftalism.api.exceptions.InvalidAmountException;
 import io.github.HenriqueMichelini.craftalism.api.exceptions.InvalidTransferException;
+import io.github.HenriqueMichelini.craftalism.api.exceptions.PlayerNotFoundException;
 import io.github.HenriqueMichelini.craftalism.api.model.Balance;
 import io.github.HenriqueMichelini.craftalism.api.repository.BalanceRepository;
+import io.github.HenriqueMichelini.craftalism.api.repository.PlayerRepository;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
@@ -17,9 +19,14 @@ import org.springframework.transaction.annotation.Transactional;
 public class BalanceService {
 
     private final BalanceRepository repository;
+    private final PlayerRepository playerRepository;
 
-    public BalanceService(BalanceRepository repository) {
+    public BalanceService(
+        BalanceRepository repository,
+        PlayerRepository playerRepository
+    ) {
         this.repository = repository;
+        this.playerRepository = playerRepository;
     }
 
     public List<Balance> getAllBalances() {
@@ -35,6 +42,9 @@ public class BalanceService {
     @Transactional
     public Balance createBalance(UUID uuid, long initialAmount) {
         if (initialAmount < 0) throw new InvalidAmountException();
+        if (!playerRepository.existsById(uuid)) throw new PlayerNotFoundException(
+            uuid
+        );
         if (
             repository.existsById(uuid)
         ) throw new BalanceAlreadyExistsException(uuid);
@@ -103,5 +113,11 @@ public class BalanceService {
         Balance balance = getBalance(uuid);
         balance.setAmount(newAmount);
         return repository.save(balance);
+    }
+
+    @Transactional
+    public void deleteBalance(UUID uuid) {
+        Balance balance = getBalance(uuid);
+        repository.delete(balance);
     }
 }
