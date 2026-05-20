@@ -127,6 +127,34 @@ class MarketCatalogInitializerTest {
         assertSeed(items, "trident", "mob_drops", "Mob Drops", 350_000L);
     }
 
+    @Test
+    void defaultMarketCatalog_containsRequestedFarmingItems() {
+        List<MarketSeedItem> items = new DefaultMarketCatalog().items();
+
+        assertSeed(items, "melon_slice", "farming", "Farming", 8_000L);
+        assertSeed(items, "chicken", "farming", "Farming", 8_000L);
+        assertSeed(items, "salmon", "farming", "Farming", 8_000L);
+        assertSeed(items, "sweet_berries", "farming", "Farming", 10_000L);
+        assertSeed(items, "carrot", "farming", "Farming", 10_000L);
+        assertSeed(items, "mutton", "farming", "Farming", 10_000L);
+        assertSeed(items, "potato", "farming", "Farming", 12_000L);
+        assertSeed(items, "beef", "farming", "Farming", 12_000L);
+        assertSeed(items, "porkchop", "farming", "Farming", 12_000L);
+        assertSeed(items, "beetroot", "farming", "Farming", 14_000L);
+        assertSeed(items, "rabbit", "farming", "Farming", 14_000L);
+        assertSeed(items, "apple", "farming", "Farming", 20_000L);
+        assertSeed(items, "glow_berries", "farming", "Farming", 30_000L);
+        assertSeed(items, "cod", "farming", "Farming", 6_000L);
+
+        assertDisplayName(items, "beef", "Raw Beef");
+        assertDisplayName(items, "porkchop", "Raw Porkchop");
+        assertDisplayName(items, "chicken", "Raw Chicken");
+        assertDisplayName(items, "rabbit", "Raw Rabbit");
+        assertDisplayName(items, "cod", "Raw Cod");
+        assertDisplayName(items, "salmon", "Raw Salmon");
+        assertDisplayName(items, "mutton", "Raw Mutton");
+    }
+
     @ParameterizedTest
     @MethodSource("invalidPressureSeeds")
     void marketSeedItem_rejectsInvalidPressureConfiguration(
@@ -310,5 +338,19 @@ class MarketCatalogInitializerTest {
         assertEquals(baseUnitPrice / 2L, item.minUnitPrice());
         assertEquals(baseUnitPrice * 3L, item.maxUnitPrice());
         assertTrue(item.baseRegenQuantity() > 0L);
+    }
+
+    private static void assertDisplayName(
+        List<MarketSeedItem> items,
+        String itemId,
+        String displayName
+    ) {
+        MarketSeedItem item = items
+            .stream()
+            .filter(seed -> seed.itemId().equals(itemId))
+            .findFirst()
+            .orElseThrow();
+
+        assertEquals(displayName, item.displayName());
     }
 }

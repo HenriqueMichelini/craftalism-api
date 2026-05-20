@@ -17,6 +17,9 @@ public class DefaultMarketCatalog {
     private static final long EXPENSIVE_LOG_PRICE = 75_000L;
     private static final long CHEAP_ORE_PRICE = 35_000L;
     private static final long EXPENSIVE_ORE_PRICE = 750_000L;
+    private static final long COMMON_FARMING_PRICE = 8_000L;
+    private static final long UNCOMMON_FARMING_PRICE = 12_000L;
+    private static final long HARD_FARMING_PRICE = 30_000L;
 
     private static final List<MarketSeedItem> ITEMS = List.of(
         item(
@@ -28,24 +31,13 @@ public class DefaultMarketCatalog {
             "2.3",
             50_000L
         ),
-        item(
-            "carrot",
-            "farming",
-            "Farming",
-            "Carrot",
-            "CARROT",
-            "-1.4",
-            10_000L
-        ),
-        item(
-            "potato",
-            "farming",
-            "Farming",
-            "Potato",
-            "POTATO",
-            "0.8",
-            12_000L
-        ),
+        farmingItem("apple", "Apple", "APPLE", 20_000L),
+        farmingItem("melon_slice", "Melon Slice", "MELON_SLICE", COMMON_FARMING_PRICE),
+        farmingItem("sweet_berries", "Sweet Berries", "SWEET_BERRIES", 10_000L),
+        farmingItem("glow_berries", "Glow Berries", "GLOW_BERRIES", HARD_FARMING_PRICE),
+        item("carrot", "farming", "Farming", "Carrot", "CARROT", "-1.4", 10_000L),
+        item("potato", "farming", "Farming", "Potato", "POTATO", "0.8", 12_000L),
+        farmingItem("beetroot", "Beetroot", "BEETROOT", 14_000L),
         item(
             "sugar_cane",
             "farming",
@@ -55,6 +47,13 @@ public class DefaultMarketCatalog {
             "1.7",
             18_000L
         ),
+        farmingItem("beef", "Raw Beef", "BEEF", UNCOMMON_FARMING_PRICE),
+        farmingItem("porkchop", "Raw Porkchop", "PORKCHOP", UNCOMMON_FARMING_PRICE),
+        farmingItem("chicken", "Raw Chicken", "CHICKEN", COMMON_FARMING_PRICE),
+        farmingItem("rabbit", "Raw Rabbit", "RABBIT", 14_000L),
+        farmingItem("cod", "Raw Cod", "COD", 6_000L),
+        farmingItem("salmon", "Raw Salmon", "SALMON", COMMON_FARMING_PRICE),
+        farmingItem("mutton", "Raw Mutton", "MUTTON", 10_000L),
         item(
             "spruce_log",
             "forestry",
@@ -215,13 +214,6 @@ public class DefaultMarketCatalog {
             "ARMADILLO_SCUTE",
             30_000L
         ),
-        mobDrop("beef", "Beef", "BEEF", 10_000L),
-        mobDrop("porkchop", "Porkchop", "PORKCHOP", 10_000L),
-        mobDrop("chicken", "Chicken", "CHICKEN", 8_000L),
-        mobDrop("mutton", "Mutton", "MUTTON", 8_000L),
-        mobDrop("rabbit", "Rabbit", "RABBIT", 10_000L),
-        mobDrop("cod", "Cod", "COD", 6_000L),
-        mobDrop("salmon", "Salmon", "SALMON", 8_000L),
         mobDrop("breeze_rod", "Breeze Rod", "BREEZE_ROD", 75_000L),
         mobDrop(
             "wither_skeleton_skull",
@@ -252,6 +244,22 @@ public class DefaultMarketCatalog {
             itemId,
             "forestry",
             "Forestry",
+            displayName,
+            iconKey,
+            baseUnitPrice
+        );
+    }
+
+    private static MarketSeedItem farmingItem(
+        String itemId,
+        String displayName,
+        String iconKey,
+        long baseUnitPrice
+    ) {
+        return item(
+            itemId,
+            "farming",
+            "Farming",
             displayName,
             iconKey,
             baseUnitPrice
