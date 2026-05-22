@@ -42,7 +42,7 @@ class MarketBootstrapPerformanceIntegrationTest {
 
     @Test
     void startup_bootstrapsCatalogBeforeAnyMarketRequest() {
-        assertEquals(61L, marketItemRepository.count());
+        assertEquals(69L, marketItemRepository.count());
     }
 
     @Test

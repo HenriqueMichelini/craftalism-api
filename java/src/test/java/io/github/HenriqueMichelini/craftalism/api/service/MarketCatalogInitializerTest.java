@@ -78,7 +78,7 @@ class MarketCatalogInitializerTest {
             .filter(item -> item.getItemId().equals("diamond"))
             .findFirst()
             .orElseThrow();
-        assertEquals("mining", diamond.getCategoryId());
+        assertEquals("minerals", diamond.getCategoryId());
         assertEquals("Diamond", diamond.getDisplayName());
         assertEquals(900000L, diamond.getBaseUnitPrice());
         assertEquals(450000L, diamond.getMinUnitPrice());
@@ -86,7 +86,7 @@ class MarketCatalogInitializerTest {
     }
 
     @Test
-    void defaultMarketCatalog_containsRequestedLogsOresAndMobDrops() {
+    void defaultMarketCatalog_containsRequestedLogsCategoriesAndMobDrops() {
         List<MarketSeedItem> items = new DefaultMarketCatalog().items();
 
         assertSeed(items, "spruce_log", "forestry", "Forestry", 25_000L);
@@ -99,9 +99,173 @@ class MarketCatalogInitializerTest {
         assertSeed(items, "cherry_log", "forestry", "Forestry", 75_000L);
         assertSeed(items, "pale_oak_log", "forestry", "Forestry", 75_000L);
 
-        assertSeed(items, "redstone_dust", "mining", "Mining", 35_000L);
-        assertSeed(items, "lapis_lazuli", "mining", "Mining", 35_000L);
-        assertSeed(items, "emerald", "mining", "Mining", 750_000L);
+        assertCategoryOrder(
+            items,
+            "minerals",
+            List.of(
+                "coal",
+                "iron_ingot",
+                "gold_ingot",
+                "redstone_dust",
+                "lapis_lazuli",
+                "emerald",
+                "diamond"
+            )
+        );
+        assertSeed(items, "coal", "minerals", "Minerals", 35_000L);
+        assertSeed(items, "iron_ingot", "minerals", "Minerals", 140_000L);
+        assertSeed(items, "gold_ingot", "minerals", "Minerals", 220_000L);
+        assertSeed(items, "redstone_dust", "minerals", "Minerals", 35_000L);
+        assertSeed(items, "lapis_lazuli", "minerals", "Minerals", 35_000L);
+        assertSeed(items, "emerald", "minerals", "Minerals", 750_000L);
+        assertSeed(items, "diamond", "minerals", "Minerals", 900_000L);
+
+        assertCategoryOrder(
+            items,
+            "natural_blocks",
+            List.of(
+                "dirt",
+                "cobblestone",
+                "sand",
+                "gravel",
+                "andesite",
+                "diorite",
+                "granite",
+                "deepslate"
+            )
+        );
+        assertSeed(items, "dirt", "natural_blocks", "Natural Blocks", 4_000L);
+        assertSeed(
+            items,
+            "cobblestone",
+            "natural_blocks",
+            "Natural Blocks",
+            4_000L
+        );
+        assertSeed(items, "sand", "natural_blocks", "Natural Blocks", 4_000L);
+        assertSeed(items, "gravel", "natural_blocks", "Natural Blocks", 4_000L);
+        assertSeed(
+            items,
+            "andesite",
+            "natural_blocks",
+            "Natural Blocks",
+            4_000L
+        );
+        assertSeed(
+            items,
+            "diorite",
+            "natural_blocks",
+            "Natural Blocks",
+            4_000L
+        );
+        assertSeed(
+            items,
+            "granite",
+            "natural_blocks",
+            "Natural Blocks",
+            4_000L
+        );
+        assertSeed(
+            items,
+            "deepslate",
+            "natural_blocks",
+            "Natural Blocks",
+            6_000L
+        );
+
+        assertCategoryOrder(
+            items,
+            "decorative_blocks",
+            List.of("wool", "terracotta", "glowstone", "sea_lantern")
+        );
+        assertSeed(
+            items,
+            "wool",
+            "decorative_blocks",
+            "Decorative Blocks",
+            20_000L
+        );
+        assertSeed(
+            items,
+            "terracotta",
+            "decorative_blocks",
+            "Decorative Blocks",
+            25_000L
+        );
+        assertSeed(
+            items,
+            "glowstone",
+            "decorative_blocks",
+            "Decorative Blocks",
+            35_000L
+        );
+        assertSeed(
+            items,
+            "sea_lantern",
+            "decorative_blocks",
+            "Decorative Blocks",
+            45_000L
+        );
+
+        assertSeed(
+            items,
+            "beef",
+            "animal_products",
+            "Animal Products",
+            12_000L
+        );
+        assertSeed(
+            items,
+            "porkchop",
+            "animal_products",
+            "Animal Products",
+            12_000L
+        );
+        assertSeed(
+            items,
+            "chicken",
+            "animal_products",
+            "Animal Products",
+            8_000L
+        );
+        assertSeed(
+            items,
+            "rabbit",
+            "animal_products",
+            "Animal Products",
+            14_000L
+        );
+        assertSeed(items, "cod", "animal_products", "Animal Products", 6_000L);
+        assertSeed(
+            items,
+            "salmon",
+            "animal_products",
+            "Animal Products",
+            8_000L
+        );
+        assertSeed(
+            items,
+            "mutton",
+            "animal_products",
+            "Animal Products",
+            10_000L
+        );
+        assertSeed(
+            items,
+            "leather",
+            "animal_products",
+            "Animal Products",
+            12_000L
+        );
+        assertSeed(items, "feather", "animal_products", "Animal Products", 6_000L);
+        assertSeed(items, "egg", "animal_products", "Animal Products", 6_000L);
+        assertSeed(
+            items,
+            "rabbit_hide",
+            "animal_products",
+            "Animal Products",
+            8_000L
+        );
 
         assertSeed(items, "rotten_flesh", "mob_drops", "Mob Drops", 2_000L);
         assertSeed(items, "bone", "mob_drops", "Mob Drops", 8_000L);
@@ -110,21 +274,6 @@ class MarketCatalogInitializerTest {
         assertSeed(items, "ender_pearl", "mob_drops", "Mob Drops", 45_000L);
         assertSeed(items, "blaze_rod", "mob_drops", "Mob Drops", 60_000L);
         assertSeed(items, "ghast_tear", "mob_drops", "Mob Drops", 90_000L);
-        assertSeed(
-            items,
-            "wither_skeleton_skull",
-            "mob_drops",
-            "Mob Drops",
-            250_000L
-        );
-        assertSeed(
-            items,
-            "totem_of_undying",
-            "mob_drops",
-            "Mob Drops",
-            300_000L
-        );
-        assertSeed(items, "trident", "mob_drops", "Mob Drops", 350_000L);
     }
 
     @Test
@@ -132,27 +281,13 @@ class MarketCatalogInitializerTest {
         List<MarketSeedItem> items = new DefaultMarketCatalog().items();
 
         assertSeed(items, "melon_slice", "farming", "Farming", 8_000L);
-        assertSeed(items, "chicken", "farming", "Farming", 8_000L);
-        assertSeed(items, "salmon", "farming", "Farming", 8_000L);
         assertSeed(items, "sweet_berries", "farming", "Farming", 10_000L);
         assertSeed(items, "carrot", "farming", "Farming", 10_000L);
-        assertSeed(items, "mutton", "farming", "Farming", 10_000L);
         assertSeed(items, "potato", "farming", "Farming", 12_000L);
-        assertSeed(items, "beef", "farming", "Farming", 12_000L);
-        assertSeed(items, "porkchop", "farming", "Farming", 12_000L);
         assertSeed(items, "beetroot", "farming", "Farming", 14_000L);
-        assertSeed(items, "rabbit", "farming", "Farming", 14_000L);
+        assertSeed(items, "pumpkin", "farming", "Farming", 12_000L);
         assertSeed(items, "apple", "farming", "Farming", 20_000L);
         assertSeed(items, "glow_berries", "farming", "Farming", 30_000L);
-        assertSeed(items, "cod", "farming", "Farming", 6_000L);
-
-        assertDisplayName(items, "beef", "Raw Beef");
-        assertDisplayName(items, "porkchop", "Raw Porkchop");
-        assertDisplayName(items, "chicken", "Raw Chicken");
-        assertDisplayName(items, "rabbit", "Raw Rabbit");
-        assertDisplayName(items, "cod", "Raw Cod");
-        assertDisplayName(items, "salmon", "Raw Salmon");
-        assertDisplayName(items, "mutton", "Raw Mutton");
     }
 
     @ParameterizedTest
@@ -196,6 +331,85 @@ class MarketCatalogInitializerTest {
         assertEquals(1L, savedItem.getMarketMomentum());
         assertEquals(115L, savedItem.getBuyUnitEstimate());
         assertEquals(100L, savedItem.getSellUnitEstimate());
+    }
+
+    @Test
+    void initializeCatalogIfEmpty_updatesExistingDefaultItemCategories() {
+        MarketItem diamond = pressureItem();
+        diamond.setItemId("diamond");
+        diamond.setCategoryId("mining");
+        diamond.setCategoryDisplayName("Mining");
+        diamond.setDisplayName("Diamond");
+        diamond.setIconKey("DIAMOND");
+
+        MarketItem beef = pressureItem();
+        beef.setItemId("beef");
+        beef.setCategoryId("farming");
+        beef.setCategoryDisplayName("Farming");
+        beef.setDisplayName("Raw Beef");
+        beef.setIconKey("BEEF");
+
+        when(marketItemRepository.count()).thenReturn(2L);
+        when(marketItemRepository.findAllForMarketRead()).thenReturn(
+            List.of(diamond, beef)
+        );
+
+        MarketCatalogInitializer initializer = new MarketCatalogInitializer(
+            marketItemRepository,
+            new DefaultMarketCatalog(),
+            tradePlanner
+        );
+
+        initializer.initializeCatalogIfEmpty();
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Iterable<MarketItem>> itemCaptor =
+            ArgumentCaptor.forClass(Iterable.class);
+        verify(marketItemRepository).saveAll(itemCaptor.capture());
+
+        List<MarketItem> savedItems = new ArrayList<>();
+        itemCaptor.getValue().forEach(savedItems::add);
+
+        MarketItem savedDiamond = savedItems
+            .stream()
+            .filter(item -> item.getItemId().equals("diamond"))
+            .findFirst()
+            .orElseThrow();
+        assertEquals("minerals", savedDiamond.getCategoryId());
+        assertEquals("Minerals", savedDiamond.getCategoryDisplayName());
+
+        MarketItem savedBeef = savedItems
+            .stream()
+            .filter(item -> item.getItemId().equals("beef"))
+            .findFirst()
+            .orElseThrow();
+        assertEquals("animal_products", savedBeef.getCategoryId());
+        assertEquals("Animal Products", savedBeef.getCategoryDisplayName());
+    }
+
+    @Test
+    void initializeCatalogIfEmpty_deletesRetiredDefaultItems() {
+        MarketItem shulkerShell = pressureItem();
+        shulkerShell.setItemId("shulker_shell");
+        shulkerShell.setCategoryId("mob_drops");
+        shulkerShell.setCategoryDisplayName("Mob Drops");
+        shulkerShell.setDisplayName("Shulker Shell");
+        shulkerShell.setIconKey("SHULKER_SHELL");
+
+        when(marketItemRepository.count()).thenReturn(1L);
+        when(marketItemRepository.findAllForMarketRead()).thenReturn(
+            List.of(shulkerShell)
+        );
+
+        MarketCatalogInitializer initializer = new MarketCatalogInitializer(
+            marketItemRepository,
+            new DefaultMarketCatalog(),
+            tradePlanner
+        );
+
+        initializer.initializeCatalogIfEmpty();
+
+        verify(marketItemRepository).deleteAllById(List.of("shulker_shell"));
     }
 
     @Test
@@ -340,17 +554,17 @@ class MarketCatalogInitializerTest {
         assertTrue(item.baseRegenQuantity() > 0L);
     }
 
-    private static void assertDisplayName(
+    private static void assertCategoryOrder(
         List<MarketSeedItem> items,
-        String itemId,
-        String displayName
+        String categoryId,
+        List<String> expectedItemIds
     ) {
-        MarketSeedItem item = items
+        List<String> actualItemIds = items
             .stream()
-            .filter(seed -> seed.itemId().equals(itemId))
-            .findFirst()
-            .orElseThrow();
+            .filter(seed -> seed.categoryId().equals(categoryId))
+            .map(MarketSeedItem::itemId)
+            .toList();
 
-        assertEquals(displayName, item.displayName());
+        assertEquals(expectedItemIds, actualItemIds);
     }
 }

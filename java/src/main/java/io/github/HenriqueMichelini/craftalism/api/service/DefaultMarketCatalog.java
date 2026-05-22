@@ -1,6 +1,7 @@
 package io.github.HenriqueMichelini.craftalism.api.service;
 
 import java.util.List;
+import java.util.Set;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -20,6 +21,14 @@ public class DefaultMarketCatalog {
     private static final long COMMON_FARMING_PRICE = 8_000L;
     private static final long UNCOMMON_FARMING_PRICE = 12_000L;
     private static final long HARD_FARMING_PRICE = 30_000L;
+    private static final long BASIC_NATURAL_BLOCK_PRICE = 4_000L;
+    private static final long BASIC_DECORATIVE_BLOCK_PRICE = 20_000L;
+    private static final Set<String> RETIRED_ITEM_IDS = Set.of(
+        "shulker_shell",
+        "wither_skeleton_skull",
+        "totem_of_undying",
+        "trident"
+    );
 
     private static final List<MarketSeedItem> ITEMS = List.of(
         item(
@@ -32,12 +41,44 @@ public class DefaultMarketCatalog {
             50_000L
         ),
         farmingItem("apple", "Apple", "APPLE", 20_000L),
-        farmingItem("melon_slice", "Melon Slice", "MELON_SLICE", COMMON_FARMING_PRICE),
-        farmingItem("sweet_berries", "Sweet Berries", "SWEET_BERRIES", 10_000L),
-        farmingItem("glow_berries", "Glow Berries", "GLOW_BERRIES", HARD_FARMING_PRICE),
-        item("carrot", "farming", "Farming", "Carrot", "CARROT", "-1.4", 10_000L),
-        item("potato", "farming", "Farming", "Potato", "POTATO", "0.8", 12_000L),
+        farmingItem(
+            "melon_slice",
+            "Melon Slice",
+            "MELON_SLICE",
+            COMMON_FARMING_PRICE
+        ),
+        farmingItem(
+            "sweet_berries",
+            "Sweet Berries",
+            "SWEET_BERRIES",
+            10_000L
+        ),
+        farmingItem(
+            "glow_berries",
+            "Glow Berries",
+            "GLOW_BERRIES",
+            HARD_FARMING_PRICE
+        ),
+        item(
+            "carrot",
+            "farming",
+            "Farming",
+            "Carrot",
+            "CARROT",
+            "-1.4",
+            10_000L
+        ),
+        item(
+            "potato",
+            "farming",
+            "Farming",
+            "Potato",
+            "POTATO",
+            "0.8",
+            12_000L
+        ),
         farmingItem("beetroot", "Beetroot", "BEETROOT", 14_000L),
+        farmingItem("pumpkin", "Pumpkin", "PUMPKIN", 12_000L),
         item(
             "sugar_cane",
             "farming",
@@ -47,13 +88,6 @@ public class DefaultMarketCatalog {
             "1.7",
             18_000L
         ),
-        farmingItem("beef", "Raw Beef", "BEEF", UNCOMMON_FARMING_PRICE),
-        farmingItem("porkchop", "Raw Porkchop", "PORKCHOP", UNCOMMON_FARMING_PRICE),
-        farmingItem("chicken", "Raw Chicken", "CHICKEN", COMMON_FARMING_PRICE),
-        farmingItem("rabbit", "Raw Rabbit", "RABBIT", 14_000L),
-        farmingItem("cod", "Raw Cod", "COD", 6_000L),
-        farmingItem("salmon", "Raw Salmon", "SALMON", COMMON_FARMING_PRICE),
-        farmingItem("mutton", "Raw Mutton", "MUTTON", 10_000L),
         item(
             "spruce_log",
             "forestry",
@@ -104,66 +138,90 @@ public class DefaultMarketCatalog {
             "PALE_OAK_LOG",
             EXPENSIVE_LOG_PRICE
         ),
+        naturalBlock("dirt", "Dirt", "DIRT", BASIC_NATURAL_BLOCK_PRICE),
         item(
             "cobblestone",
-            "mining",
-            "Mining",
+            "natural_blocks",
+            "Natural Blocks",
             "Cobblestone",
             "COBBLESTONE",
             "-0.8",
-            4_000L
+            BASIC_NATURAL_BLOCK_PRICE
         ),
-        item("coal", "mining", "Mining", "Coal", "COAL", "0.9", 35_000L),
+        naturalBlock("sand", "Sand", "SAND", BASIC_NATURAL_BLOCK_PRICE),
+        naturalBlock("gravel", "Gravel", "GRAVEL", BASIC_NATURAL_BLOCK_PRICE),
+        naturalBlock(
+            "andesite",
+            "Andesite",
+            "ANDESITE",
+            BASIC_NATURAL_BLOCK_PRICE
+        ),
+        naturalBlock("diorite", "Diorite", "DIORITE", BASIC_NATURAL_BLOCK_PRICE),
+        naturalBlock("granite", "Granite", "GRANITE", BASIC_NATURAL_BLOCK_PRICE),
+        naturalBlock("deepslate", "Deepslate", "DEEPSLATE", 6_000L),
+        mineral("coal", "Coal", "COAL", "0.9", CHEAP_ORE_PRICE),
+        mineral("iron_ingot", "Iron Ingot", "IRON_INGOT", "1.1", 140_000L),
+        mineral("gold_ingot", "Gold Ingot", "GOLD_INGOT", "2.8", 220_000L),
         item(
             "redstone_dust",
-            "mining",
-            "Mining",
+            "minerals",
+            "Minerals",
             "Redstone Dust",
             "REDSTONE",
             CHEAP_ORE_PRICE
         ),
         item(
             "lapis_lazuli",
-            "mining",
-            "Mining",
+            "minerals",
+            "Minerals",
             "Lapis Lazuli",
             "LAPIS_LAZULI",
             CHEAP_ORE_PRICE
         ),
-        item(
-            "iron_ingot",
-            "mining",
-            "Mining",
-            "Iron Ingot",
-            "IRON_INGOT",
-            "1.1",
-            140_000L
-        ),
-        item(
-            "gold_ingot",
-            "mining",
-            "Mining",
-            "Gold Ingot",
-            "GOLD_INGOT",
-            "2.8",
-            220_000L
-        ),
-        item(
-            "emerald",
-            "mining",
-            "Mining",
-            "Emerald",
-            "EMERALD",
-            EXPENSIVE_ORE_PRICE
-        ),
+        mineral("emerald", "Emerald", "EMERALD", EXPENSIVE_ORE_PRICE),
         item(
             "diamond",
-            "mining",
-            "Mining",
+            "minerals",
+            "Minerals",
             "Diamond",
             "DIAMOND",
             "4.5",
             900_000L
+        ),
+        decorativeBlock(
+            "wool",
+            "Wool",
+            "WHITE_WOOL",
+            BASIC_DECORATIVE_BLOCK_PRICE
+        ),
+        decorativeBlock("terracotta", "Terracotta", "TERRACOTTA", 25_000L),
+        decorativeBlock("glowstone", "Glowstone", "GLOWSTONE", 35_000L),
+        decorativeBlock("sea_lantern", "Sea Lantern", "SEA_LANTERN", 45_000L),
+        animalProduct("beef", "Raw Beef", "BEEF", UNCOMMON_FARMING_PRICE),
+        animalProduct(
+            "porkchop",
+            "Raw Porkchop",
+            "PORKCHOP",
+            UNCOMMON_FARMING_PRICE
+        ),
+        animalProduct("chicken", "Raw Chicken", "CHICKEN", COMMON_FARMING_PRICE),
+        animalProduct("rabbit", "Raw Rabbit", "RABBIT", 14_000L),
+        animalProduct("cod", "Raw Cod", "COD", 6_000L),
+        animalProduct("salmon", "Raw Salmon", "SALMON", COMMON_FARMING_PRICE),
+        animalProduct("mutton", "Raw Mutton", "MUTTON", 10_000L),
+        animalProduct("leather", "Leather", "LEATHER", 12_000L),
+        animalProduct("feather", "Feather", "FEATHER", 6_000L),
+        animalProduct("egg", "Egg", "EGG", 6_000L),
+        animalProduct("rabbit_hide", "Rabbit Hide", "RABBIT_HIDE", 8_000L),
+        animalProduct("rabbit_foot", "Rabbit Foot", "RABBIT_FOOT", 35_000L),
+        animalProduct("ink_sac", "Ink Sac", "INK_SAC", 10_000L),
+        animalProduct("glow_ink_sac", "Glow Ink Sac", "GLOW_INK_SAC", 18_000L),
+        animalProduct("turtle_scute", "Turtle Scute", "TURTLE_SCUTE", 60_000L),
+        animalProduct(
+            "armadillo_scute",
+            "Armadillo Scute",
+            "ARMADILLO_SCUTE",
+            30_000L
         ),
         mobDrop("rotten_flesh", "Rotten Flesh", "ROTTEN_FLESH", 2_000L),
         mobDrop("bone", "Bone", "BONE", 8_000L),
@@ -181,7 +239,6 @@ public class DefaultMarketCatalog {
             "PHANTOM_MEMBRANE",
             45_000L
         ),
-        mobDrop("shulker_shell", "Shulker Shell", "SHULKER_SHELL", 125_000L),
         mobDrop(
             "prismarine_shard",
             "Prismarine Shard",
@@ -200,38 +257,15 @@ public class DefaultMarketCatalog {
             "NAUTILUS_SHELL",
             80_000L
         ),
-        mobDrop("leather", "Leather", "LEATHER", 12_000L),
-        mobDrop("feather", "Feather", "FEATHER", 6_000L),
-        mobDrop("egg", "Egg", "EGG", 6_000L),
-        mobDrop("rabbit_hide", "Rabbit Hide", "RABBIT_HIDE", 8_000L),
-        mobDrop("rabbit_foot", "Rabbit Foot", "RABBIT_FOOT", 35_000L),
-        mobDrop("ink_sac", "Ink Sac", "INK_SAC", 10_000L),
-        mobDrop("glow_ink_sac", "Glow Ink Sac", "GLOW_INK_SAC", 18_000L),
-        mobDrop("turtle_scute", "Turtle Scute", "TURTLE_SCUTE", 60_000L),
-        mobDrop(
-            "armadillo_scute",
-            "Armadillo Scute",
-            "ARMADILLO_SCUTE",
-            30_000L
-        ),
-        mobDrop("breeze_rod", "Breeze Rod", "BREEZE_ROD", 75_000L),
-        mobDrop(
-            "wither_skeleton_skull",
-            "Wither Skeleton Skull",
-            "WITHER_SKELETON_SKULL",
-            250_000L
-        ),
-        mobDrop(
-            "totem_of_undying",
-            "Totem of Undying",
-            "TOTEM_OF_UNDYING",
-            300_000L
-        ),
-        mobDrop("trident", "Trident", "TRIDENT", 350_000L)
+        mobDrop("breeze_rod", "Breeze Rod", "BREEZE_ROD", 75_000L)
     );
 
     public List<MarketSeedItem> items() {
         return ITEMS;
+    }
+
+    Set<String> retiredItemIds() {
+        return RETIRED_ITEM_IDS;
     }
 
     private static MarketSeedItem forestryLog(
@@ -244,6 +278,88 @@ public class DefaultMarketCatalog {
             itemId,
             "forestry",
             "Forestry",
+            displayName,
+            iconKey,
+            baseUnitPrice
+        );
+    }
+
+    private static MarketSeedItem naturalBlock(
+        String itemId,
+        String displayName,
+        String iconKey,
+        long baseUnitPrice
+    ) {
+        return item(
+            itemId,
+            "natural_blocks",
+            "Natural Blocks",
+            displayName,
+            iconKey,
+            baseUnitPrice
+        );
+    }
+
+    private static MarketSeedItem mineral(
+        String itemId,
+        String displayName,
+        String iconKey,
+        long baseUnitPrice
+    ) {
+        return item(
+            itemId,
+            "minerals",
+            "Minerals",
+            displayName,
+            iconKey,
+            baseUnitPrice
+        );
+    }
+
+    private static MarketSeedItem mineral(
+        String itemId,
+        String displayName,
+        String iconKey,
+        String variationPercent,
+        long baseUnitPrice
+    ) {
+        return item(
+            itemId,
+            "minerals",
+            "Minerals",
+            displayName,
+            iconKey,
+            variationPercent,
+            baseUnitPrice
+        );
+    }
+
+    private static MarketSeedItem decorativeBlock(
+        String itemId,
+        String displayName,
+        String iconKey,
+        long baseUnitPrice
+    ) {
+        return item(
+            itemId,
+            "decorative_blocks",
+            "Decorative Blocks",
+            displayName,
+            iconKey,
+            baseUnitPrice
+        );
+    }
+
+    private static MarketSeedItem animalProduct(
+        String itemId,
+        String displayName,
+        String iconKey,
+        long baseUnitPrice
+    ) {
+        return item(
+            itemId,
+            "animal_products",
+            "Animal Products",
             displayName,
             iconKey,
             baseUnitPrice

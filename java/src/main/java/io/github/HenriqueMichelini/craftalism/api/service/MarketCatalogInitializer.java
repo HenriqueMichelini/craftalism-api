@@ -6,7 +6,10 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 final class MarketCatalogInitializer {
 
@@ -41,11 +44,24 @@ final class MarketCatalogInitializer {
 
     private void updateExistingCatalog() {
         List<MarketItem> items = marketItemRepository.findAllForMarketRead();
+        Map<String, MarketSeedItem> defaultItemsById = defaultMarketCatalog
+            .items()
+            .stream()
+            .collect(
+                Collectors.toMap(MarketSeedItem::itemId, Function.identity())
+            );
+        Set<String> retiredItemIds = defaultMarketCatalog.retiredItemIds();
         Set<String> existingItemIds = new HashSet<>();
         List<MarketItem> itemsToSave = new ArrayList<>();
-        boolean changed = false;
+        List<String> itemIdsToDelete = new ArrayList<>();
         for (MarketItem item : items) {
+            if (retiredItemIds.contains(item.getItemId())) {
+                itemIdsToDelete.add(item.getItemId());
+                continue;
+            }
+
             existingItemIds.add(item.getItemId());
+            MarketSeedItem defaultItem = defaultItemsById.get(item.getItemId());
             long previousCurrentStock = item.getCurrentStock();
             long previousMarketMomentum = item.getMarketMomentum();
             long previousBuyUnitEstimate = item.getBuyUnitEstimate();
@@ -53,26 +69,52 @@ final class MarketCatalogInitializer {
 
             tradePlanner.recomputeDerivedProjections(item);
             boolean itemChanged =
+                updateDefaultCategory(item, defaultItem) ||
                 previousCurrentStock != item.getCurrentStock() ||
                 previousMarketMomentum != item.getMarketMomentum() ||
                 previousBuyUnitEstimate != item.getBuyUnitEstimate() ||
                 previousSellUnitEstimate != item.getSellUnitEstimate();
             if (itemChanged) {
                 itemsToSave.add(item);
-                changed = true;
             }
         }
 
         for (MarketSeedItem seed : defaultMarketCatalog.items()) {
             if (!existingItemIds.contains(seed.itemId())) {
                 itemsToSave.add(seedItem(seed));
-                changed = true;
             }
         }
 
-        if (changed) {
+        if (!itemsToSave.isEmpty()) {
             marketItemRepository.saveAll(itemsToSave);
         }
+        if (!itemIdsToDelete.isEmpty()) {
+            marketItemRepository.deleteAllById(itemIdsToDelete);
+        }
+    }
+
+    private boolean updateDefaultCategory(
+        MarketItem item,
+        MarketSeedItem defaultItem
+    ) {
+        if (defaultItem == null) {
+            return false;
+        }
+
+        boolean changed = false;
+        if (!item.getCategoryId().equals(defaultItem.categoryId())) {
+            item.setCategoryId(defaultItem.categoryId());
+            changed = true;
+        }
+        if (
+            !item
+                .getCategoryDisplayName()
+                .equals(defaultItem.categoryDisplayName())
+        ) {
+            item.setCategoryDisplayName(defaultItem.categoryDisplayName());
+            changed = true;
+        }
+        return changed;
     }
 
     private MarketItem seedItem(MarketSeedItem seed) {
