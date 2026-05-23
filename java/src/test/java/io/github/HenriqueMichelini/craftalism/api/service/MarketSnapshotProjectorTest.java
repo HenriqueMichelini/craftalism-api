@@ -100,6 +100,52 @@ class MarketSnapshotProjectorTest {
     }
 
     @Test
+    void response_ordersCategoriesByMarketCatalogOrder() {
+        List<MarketSnapshotProjector.MarketSnapshotProjection> projections =
+            projector.projections(
+                List.of(
+                    item("diamond", "minerals", "Minerals", "Diamond"),
+                    item("oak_log", "forestry", "Forestry", "Oak Log"),
+                    item("wheat", "farming", "Farming", "Wheat"),
+                    item(
+                        "cobblestone",
+                        "natural_blocks",
+                        "Natural Blocks",
+                        "Cobblestone"
+                    ),
+                    item(
+                        "glowstone",
+                        "decorative_blocks",
+                        "Decorative Blocks",
+                        "Glowstone"
+                    ),
+                    item("beef", "animal_products", "Animal Products", "Beef"),
+                    item("bone", "mob_drops", "Mob Drops", "Bone")
+                )
+            );
+
+        List<String> categoryIds = projector
+            .response(projections, "snapshot")
+            .categories()
+            .stream()
+            .map(category -> category.categoryId())
+            .toList();
+
+        assertEquals(
+            List.of(
+                "farming",
+                "animal_products",
+                "mob_drops",
+                "natural_blocks",
+                "decorative_blocks",
+                "forestry",
+                "minerals"
+            ),
+            categoryIds
+        );
+    }
+
+    @Test
     void toSnapshotItem_derivesZeroVariationInsideSegmentZero() {
         MarketItem item = pressureItem();
         item.setNetPosition(49L);
@@ -178,6 +224,21 @@ class MarketSnapshotProjectorTest {
         return projector.snapshotVersion(
             projector.projections(List.of(item))
         );
+    }
+
+    private MarketItem item(
+        String itemId,
+        String categoryId,
+        String categoryDisplayName,
+        String displayName
+    ) {
+        MarketItem item = pressureItem();
+        item.setItemId(itemId);
+        item.setCategoryId(categoryId);
+        item.setCategoryDisplayName(categoryDisplayName);
+        item.setDisplayName(displayName);
+        item.setIconKey(itemId.toUpperCase());
+        return item;
     }
 
     private MarketItem pressureItem() {

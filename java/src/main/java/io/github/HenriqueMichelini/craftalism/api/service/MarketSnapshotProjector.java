@@ -10,12 +10,31 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
 final class MarketSnapshotProjector {
+
+    private static final Map<String, Integer> CATEGORY_ORDER = Map.of(
+        "farming",
+        0,
+        "animal_products",
+        1,
+        "mob_drops",
+        2,
+        "natural_blocks",
+        3,
+        "decorative_blocks",
+        4,
+        "forestry",
+        5,
+        "minerals",
+        6
+    );
+    private static final int UNKNOWN_CATEGORY_ORDER = CATEGORY_ORDER.size();
 
     private final MarketTradePlanner tradePlanner;
 
@@ -134,7 +153,21 @@ final class MarketSnapshotProjector {
                 )
             );
         }
+        projections.sort(
+            Comparator
+                .comparingInt(MarketSnapshotProjector::categoryOrder)
+                .thenComparing(MarketSnapshotProjection::categoryId)
+                .thenComparing(MarketSnapshotProjection::displayName)
+                .thenComparing(MarketSnapshotProjection::itemId)
+        );
         return List.copyOf(projections);
+    }
+
+    private static int categoryOrder(MarketSnapshotProjection projection) {
+        return CATEGORY_ORDER.getOrDefault(
+            projection.categoryId(),
+            UNKNOWN_CATEGORY_ORDER
+        );
     }
 
     String snapshotVersion(List<MarketSnapshotProjection> items) {
