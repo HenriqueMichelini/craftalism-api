@@ -1,42 +1,56 @@
 FROM eclipse-temurin:17-jdk AS builder
 WORKDIR /app
 
-# Copy dependency files first for better layer caching
 COPY gradlew build.gradle settings.gradle ./
 COPY gradle ./gradle
 
-# Download dependencies (cached unless build files change)
 RUN ./gradlew --no-daemon dependencies
 
-# Copy source code
 COPY src ./src
 
-# Build the application
 RUN ./gradlew --no-daemon build
 
-FROM eclipse-temurin:17-jre-alpine
+
+FROM eclipse-temurin:17-jre-alpine AS runtime
 WORKDIR /app
 
-# Create non-root user for security
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 
-# Copy the JAR from builder
 COPY --from=builder /app/build/libs/*.jar app.jar
 
-# Change ownership
 RUN chown -R appuser:appgroup /app
 
-# Switch to non-root user
 USER appuser
 
-# Expose port
 EXPOSE 8080
 
-# Health check (adjust endpoint as needed)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
   CMD wget --no-verbose --tries=1 --spider http://localhost:8080/health || exit 1
 
-# Run the application with optimized JVM settings
+ENTRYPOINT ["java", \
+    "-XX:+UseContainerSupport", \
+    "-XX:MaxRAMPercentage=75.0", \
+    "-XX:+ExitOnOutOfMemoryError", \
+    "-Djava.security.egd=file:/dev/./urandom", \
+    "-jar", "app.jar"]
+
+
+FROM eclipse-temurin:17-jdk-alpine AS diagnostics
+WORKDIR /app
+
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+
+COPY --from=builder /app/build/libs/*.jar app.jar
+
+RUN chown -R appuser:appgroup /app
+
+USER appuser
+
+EXPOSE 8080
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+  CMD wget --no-verbose --tries=1 --spider http://localhost:8080/health || exit 1
+
 ENTRYPOINT ["java", \
     "-XX:+UseContainerSupport", \
     "-XX:MaxRAMPercentage=75.0", \
