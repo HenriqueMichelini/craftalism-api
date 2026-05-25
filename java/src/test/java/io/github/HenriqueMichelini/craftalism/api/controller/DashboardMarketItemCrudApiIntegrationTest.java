@@ -1,0 +1,311 @@
+package io.github.HenriqueMichelini.craftalism.api.controller;
+
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import io.github.HenriqueMichelini.craftalism.api.dto.MarketSide;
+import io.github.HenriqueMichelini.craftalism.api.model.MarketItem;
+import io.github.HenriqueMichelini.craftalism.api.model.MarketQuote;
+import io.github.HenriqueMichelini.craftalism.api.repository.MarketItemRepository;
+import io.github.HenriqueMichelini.craftalism.api.repository.MarketQuoteRepository;
+import io.github.HenriqueMichelini.craftalism.api.repository.MarketTradeHistoryRepository;
+import java.math.BigDecimal;
+import java.time.Instant;
+import java.util.UUID;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.MediaType;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.web.servlet.MockMvc;
+
+@SpringBootTest
+@AutoConfigureMockMvc(addFilters = false)
+@ActiveProfiles("local")
+class DashboardMarketItemCrudApiIntegrationTest {
+
+    private static final String BASE_PATH = "/api/dashboard/market/items";
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    @Autowired
+    private MarketItemRepository marketItemRepository;
+
+    @Autowired
+    private MarketQuoteRepository marketQuoteRepository;
+
+    @Autowired
+    private MarketTradeHistoryRepository marketTradeHistoryRepository;
+
+    @BeforeEach
+    void setup() {
+        marketQuoteRepository.deleteAll();
+        marketTradeHistoryRepository.deleteAll();
+        marketItemRepository.deleteAll();
+    }
+
+    @Test
+    void marketItemCrud_listCreateUpdateDelete() throws Exception {
+        marketItemRepository.save(marketItem("existing_item", "Existing Item"));
+
+        mockMvc
+            .perform(get(BASE_PATH))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$[0].itemId").value("existing_item"))
+            .andExpect(jsonPath("$[0].buyUnitEstimate").value(100))
+            .andExpect(jsonPath("$[0].currentStock").value(0));
+
+        mockMvc
+            .perform(
+                post(BASE_PATH)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(createPayload("custom_item"))
+            )
+            .andExpect(status().isCreated())
+            .andExpect(
+                header().string("Location", BASE_PATH + "/custom_item")
+            )
+            .andExpect(jsonPath("$.itemId").value("custom_item"))
+            .andExpect(jsonPath("$.categoryId").value("custom"))
+            .andExpect(jsonPath("$.displayName").value("Custom Item"))
+            .andExpect(jsonPath("$.baseUnitPrice").value(100))
+            .andExpect(jsonPath("$.buyUnitEstimate").value(100))
+            .andExpect(jsonPath("$.sellUnitEstimate").value(96))
+            .andExpect(jsonPath("$.lastUpdatedAt").exists());
+
+        mockMvc
+            .perform(
+                patch(BASE_PATH + "/custom_item")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(updatePayload())
+            )
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.itemId").value("custom_item"))
+            .andExpect(jsonPath("$.categoryId").value("custom"))
+            .andExpect(jsonPath("$.displayName").value("Custom Item"))
+            .andExpect(jsonPath("$.categoryDisplayName").value("Updated Category"))
+            .andExpect(jsonPath("$.baseUnitPrice").value(200))
+            .andExpect(jsonPath("$.buyUnitEstimate").value(200));
+
+        mockMvc
+            .perform(delete(BASE_PATH + "/custom_item"))
+            .andExpect(status().isNoContent());
+    }
+
+    @Test
+    void marketItemCrud_duplicateItemId_returns409ProblemDetail()
+        throws Exception {
+        marketItemRepository.save(marketItem("custom_item", "Custom Item"));
+
+        mockMvc
+            .perform(
+                post(BASE_PATH)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(createPayload("custom_item"))
+            )
+            .andExpect(status().isConflict())
+            .andExpect(
+                jsonPath("$.type").value(
+                    "https://api.craftalism.com/errors/business-rule"
+                )
+            )
+            .andExpect(
+                jsonPath("$.detail").value(
+                    "Market item already exists for item ID: custom_item"
+                )
+            );
+    }
+
+    @Test
+    void marketItemCrud_missingItem_returns404ProblemDetail() throws Exception {
+        mockMvc
+            .perform(
+                patch(BASE_PATH + "/missing_item")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(updatePayload())
+            )
+            .andExpect(status().isNotFound())
+            .andExpect(
+                jsonPath("$.type").value(
+                    "https://api.craftalism.com/errors/business-rule"
+                )
+            )
+            .andExpect(
+                jsonPath("$.detail").value(
+                    "Market item not found for item ID: missing_item"
+                )
+            );
+    }
+
+    @Test
+    void marketItemCrud_validationErrors_return400ProblemDetail()
+        throws Exception {
+        mockMvc
+            .perform(
+                post(BASE_PATH)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("{}")
+            )
+            .andExpect(status().isBadRequest())
+            .andExpect(
+                jsonPath("$.type").value(
+                    "https://api.craftalism.com/errors/validation"
+                )
+            )
+            .andExpect(jsonPath("$.errors.itemId").value("Item ID is required"))
+            .andExpect(jsonPath("$.errors.currency").value("Currency is required"));
+
+        mockMvc
+            .perform(
+                post(BASE_PATH)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(
+                        createPayload("invalid_item").replace(
+                            "\"minUnitPrice\": 50",
+                            "\"minUnitPrice\": 250"
+                        )
+                    )
+            )
+            .andExpect(status().isBadRequest())
+            .andExpect(
+                jsonPath("$.type").value(
+                    "https://api.craftalism.com/errors/validation"
+                )
+            )
+            .andExpect(
+                jsonPath("$.detail").value(
+                    "Minimum unit price must be less than or equal to base unit price"
+                )
+            );
+    }
+
+    @Test
+    void marketItemCrud_defaultCatalogItemDelete_returns409ProblemDetail()
+        throws Exception {
+        marketItemRepository.save(marketItem("wheat", "Wheat"));
+
+        mockMvc
+            .perform(delete(BASE_PATH + "/wheat"))
+            .andExpect(status().isConflict())
+            .andExpect(
+                jsonPath("$.detail").value(
+                    "Market item is managed by the default catalog and cannot be deleted: wheat"
+                )
+            );
+    }
+
+    @Test
+    void marketItemCrud_referencedItemDelete_returns409ProblemDetail()
+        throws Exception {
+        marketItemRepository.save(marketItem("custom_item", "Custom Item"));
+        marketQuoteRepository.save(quote("custom_item"));
+
+        mockMvc
+            .perform(delete(BASE_PATH + "/custom_item"))
+            .andExpect(status().isConflict())
+            .andExpect(
+                jsonPath("$.detail").value(
+                    "Market item is referenced and cannot be deleted: custom_item"
+                )
+            );
+    }
+
+    private static MarketItem marketItem(String itemId, String displayName) {
+        MarketItem item = new MarketItem();
+        item.setItemId(itemId);
+        item.setCategoryId("custom");
+        item.setCategoryDisplayName("Custom");
+        item.setDisplayName(displayName);
+        item.setIconKey("STONE");
+        item.setCurrency("coins");
+        item.setBaseUnitPrice(100L);
+        item.setMinUnitPrice(50L);
+        item.setMaxUnitPrice(300L);
+        item.setSegmentSize(50L);
+        item.setPriceSensitivity(new BigDecimal("0.0800"));
+        item.setBaseRegenQuantity(1L);
+        item.setRegenIntervalSeconds(60L);
+        item.setNetPosition(0L);
+        item.setBuyUnitEstimate(100L);
+        item.setSellUnitEstimate(95L);
+        item.setCurrentStock(0L);
+        item.setMarketMomentum(0L);
+        item.setVariationPercent(new BigDecimal("0.00"));
+        item.setBlocked(false);
+        item.setOperating(true);
+        item.setLastUpdatedAt(Instant.parse("2026-01-01T00:00:00Z"));
+        return item;
+    }
+
+    private static MarketQuote quote(String itemId) {
+        MarketQuote quote = new MarketQuote();
+        quote.setQuoteToken(UUID.randomUUID().toString());
+        quote.setPlayerUuid(UUID.randomUUID());
+        quote.setItemId(itemId);
+        quote.setSide(MarketSide.BUY);
+        quote.setQuantity(1L);
+        quote.setUnitPrice(100L);
+        quote.setTotalPrice(100L);
+        quote.setSnapshotVersion("snapshot");
+        quote.setExpiresAt(Instant.parse("2026-01-01T00:10:00Z"));
+        quote.setCreatedAt(Instant.parse("2026-01-01T00:00:00Z"));
+        quote.setStatus(MarketQuote.Status.ACTIVE);
+        return quote;
+    }
+
+    private static String createPayload(String itemId) {
+        return """
+            {
+              "itemId": "%s",
+              "categoryId": "custom",
+              "categoryDisplayName": "Custom",
+              "displayName": "Custom Item",
+              "iconKey": "STONE",
+              "currency": "coins",
+              "baseUnitPrice": 100,
+              "minUnitPrice": 50,
+              "maxUnitPrice": 300,
+              "segmentSize": 50,
+              "priceSensitivity": 0.0800,
+              "baseRegenQuantity": 1,
+              "regenIntervalSeconds": 60,
+              "netPosition": 0,
+              "minNetPosition": null,
+              "maxNetPosition": null,
+              "blocked": false,
+              "operating": true
+            }
+            """.formatted(itemId);
+    }
+
+    private static String updatePayload() {
+        return """
+            {
+              "categoryDisplayName": "Updated Category",
+              "displayName": "Should Be Ignored",
+              "iconKey": "DIAMOND",
+              "currency": "coins",
+              "baseUnitPrice": 200,
+              "minUnitPrice": 100,
+              "maxUnitPrice": 600,
+              "segmentSize": 50,
+              "priceSensitivity": 0.0800,
+              "baseRegenQuantity": 2,
+              "regenIntervalSeconds": 120,
+              "netPosition": 0,
+              "minNetPosition": null,
+              "maxNetPosition": null,
+              "blocked": false,
+              "operating": true
+            }
+            """;
+    }
+}

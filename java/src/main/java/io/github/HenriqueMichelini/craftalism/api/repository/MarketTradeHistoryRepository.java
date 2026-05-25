@@ -7,4 +7,6 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface MarketTradeHistoryRepository
-    extends JpaRepository<MarketTradeHistory, Long>, JpaSpecificationExecutor<MarketTradeHistory> {}
+    extends JpaRepository<MarketTradeHistory, Long>, JpaSpecificationExecutor<MarketTradeHistory> {
+    boolean existsByItemId(String itemId);
+}

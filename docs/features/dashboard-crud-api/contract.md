@@ -6,7 +6,7 @@ Define repo-local backend write contracts used by dashboard resource modals.
 
 ## Repository Ownership
 
-`craftalism-api` owns authoritative player and balance persistence, mutation semantics, and API error behavior.
+`craftalism-api` owns authoritative player, balance, and market item persistence, mutation semantics, and API error behavior.
 
 ## Domain Rules
 
@@ -17,6 +17,12 @@ Define repo-local backend write contracts used by dashboard resource modals.
 - There is at most one balance per player.
 - Balance amounts are scaled integer `BIGINT` values using the project amount scale convention.
 - Balance amounts must be zero or positive for create and set/update operations.
+- Market items are keyed by `itemId`.
+- Market item `itemId`, `categoryId`, and `displayName` are immutable after creation through dashboard admin routes.
+- Market item `lastUpdatedAt` is API-owned and set by the server on create/update.
+- Market item `buyUnitEstimate`, `sellUnitEstimate`, `currentStock`, `variationPercent`, and `marketMomentum` are derived pressure-ladder projections. Dashboard admin responses expose them, but create/update requests must not accept them as editable inputs.
+- Market item create/update requests edit authoritative pricing, regeneration, pressure, and state controls only.
+- Market item deletes are allowed only for non-default items that are not referenced by quotes or trade history.
 
 ## External Interfaces
 
@@ -42,6 +48,13 @@ Define repo-local backend write contracts used by dashboard resource modals.
 - `GET /api/balances/top`
 - `DELETE /api/balances/{uuid}`
 
+### Market Items
+
+- `GET /api/dashboard/market/items`
+- `POST /api/dashboard/market/items`
+- `PATCH /api/dashboard/market/items/{itemId}`
+- `DELETE /api/dashboard/market/items/{itemId}`
+
 ## Error Contract
 
 - Business and validation failures use `ProblemDetail`.
@@ -51,6 +64,9 @@ Define repo-local backend write contracts used by dashboard resource modals.
 - Duplicate player UUIDs, duplicate player names, and duplicate balances return `409` with business-rule type.
 - Invalid balance amounts rejected by service invariants return `422` with business-rule type.
 - Player deletion that would violate existing references returns `409` with business-rule type.
+- Duplicate market item IDs return `409` with business-rule type.
+- Market item delete attempts for default catalog items or referenced items return `409` with business-rule type.
+- Market item pressure constraint failures return `400` with validation type.
 
 ## Mutation Response Rules
 
@@ -58,6 +74,7 @@ Define repo-local backend write contracts used by dashboard resource modals.
 - Update endpoints return `200` and the updated resource.
 - Delete endpoints return `204` with no response body.
 - Dashboard clients may apply returned create/update resources directly and should remove locally deleted rows after `204`.
+- Market item create/update responses include recomputed derived projection fields and the API-owned `lastUpdatedAt` value.
 
 ## Security Rules
 
