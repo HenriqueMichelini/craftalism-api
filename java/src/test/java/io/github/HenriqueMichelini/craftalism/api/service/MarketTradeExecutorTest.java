@@ -67,6 +67,8 @@ class MarketTradeExecutorTest {
         assertEquals(10L, item.getNetPosition());
         assertEquals(950L, balance.getAmount());
         assertEquals(0L, item.getCurrentStock());
+        assertEquals(5L, item.getBuyUnitEstimate());
+        assertEquals(4L, item.getSellUnitEstimate());
         assertEquals(
             0,
             BigDecimal.ZERO.compareTo(item.getVariationPercent())
@@ -105,7 +107,7 @@ class MarketTradeExecutorTest {
         MarketTradeExecutor.AppliedTrade appliedTrade = executor.applyTrade(
             PLAYER_UUID,
             item,
-            quote(MarketSide.SELL, 51L, 100L, 5_096L),
+            quote(MarketSide.SELL, 51L, 71L, 3_581L),
             "market:snapshot",
             () -> "market:current"
         );
@@ -121,11 +123,13 @@ class MarketTradeExecutorTest {
 
         assertEquals(51L, appliedTrade.executedQuantity());
         assertEquals(-1L, item.getNetPosition());
-        assertEquals(5_096L, balanceCaptor.getValue().getAmount());
+        assertEquals(3_581L, balanceCaptor.getValue().getAmount());
         assertEquals(MarketSide.SELL, historyCaptor.getValue().getSide());
         assertEquals(51L, historyCaptor.getValue().getQuantity());
-        assertEquals(5_096L, historyCaptor.getValue().getTotalPrice());
+        assertEquals(3_581L, historyCaptor.getValue().getTotalPrice());
         assertEquals(0L, item.getCurrentStock());
+        assertEquals(96L, item.getBuyUnitEstimate());
+        assertEquals(67L, item.getSellUnitEstimate());
         assertEquals(
             0,
             new BigDecimal("-4.00").compareTo(item.getVariationPercent())

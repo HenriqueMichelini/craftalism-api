@@ -10,6 +10,7 @@ public class DefaultMarketCatalog {
     private static final String DEFAULT_VARIATION_PERCENT = "0.0";
     private static final long DEFAULT_SEGMENT_SIZE = 50L;
     private static final String DEFAULT_PRICE_SENSITIVITY = "0.0800";
+    private static final String DEFAULT_SELL_PRICE_PERCENTAGE = "0.7000";
     private static final long DEFAULT_BASE_REGEN_QUANTITY = 1L;
     private static final long DEFAULT_REGEN_INTERVAL_SECONDS = 60L;
 
@@ -438,6 +439,7 @@ public class DefaultMarketCatalog {
             .maxUnitPrice(baseUnitPrice * 3L)
             .segmentSize(DEFAULT_SEGMENT_SIZE)
             .priceSensitivity(DEFAULT_PRICE_SENSITIVITY)
+            .sellPricePercentage(DEFAULT_SELL_PRICE_PERCENTAGE)
             .baseRegenQuantity(DEFAULT_BASE_REGEN_QUANTITY)
             .regenIntervalSeconds(DEFAULT_REGEN_INTERVAL_SECONDS)
             .build();

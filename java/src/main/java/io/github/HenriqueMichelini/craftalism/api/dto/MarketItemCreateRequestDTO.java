@@ -1,6 +1,7 @@
 package io.github.HenriqueMichelini.craftalism.api.dto;
 
 import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
@@ -47,6 +48,10 @@ public record MarketItemCreateRequestDTO(
 
     @DecimalMin(value = "0.0001", message = "Price sensitivity must be positive")
     BigDecimal priceSensitivity,
+
+    @DecimalMin(value = "0.0001", message = "Sell price percentage must be greater than 0")
+    @DecimalMax(value = "0.9999", message = "Sell price percentage must be less than 1")
+    BigDecimal sellPricePercentage,
 
     @PositiveOrZero(message = "Base regen quantity must be zero or positive")
     Long baseRegenQuantity,

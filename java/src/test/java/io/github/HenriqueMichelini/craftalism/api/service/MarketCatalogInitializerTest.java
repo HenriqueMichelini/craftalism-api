@@ -67,6 +67,10 @@ class MarketCatalogInitializerTest {
             0,
             new BigDecimal("0.0800").compareTo(wheat.getPriceSensitivity())
         );
+        assertEquals(
+            0,
+            new BigDecimal("0.7000").compareTo(wheat.getSellPricePercentage())
+        );
         assertEquals(1L, wheat.getBaseRegenQuantity());
         assertEquals(60L, wheat.getRegenIntervalSeconds());
         assertEquals(0L, wheat.getNetPosition());
@@ -330,7 +334,7 @@ class MarketCatalogInitializerTest {
         assertEquals(0L, savedItem.getCurrentStock());
         assertEquals(1L, savedItem.getMarketMomentum());
         assertEquals(115L, savedItem.getBuyUnitEstimate());
-        assertEquals(100L, savedItem.getSellUnitEstimate());
+        assertEquals(81L, savedItem.getSellUnitEstimate());
     }
 
     @Test
@@ -489,9 +493,12 @@ class MarketCatalogInitializerTest {
             validSeedBuilder().minUnitPrice(0L),
             validSeedBuilder().minUnitPrice(101L),
             validSeedBuilder().maxUnitPrice(99L),
+            validSeedBuilder().minUnitPrice(100L).maxUnitPrice(100L),
             validSeedBuilder().segmentSize(0L),
             seedBuilderWithoutPriceSensitivity(),
             validSeedBuilder().priceSensitivity("0.0000"),
+            validSeedBuilder().sellPricePercentage("0.0000"),
+            validSeedBuilder().sellPricePercentage("1.0000"),
             validSeedBuilder().baseRegenQuantity(-1L),
             validSeedBuilder().regenIntervalSeconds(0L),
             validSeedBuilder().minNetPosition(1L),
@@ -529,6 +536,7 @@ class MarketCatalogInitializerTest {
             .maxUnitPrice(300L)
             .segmentSize(50L)
             .priceSensitivity("0.0800")
+            .sellPricePercentage("0.7000")
             .baseRegenQuantity(1L)
             .regenIntervalSeconds(60L);
     }
@@ -551,6 +559,10 @@ class MarketCatalogInitializerTest {
         assertEquals(baseUnitPrice, item.baseUnitPrice());
         assertEquals(baseUnitPrice / 2L, item.minUnitPrice());
         assertEquals(baseUnitPrice * 3L, item.maxUnitPrice());
+        assertEquals(
+            0,
+            new BigDecimal("0.7000").compareTo(item.sellPricePercentage())
+        );
         assertTrue(item.baseRegenQuantity() > 0L);
     }
 

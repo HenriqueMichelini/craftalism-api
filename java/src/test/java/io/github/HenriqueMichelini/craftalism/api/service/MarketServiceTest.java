@@ -230,7 +230,7 @@ class MarketServiceTest {
         assertEquals(0L, item.getCurrentStock());
         assertEquals(1L, item.getMarketMomentum());
         assertEquals(6L, item.getBuyUnitEstimate());
-        assertEquals(6L, item.getSellUnitEstimate());
+        assertEquals(4L, item.getSellUnitEstimate());
         assertEquals(690L, balance.getAmount());
     }
 
@@ -522,7 +522,7 @@ class MarketServiceTest {
             .orElseThrow();
         assertEquals(0L, carrot.getCurrentStock());
         assertEquals(10_000L, carrot.getBuyUnitEstimate());
-        assertEquals(9_616L, carrot.getSellUnitEstimate());
+        assertEquals(7_000L, carrot.getSellUnitEstimate());
     }
 
     @Test

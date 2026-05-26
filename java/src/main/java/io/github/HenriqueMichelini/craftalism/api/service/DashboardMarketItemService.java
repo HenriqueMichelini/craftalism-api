@@ -30,6 +30,8 @@ public class DashboardMarketItemService {
     private static final BigDecimal DEFAULT_PRICE_SENSITIVITY = new BigDecimal(
         "0.0800"
     );
+    private static final BigDecimal DEFAULT_SELL_PRICE_PERCENTAGE =
+        new BigDecimal("0.7000");
     private static final long DEFAULT_BASE_REGEN_QUANTITY = 1L;
     private static final long DEFAULT_REGEN_INTERVAL_SECONDS = 60L;
     private static final long DEFAULT_NET_POSITION = 0L;
@@ -57,7 +59,9 @@ public class DashboardMarketItemService {
     }
 
     public List<MarketItem> getAllMarketItems() {
-        return marketItemRepository.findAllForMarketRead();
+        List<MarketItem> items = marketItemRepository.findAllForMarketRead();
+        items.forEach(tradePlanner::recomputeDerivedProjections);
+        return items;
     }
 
     @Transactional
@@ -134,6 +138,10 @@ public class DashboardMarketItemService {
             request.priceSensitivity(),
             DEFAULT_PRICE_SENSITIVITY
         ));
+        item.setSellPricePercentage(valueOrDefault(
+            request.sellPricePercentage(),
+            DEFAULT_SELL_PRICE_PERCENTAGE
+        ));
         item.setBaseRegenQuantity(valueOrDefault(
             request.baseRegenQuantity(),
             DEFAULT_BASE_REGEN_QUANTITY
@@ -165,6 +173,7 @@ public class DashboardMarketItemService {
         item.setMaxUnitPrice(request.maxUnitPrice());
         item.setSegmentSize(request.segmentSize());
         item.setPriceSensitivity(request.priceSensitivity());
+        item.setSellPricePercentage(request.sellPricePercentage());
         item.setBaseRegenQuantity(request.baseRegenQuantity());
         item.setRegenIntervalSeconds(request.regenIntervalSeconds());
         item.setNetPosition(request.netPosition());
@@ -188,6 +197,24 @@ public class DashboardMarketItemService {
         if (item.getMaxUnitPrice() < item.getBaseUnitPrice()) {
             throw new MarketItemValidationException(
                 "Maximum unit price must be greater than or equal to base unit price"
+            );
+        }
+        if (item.getMinUnitPrice() >= item.getMaxUnitPrice()) {
+            throw new MarketItemValidationException(
+                "Minimum and maximum unit prices must allow a buy/sell estimate spread"
+            );
+        }
+        if (item.getSellPricePercentage() == null) {
+            throw new MarketItemValidationException(
+                "Sell price percentage must be provided"
+            );
+        }
+        if (
+            item.getSellPricePercentage().signum() <= 0 ||
+            item.getSellPricePercentage().compareTo(BigDecimal.ONE) >= 0
+        ) {
+            throw new MarketItemValidationException(
+                "Sell price percentage must be greater than 0 and less than 1"
             );
         }
         if (

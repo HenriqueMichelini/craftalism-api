@@ -54,7 +54,7 @@ final class MarketTradePlanner {
         }
         return pressurePlan(
             item,
-            Math.subtractExact(item.getNetPosition(), 1L),
+            item.getNetPosition(),
             requestedQuantity,
             Direction.DOWN,
             totalAvailableQuantity
@@ -71,13 +71,24 @@ final class MarketTradePlanner {
             pressurePricing.segment(item, item.getNetPosition())
         );
         item.setBuyUnitEstimate(buyUnitEstimate);
-        item.setSellUnitEstimate(
-            pressurePricing.unitPrice(
-                item,
-                Math.subtractExact(item.getNetPosition(), 1L)
-            )
+        item.setSellUnitEstimate(sellUnitPrice(item, buyUnitEstimate));
+        item.setVariationPercent(
+            variationPercent(item, buyUnitEstimate)
         );
-        item.setVariationPercent(variationPercent(item, buyUnitEstimate));
+    }
+
+    private long sellUnitPrice(MarketItem item, long buyUnitPrice) {
+        long sellUnitPrice = BigDecimal
+            .valueOf(buyUnitPrice)
+            .multiply(item.getSellPricePercentage())
+            .setScale(0, RoundingMode.HALF_UP)
+            .longValueExact();
+        if (sellUnitPrice <= 0L || sellUnitPrice >= buyUnitPrice) {
+            throw new IllegalStateException(
+                "Sell price percentage must produce a positive sell price below the buy price."
+            );
+        }
+        return sellUnitPrice;
     }
 
     private BigDecimal variationPercent(
@@ -123,7 +134,7 @@ final class MarketTradePlanner {
                 totalPrice,
                 Math.multiplyExact(
                     take,
-                    pressurePricing.unitPrice(item, currentPosition)
+                    unitPrice(item, currentPosition, direction)
                 )
             );
             remainingRequest -= take;
@@ -139,6 +150,17 @@ final class MarketTradePlanner {
             totalPrice,
             totalAvailableQuantity
         );
+    }
+
+    private long unitPrice(
+        MarketItem item,
+        long pressurePosition,
+        Direction direction
+    ) {
+        long buyUnitPrice = pressurePricing.unitPrice(item, pressurePosition);
+        return direction == Direction.DOWN
+            ? sellUnitPrice(item, buyUnitPrice)
+            : buyUnitPrice;
     }
 
     private long positionsRemainingInSegment(
@@ -186,4 +208,5 @@ final class MarketTradePlanner {
         long totalPrice,
         long totalAvailableQuantity
     ) {}
+
 }

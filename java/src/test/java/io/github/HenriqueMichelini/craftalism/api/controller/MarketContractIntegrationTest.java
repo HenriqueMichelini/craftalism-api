@@ -51,7 +51,7 @@ import org.springframework.test.web.servlet.MvcResult;
         "craftalism.market.quote-ttl-seconds=1",
         "craftalism.market.quote-rate-limit.max-requests=100",
         "craftalism.market.execute-rate-limit.max-requests=100",
-        "craftalism.market.rate-limit.window-seconds=60",
+        "craftalism.market.rate-limit.window-seconds=86400",
     }
 )
 @AutoConfigureMockMvc
@@ -281,6 +281,8 @@ class MarketContractIntegrationTest {
             .andExpect(jsonPath("$.status").value("SUCCESS"))
             .andExpect(jsonPath("$.executedQuantity").value(10))
             .andExpect(jsonPath("$.updatedItem.itemId").value("wheat"))
+            .andExpect(jsonPath("$.updatedItem.buyUnitEstimate").value("5"))
+            .andExpect(jsonPath("$.updatedItem.sellUnitEstimate").value("4"))
             .andExpect(jsonPath("$.updatedItem.marketPressure").value(10))
             .andExpect(jsonPath("$.updatedItem.marketSegment").value(0))
             .andExpect(jsonPath("$.updatedItem.pressureMagnitude").value(10))
@@ -1032,8 +1034,8 @@ class MarketContractIntegrationTest {
                         )
                 )
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.unitPrice").value("5"))
-                .andExpect(jsonPath("$.totalPrice").value("50"))
+                .andExpect(jsonPath("$.unitPrice").value("4"))
+                .andExpect(jsonPath("$.totalPrice").value("40"))
                 .andReturn();
 
         String quoteToken = jsonField(quoteResult.getResponse().getContentAsString(), "quoteToken");
@@ -1068,15 +1070,15 @@ class MarketContractIntegrationTest {
         Balance balance = balanceRepository.findById(playerUuid).orElseThrow();
         MarketItem updatedItem = marketItemRepository.findByItemId("wheat").orElseThrow();
         MarketTradeHistory history = marketTradeHistoryRepository.findAll().get(0);
-        assertEquals(1_050L, balance.getAmount());
+        assertEquals(1_040L, balance.getAmount());
         assertEquals(-10L, updatedItem.getNetPosition());
         assertEquals(0L, updatedItem.getCurrentStock());
         assertEquals(1L, marketTradeHistoryRepository.count());
         assertEquals(playerUuid, history.getPlayerUuid());
         assertEquals("wheat", history.getItemId());
         assertEquals(10L, history.getQuantity());
-        assertEquals(5L, history.getUnitPrice());
-        assertEquals(50L, history.getTotalPrice());
+        assertEquals(4L, history.getUnitPrice());
+        assertEquals(40L, history.getTotalPrice());
     }
 
     @Test
@@ -1104,8 +1106,8 @@ class MarketContractIntegrationTest {
                     )
             )
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.unitPrice").value("5"))
-            .andExpect(jsonPath("$.totalPrice").value("55"));
+            .andExpect(jsonPath("$.unitPrice").value("4"))
+            .andExpect(jsonPath("$.totalPrice").value("44"));
     }
 
     @Test
@@ -1359,6 +1361,7 @@ class MarketContractIntegrationTest {
         item.setMaxUnitPrice(15L);
         item.setSegmentSize(50L);
         item.setPriceSensitivity(new BigDecimal("0.0800"));
+        item.setSellPricePercentage(new BigDecimal("0.7000"));
         item.setBaseRegenQuantity(1L);
         item.setRegenIntervalSeconds(60L);
         item.setNetPosition(0L);

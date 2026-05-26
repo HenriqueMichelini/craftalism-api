@@ -130,6 +130,7 @@ final class MarketCatalogInitializer {
         item.setMaxUnitPrice(seed.maxUnitPrice());
         item.setSegmentSize(seed.segmentSize());
         item.setPriceSensitivity(seed.priceSensitivity());
+        item.setSellPricePercentage(seed.sellPricePercentage());
         item.setBaseRegenQuantity(seed.baseRegenQuantity());
         item.setRegenIntervalSeconds(seed.regenIntervalSeconds());
         item.setNetPosition(0L);

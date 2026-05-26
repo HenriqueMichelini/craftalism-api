@@ -15,6 +15,7 @@ final class MarketSeedItemBuilder {
     private long maxUnitPrice;
     private long segmentSize;
     private BigDecimal priceSensitivity;
+    private BigDecimal sellPricePercentage;
     private long baseRegenQuantity;
     private long regenIntervalSeconds;
     private Long minNetPosition;
@@ -75,6 +76,11 @@ final class MarketSeedItemBuilder {
         return this;
     }
 
+    MarketSeedItemBuilder sellPricePercentage(String sellPricePercentage) {
+        this.sellPricePercentage = new BigDecimal(sellPricePercentage);
+        return this;
+    }
+
     MarketSeedItemBuilder baseRegenQuantity(long baseRegenQuantity) {
         this.baseRegenQuantity = baseRegenQuantity;
         return this;
@@ -108,6 +114,7 @@ final class MarketSeedItemBuilder {
             maxUnitPrice,
             segmentSize,
             priceSensitivity,
+            sellPricePercentage,
             baseRegenQuantity,
             regenIntervalSeconds,
             minNetPosition,

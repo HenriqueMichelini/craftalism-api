@@ -161,9 +161,18 @@ Required derived values:
 - `marketPressure = netPosition`
 - `marketSegment = floorDiv(netPosition, segmentSize)`
 - `pressureMagnitude = abs(netPosition)`
-- `buyUnitEstimate = price for the next buy unit`
-- `sellUnitEstimate = price for the next sell unit`
+- `buyUnitEstimate = display estimate for the next buy unit`
+- `sellUnitEstimate = display estimate for the next sell unit, calculated from the buy estimate and item sell percentage`
 - `variationPercent = price movement from baseUnitPrice`
+
+Display estimates must preserve a configured percentage spread:
+
+- each item has `sellPricePercentage` where `0 < sellPricePercentage < 1`
+- default catalog items use `sellPricePercentage = 0.7000`
+- `sellUnitEstimate = round(buyUnitEstimate * sellPricePercentage)`
+- example: if `buyUnitEstimate = 10` and `sellPricePercentage = 0.7000`, then `sellUnitEstimate = 7`
+
+BUY quote totals and executed unit prices still use pressure-position traversal. SELL quote totals and executed unit prices traverse pressure positions downward from the current `netPosition`, but apply `sellPricePercentage` to each traversed pressure-derived buy price.
 
 `marketMomentum` may be removed or kept as an internal alias for `marketSegment` during migration. Public clients should use `marketSegment`.
 
@@ -253,9 +262,9 @@ The planner must walk virtual segments instead of persisted segment rows.
 Unit pricing uses deterministic pressure positions:
 
 - BUY prices positions from `netPosition` through `netPosition + quantity - 1`
-- SELL prices positions from `netPosition - 1` down through `netPosition - quantity`
+- SELL prices positions from `netPosition` down through `netPosition - quantity + 1`, applying `sellPricePercentage` to each position's pressure-derived buy price
 
-This means the first buy at equilibrium prices at segment `0`, while the first sell at equilibrium prices at segment `-1`.
+This means the first buy and first sell at equilibrium both reference segment `0`; the sell payout is reduced by the configured sell percentage.
 
 Examples with `segmentSize = 50`:
 
@@ -264,9 +273,9 @@ BUY  quantity 1 from netPosition 0    prices position 0   -> segment 0
 BUY  quantity 2 from netPosition 49   prices 49, 50       -> segments 0, 1
 BUY  quantity 1 from netPosition -1   prices position -1  -> segment -1
 
-SELL quantity 1 from netPosition 0    prices position -1  -> segment -1
-SELL quantity 2 from netPosition 1    prices 0, -1        -> segments 0, -1
-SELL quantity 1 from netPosition -50  prices position -51 -> segment -2
+SELL quantity 1 from netPosition 0    prices position 0   -> segment 0, then applies sell percentage
+SELL quantity 2 from netPosition 1    prices 1, 0         -> segments 0, 0, then applies sell percentage
+SELL quantity 1 from netPosition -50  prices position -50 -> segment -1, then applies sell percentage
 ```
 
 For a buy:
@@ -285,9 +294,9 @@ For a sell:
 1. Start at current `netPosition`.
 2. Validate `netPosition - quantity` does not overflow.
 3. Validate the result does not go below `minNetPosition` when configured.
-4. Traverse downward across positions `[netPosition - 1, netPosition - quantity]`.
+4. Traverse downward across positions `[netPosition, netPosition - quantity + 1]`.
 5. Split quantity by segment boundaries.
-6. Price each slice using the segment price.
+6. Price each slice using the segment buy price multiplied by `sellPricePercentage`.
 7. Sum the total.
 8. Return effective unit price as `ceil(totalPrice / quantity)`.
 

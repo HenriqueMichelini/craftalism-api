@@ -56,7 +56,7 @@ Response:
           "displayName": "Wheat",
           "iconKey": "WHEAT",
           "buyUnitEstimate": "50000",
-          "sellUnitEstimate": "48039",
+          "sellUnitEstimate": "35000",
           "currency": "coins",
           "marketPressure": -25,
           "marketSegment": -1,
@@ -75,8 +75,8 @@ Response:
 Required semantics:
 
 - `snapshotVersion`: opaque stale-detection token.
-- `buyUnitEstimate`: display-only price estimate for the next buy unit.
-- `sellUnitEstimate`: display-only price estimate for the next sell unit.
+- `buyUnitEstimate`: display-only buy price estimate.
+- `sellUnitEstimate`: display-only sell price estimate calculated as `buyUnitEstimate * sellPricePercentage`; default catalog items use `0.7000`.
 - `marketPressure`: signed backend pressure position.
 - `marketSegment`: signed pressure segment derived from `marketPressure`.
 - `pressureMagnitude`: non-negative absolute pressure value for display, sorting, or filtering.
@@ -180,7 +180,7 @@ Success response:
     "displayName": "Wheat",
     "iconKey": "WHEAT",
     "buyUnitEstimate": "50000",
-    "sellUnitEstimate": "50000",
+    "sellUnitEstimate": "35000",
     "currency": "coins",
     "marketPressure": 7,
     "marketSegment": 0,

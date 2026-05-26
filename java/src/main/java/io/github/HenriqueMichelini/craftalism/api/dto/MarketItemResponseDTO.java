@@ -23,6 +23,7 @@ public record MarketItemResponseDTO(
     long maxUnitPrice,
     long segmentSize,
     BigDecimal priceSensitivity,
+    BigDecimal sellPricePercentage,
     long baseRegenQuantity,
     long regenIntervalSeconds,
     long netPosition,

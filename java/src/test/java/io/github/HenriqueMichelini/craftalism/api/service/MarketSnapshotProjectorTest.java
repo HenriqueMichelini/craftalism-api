@@ -77,6 +77,12 @@ class MarketSnapshotProjectorTest {
         );
         assertNotEquals(
             baseline,
+            snapshotVersion(item ->
+                item.setSellPricePercentage(new BigDecimal("0.6500"))
+            )
+        );
+        assertNotEquals(
+            baseline,
             snapshotVersion(item -> item.setBaseRegenQuantity(2L))
         );
         assertNotEquals(
@@ -154,6 +160,7 @@ class MarketSnapshotProjectorTest {
         MarketSnapshotItemDTO snapshotItem = projector.toSnapshotItem(item);
 
         assertEquals("100", snapshotItem.buyUnitEstimate());
+        assertEquals("70", snapshotItem.sellUnitEstimate());
         assertEquals("0", snapshotItem.variationPercent());
     }
 
@@ -165,6 +172,7 @@ class MarketSnapshotProjectorTest {
         MarketSnapshotItemDTO snapshotItem = projector.toSnapshotItem(item);
 
         assertEquals("115", snapshotItem.buyUnitEstimate());
+        assertEquals("81", snapshotItem.sellUnitEstimate());
         assertEquals("15", snapshotItem.variationPercent());
     }
 
@@ -176,7 +184,19 @@ class MarketSnapshotProjectorTest {
         MarketSnapshotItemDTO snapshotItem = projector.toSnapshotItem(item);
 
         assertEquals("96", snapshotItem.buyUnitEstimate());
+        assertEquals("67", snapshotItem.sellUnitEstimate());
         assertEquals("-4", snapshotItem.variationPercent());
+    }
+
+    @Test
+    void toSnapshotItem_preservesEstimateSpreadForSmallPositivePressure() {
+        MarketItem item = pressureItem();
+        item.setNetPosition(7L);
+
+        MarketSnapshotItemDTO snapshotItem = projector.toSnapshotItem(item);
+
+        assertEquals("100", snapshotItem.buyUnitEstimate());
+        assertEquals("70", snapshotItem.sellUnitEstimate());
     }
 
     @Test

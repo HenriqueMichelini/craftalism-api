@@ -134,6 +134,7 @@ final class MarketSnapshotProjector {
                     item.getMaxUnitPrice(),
                     item.getSegmentSize(),
                     item.getPriceSensitivity(),
+                    item.getSellPricePercentage(),
                     item.getBaseRegenQuantity(),
                     item.getRegenIntervalSeconds(),
                     item.getCurrentStock(),
@@ -188,6 +189,8 @@ final class MarketSnapshotProjector {
                 .append(item.segmentSize())
                 .append(':')
                 .append(normalizedDecimal(item.priceSensitivity()))
+                .append(':')
+                .append(normalizedDecimal(item.sellPricePercentage()))
                 .append(':')
                 .append(item.baseRegenQuantity())
                 .append(':')
@@ -247,6 +250,7 @@ final class MarketSnapshotProjector {
         long maxUnitPrice,
         long segmentSize,
         BigDecimal priceSensitivity,
+        BigDecimal sellPricePercentage,
         long baseRegenQuantity,
         long regenIntervalSeconds,
         long currentStock,

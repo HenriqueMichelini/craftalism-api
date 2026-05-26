@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import io.github.HenriqueMichelini.craftalism.api.model.MarketItem;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Instant;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -115,8 +116,8 @@ class MarketTradePlannerTest {
         MarketTradePlanner.TradePlan plan = planner.sellPlan(item, 2L);
 
         assertEquals(2L, plan.executedQuantity());
-        assertEquals(98L, plan.unitPrice());
-        assertEquals(196L, plan.totalPrice());
+        assertEquals(70L, plan.unitPrice());
+        assertEquals(140L, plan.totalPrice());
         assertEquals(Long.MAX_VALUE, plan.totalAvailableQuantity());
     }
 
@@ -127,8 +128,8 @@ class MarketTradePlannerTest {
         MarketTradePlanner.TradePlan plan = planner.sellPlan(item, 1L);
 
         assertEquals(1L, plan.executedQuantity());
-        assertEquals(93L, plan.unitPrice());
-        assertEquals(93L, plan.totalPrice());
+        assertEquals(67L, plan.unitPrice());
+        assertEquals(67L, plan.totalPrice());
         assertEquals(Long.MAX_VALUE, plan.totalAvailableQuantity());
     }
 
@@ -189,7 +190,7 @@ class MarketTradePlannerTest {
         assertEquals(0L, item.getCurrentStock());
         assertEquals(1L, item.getMarketMomentum());
         assertEquals(115L, item.getBuyUnitEstimate());
-        assertEquals(100L, item.getSellUnitEstimate());
+        assertEquals(81L, item.getSellUnitEstimate());
         assertEquals(
             0,
             new BigDecimal("15.00").compareTo(item.getVariationPercent())
@@ -204,9 +205,56 @@ class MarketTradePlannerTest {
         planner.recomputeDerivedProjections(item);
 
         assertEquals(100L, item.getBuyUnitEstimate());
+        assertEquals(70L, item.getSellUnitEstimate());
         assertEquals(
             0,
             BigDecimal.ZERO.compareTo(item.getVariationPercent())
+        );
+    }
+
+    @Test
+    void recomputeDerivedProjections_preservesSpreadForSmallPositivePressure() {
+        MarketItem item = pressureItem(7L);
+
+        planner.recomputeDerivedProjections(item);
+
+        assertEquals(100L, item.getBuyUnitEstimate());
+        assertEquals(70L, item.getSellUnitEstimate());
+    }
+
+    @Test
+    void recomputeDerivedProjections_preservesSpreadForNegativePressure() {
+        MarketItem item = pressureItem(-1L);
+
+        planner.recomputeDerivedProjections(item);
+
+        assertEquals(96L, item.getBuyUnitEstimate());
+        assertEquals(67L, item.getSellUnitEstimate());
+    }
+
+    @Test
+    void recomputeDerivedProjections_appliesSellPercentageAtMinimumBuyEstimate() {
+        MarketItem item = pressureItem(-50_000L);
+
+        planner.recomputeDerivedProjections(item);
+
+        assertEquals(50L, item.getBuyUnitEstimate());
+        assertEquals(35L, item.getSellUnitEstimate());
+    }
+
+    @Test
+    void recomputeDerivedProjections_keepsStablePercentageAfterLargeBuyPressure() {
+        MarketItem item = pressureItem(1_500L);
+
+        planner.recomputeDerivedProjections(item);
+
+        assertEquals(
+            BigDecimal
+                .valueOf(item.getBuyUnitEstimate())
+                .multiply(new BigDecimal("0.7000"))
+                .setScale(0, RoundingMode.HALF_UP)
+                .longValueExact(),
+            item.getSellUnitEstimate()
         );
     }
 
@@ -218,6 +266,7 @@ class MarketTradePlannerTest {
         planner.recomputeDerivedProjections(item);
 
         assertEquals(96L, item.getBuyUnitEstimate());
+        assertEquals(67L, item.getSellUnitEstimate());
         assertEquals(
             0,
             new BigDecimal("-4.00").compareTo(item.getVariationPercent())

@@ -14,6 +14,7 @@ record MarketSeedItem(
     long maxUnitPrice,
     long segmentSize,
     BigDecimal priceSensitivity,
+    BigDecimal sellPricePercentage,
     long baseRegenQuantity,
     long regenIntervalSeconds,
     Long minNetPosition,
@@ -50,6 +51,11 @@ record MarketSeedItem(
                 "maxUnitPrice must not be below baseUnitPrice"
             );
         }
+        if (minUnitPrice >= maxUnitPrice) {
+            throw new IllegalArgumentException(
+                "minUnitPrice and maxUnitPrice must allow a buy/sell estimate spread"
+            );
+        }
         if (segmentSize <= 0L) {
             throw new IllegalArgumentException("segmentSize must be positive");
         }
@@ -61,6 +67,19 @@ record MarketSeedItem(
         if (priceSensitivity.signum() <= 0) {
             throw new IllegalArgumentException(
                 "priceSensitivity must be positive"
+            );
+        }
+        if (sellPricePercentage == null) {
+            throw new IllegalArgumentException(
+                "sellPricePercentage must be provided"
+            );
+        }
+        if (
+            sellPricePercentage.signum() <= 0 ||
+            sellPricePercentage.compareTo(BigDecimal.ONE) >= 0
+        ) {
+            throw new IllegalArgumentException(
+                "sellPricePercentage must be greater than 0 and less than 1"
             );
         }
         if (baseRegenQuantity < 0L) {

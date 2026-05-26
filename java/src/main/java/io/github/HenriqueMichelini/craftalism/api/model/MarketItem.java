@@ -14,6 +14,8 @@ public class MarketItem {
     private static final BigDecimal DEFAULT_PRICE_SENSITIVITY = new BigDecimal(
         "0.0800"
     );
+    private static final BigDecimal DEFAULT_SELL_PRICE_PERCENTAGE =
+        new BigDecimal("0.7000");
 
     @Id
     @Column(nullable = false, updatable = false)
@@ -60,6 +62,9 @@ public class MarketItem {
 
     @Column(name = "price_sensitivity", nullable = false, precision = 8, scale = 4)
     private BigDecimal priceSensitivity = DEFAULT_PRICE_SENSITIVITY;
+
+    @Column(name = "sell_price_percentage", nullable = false, precision = 5, scale = 4)
+    private BigDecimal sellPricePercentage = DEFAULT_SELL_PRICE_PERCENTAGE;
 
     @Column(name = "base_regen_quantity", nullable = false)
     private long baseRegenQuantity = 1L;
@@ -206,6 +211,14 @@ public class MarketItem {
 
     public void setPriceSensitivity(BigDecimal priceSensitivity) {
         this.priceSensitivity = priceSensitivity;
+    }
+
+    public BigDecimal getSellPricePercentage() {
+        return sellPricePercentage;
+    }
+
+    public void setSellPricePercentage(BigDecimal sellPricePercentage) {
+        this.sellPricePercentage = sellPricePercentage;
     }
 
     public long getBaseRegenQuantity() {

@@ -54,13 +54,18 @@ class DashboardMarketItemCrudApiIntegrationTest {
 
     @Test
     void marketItemCrud_listCreateUpdateDelete() throws Exception {
-        marketItemRepository.save(marketItem("existing_item", "Existing Item"));
+        MarketItem existingItem = marketItem("existing_item", "Existing Item");
+        existingItem.setNetPosition(7L);
+        existingItem.setBuyUnitEstimate(100L);
+        existingItem.setSellUnitEstimate(100L);
+        marketItemRepository.save(existingItem);
 
         mockMvc
             .perform(get(BASE_PATH))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$[0].itemId").value("existing_item"))
             .andExpect(jsonPath("$[0].buyUnitEstimate").value(100))
+            .andExpect(jsonPath("$[0].sellUnitEstimate").value(70))
             .andExpect(jsonPath("$[0].currentStock").value(0));
 
         mockMvc
@@ -77,8 +82,9 @@ class DashboardMarketItemCrudApiIntegrationTest {
             .andExpect(jsonPath("$.categoryId").value("custom"))
             .andExpect(jsonPath("$.displayName").value("Custom Item"))
             .andExpect(jsonPath("$.baseUnitPrice").value(100))
+            .andExpect(jsonPath("$.sellPricePercentage").value(0.7))
             .andExpect(jsonPath("$.buyUnitEstimate").value(100))
-            .andExpect(jsonPath("$.sellUnitEstimate").value(96))
+            .andExpect(jsonPath("$.sellUnitEstimate").value(70))
             .andExpect(jsonPath("$.lastUpdatedAt").exists());
 
         mockMvc
@@ -93,7 +99,9 @@ class DashboardMarketItemCrudApiIntegrationTest {
             .andExpect(jsonPath("$.displayName").value("Custom Item"))
             .andExpect(jsonPath("$.categoryDisplayName").value("Updated Category"))
             .andExpect(jsonPath("$.baseUnitPrice").value(200))
-            .andExpect(jsonPath("$.buyUnitEstimate").value(200));
+            .andExpect(jsonPath("$.sellPricePercentage").value(0.7))
+            .andExpect(jsonPath("$.buyUnitEstimate").value(200))
+            .andExpect(jsonPath("$.sellUnitEstimate").value(140));
 
         mockMvc
             .perform(delete(BASE_PATH + "/custom_item"))
@@ -185,6 +193,57 @@ class DashboardMarketItemCrudApiIntegrationTest {
                     "Minimum unit price must be less than or equal to base unit price"
                 )
             );
+
+        mockMvc
+            .perform(
+                post(BASE_PATH)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(
+                        createPayload("flat_spread_item")
+                            .replace(
+                                "\"minUnitPrice\": 50",
+                                "\"minUnitPrice\": 100"
+                            )
+                            .replace(
+                                "\"maxUnitPrice\": 300",
+                                "\"maxUnitPrice\": 100"
+                            )
+                    )
+            )
+            .andExpect(status().isBadRequest())
+            .andExpect(
+                jsonPath("$.type").value(
+                    "https://api.craftalism.com/errors/validation"
+                )
+            )
+            .andExpect(
+                jsonPath("$.detail").value(
+                    "Minimum and maximum unit prices must allow a buy/sell estimate spread"
+                )
+            );
+
+        mockMvc
+            .perform(
+                post(BASE_PATH)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(
+                        createPayload("invalid_sell_percentage_item").replace(
+                            "\"sellPricePercentage\": 0.7000",
+                            "\"sellPricePercentage\": 1.0000"
+                        )
+                    )
+            )
+            .andExpect(status().isBadRequest())
+            .andExpect(
+                jsonPath("$.type").value(
+                    "https://api.craftalism.com/errors/validation"
+                )
+            )
+            .andExpect(
+                jsonPath("$.errors.sellPricePercentage").value(
+                    "Sell price percentage must be less than 1"
+                )
+            );
     }
 
     @Test
@@ -231,6 +290,7 @@ class DashboardMarketItemCrudApiIntegrationTest {
         item.setMaxUnitPrice(300L);
         item.setSegmentSize(50L);
         item.setPriceSensitivity(new BigDecimal("0.0800"));
+        item.setSellPricePercentage(new BigDecimal("0.7000"));
         item.setBaseRegenQuantity(1L);
         item.setRegenIntervalSeconds(60L);
         item.setNetPosition(0L);
@@ -275,6 +335,7 @@ class DashboardMarketItemCrudApiIntegrationTest {
               "maxUnitPrice": 300,
               "segmentSize": 50,
               "priceSensitivity": 0.0800,
+              "sellPricePercentage": 0.7000,
               "baseRegenQuantity": 1,
               "regenIntervalSeconds": 60,
               "netPosition": 0,
@@ -298,6 +359,7 @@ class DashboardMarketItemCrudApiIntegrationTest {
               "maxUnitPrice": 600,
               "segmentSize": 50,
               "priceSensitivity": 0.0800,
+              "sellPricePercentage": 0.7000,
               "baseRegenQuantity": 2,
               "regenIntervalSeconds": 120,
               "netPosition": 0,

@@ -31,6 +31,7 @@ public class MarketItemMapper {
             item.getMaxUnitPrice(),
             item.getSegmentSize(),
             item.getPriceSensitivity(),
+            item.getSellPricePercentage(),
             item.getBaseRegenQuantity(),
             item.getRegenIntervalSeconds(),
             item.getNetPosition(),

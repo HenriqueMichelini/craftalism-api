@@ -40,8 +40,10 @@ Follow the source of truth strictly. Do not simplify or reinterpret the pricing 
 - Positive pressure approaches `maxUnitPrice`.
 - Negative pressure approaches `minUnitPrice`.
 - Unit prices are rounded and clamped within configured bounds.
+- Each item has a `sellPricePercentage` greater than `0` and less than `1`; default catalog items use `0.7000`.
 - BUY quote planning prices positions `netPosition` through `netPosition + quantity - 1`.
-- SELL quote planning prices positions `netPosition - 1` through `netPosition - quantity`.
+- SELL quote planning prices positions `netPosition` through `netPosition - quantity + 1`, applying `sell_price = pressure_buy_price * sellPricePercentage` to each traversed position.
+- Snapshot and execute success item projections must expose `sellUnitEstimate = buyUnitEstimate * sellPricePercentage`, rounded to whole units.
 - Ordinary buys and sells are not limited by finite stock.
 - `INSUFFICIENT_STOCK` is emitted only for configured hard pressure bounds.
 - Regeneration moves positive or negative `netPosition` toward `0`.
