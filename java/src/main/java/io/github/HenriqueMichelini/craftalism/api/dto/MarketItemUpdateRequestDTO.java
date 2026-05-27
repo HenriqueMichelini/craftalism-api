@@ -10,10 +10,6 @@ import jakarta.validation.constraints.Size;
 import java.math.BigDecimal;
 
 public record MarketItemUpdateRequestDTO(
-    @NotBlank(message = "Category display name is required")
-    @Size(max = 128, message = "Category display name must be at most 128 characters")
-    String categoryDisplayName,
-
     @NotBlank(message = "Icon key is required")
     @Size(max = 64, message = "Icon key must be at most 64 characters")
     String iconKey,

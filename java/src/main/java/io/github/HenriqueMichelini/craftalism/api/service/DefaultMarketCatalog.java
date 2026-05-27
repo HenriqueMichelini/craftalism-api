@@ -30,6 +30,20 @@ public class DefaultMarketCatalog {
         "totem_of_undying",
         "trident"
     );
+    private static final List<MarketSeedCategory> CATEGORIES = List.of(
+        new MarketSeedCategory("farming", "Farming", "WHEAT", 0),
+        new MarketSeedCategory("animal_products", "Animal Products", "BEEF", 1),
+        new MarketSeedCategory("mob_drops", "Mob Drops", "BONE", 2),
+        new MarketSeedCategory("natural_blocks", "Natural Blocks", "DIRT", 3),
+        new MarketSeedCategory(
+            "decorative_blocks",
+            "Decorative Blocks",
+            "WHITE_WOOL",
+            4
+        ),
+        new MarketSeedCategory("forestry", "Forestry", "OAK_LOG", 5),
+        new MarketSeedCategory("minerals", "Minerals", "COAL", 6)
+    );
 
     private static final List<MarketSeedItem> ITEMS = List.of(
         item(
@@ -263,6 +277,10 @@ public class DefaultMarketCatalog {
 
     public List<MarketSeedItem> items() {
         return ITEMS;
+    }
+
+    public List<MarketSeedCategory> categories() {
+        return CATEGORIES;
     }
 
     Set<String> retiredItemIds() {

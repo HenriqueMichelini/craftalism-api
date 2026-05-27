@@ -1,6 +1,8 @@
 package io.github.HenriqueMichelini.craftalism.api.service;
 
+import io.github.HenriqueMichelini.craftalism.api.model.MarketCategory;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketItem;
+import io.github.HenriqueMichelini.craftalism.api.repository.MarketCategoryRepository;
 import io.github.HenriqueMichelini.craftalism.api.repository.MarketItemRepository;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -14,20 +16,24 @@ import java.util.stream.Collectors;
 final class MarketCatalogInitializer {
 
     private final MarketItemRepository marketItemRepository;
+    private final MarketCategoryRepository marketCategoryRepository;
     private final DefaultMarketCatalog defaultMarketCatalog;
     private final MarketTradePlanner tradePlanner;
 
     MarketCatalogInitializer(
         MarketItemRepository marketItemRepository,
+        MarketCategoryRepository marketCategoryRepository,
         DefaultMarketCatalog defaultMarketCatalog,
         MarketTradePlanner tradePlanner
     ) {
         this.marketItemRepository = marketItemRepository;
+        this.marketCategoryRepository = marketCategoryRepository;
         this.defaultMarketCatalog = defaultMarketCatalog;
         this.tradePlanner = tradePlanner;
     }
 
     void initializeCatalogIfEmpty() {
+        initializeCategories();
         if (marketItemRepository.count() == 0) {
             marketItemRepository.saveAll(
                 defaultMarketCatalog
@@ -40,6 +46,31 @@ final class MarketCatalogInitializer {
         }
 
         updateExistingCatalog();
+    }
+
+    private void initializeCategories() {
+        Set<String> existingCategoryIds = marketCategoryRepository
+            .findAll()
+            .stream()
+            .map(MarketCategory::getCategoryId)
+            .collect(Collectors.toSet());
+        List<MarketCategory> categoriesToSave = new ArrayList<>();
+        Instant now = Instant.now();
+        for (MarketSeedCategory seed : defaultMarketCatalog.categories()) {
+            if (!existingCategoryIds.contains(seed.categoryId())) {
+                MarketCategory category = new MarketCategory();
+                category.setCategoryId(seed.categoryId());
+                category.setDisplayName(seed.displayName());
+                category.setIconKey(seed.iconKey());
+                category.setDisplayOrder(seed.displayOrder());
+                category.setCreatedAt(now);
+                category.setUpdatedAt(now);
+                categoriesToSave.add(category);
+            }
+        }
+        if (!categoriesToSave.isEmpty()) {
+            marketCategoryRepository.saveAll(categoriesToSave);
+        }
     }
 
     private void updateExistingCatalog() {
@@ -104,14 +135,6 @@ final class MarketCatalogInitializer {
         boolean changed = false;
         if (!item.getCategoryId().equals(defaultItem.categoryId())) {
             item.setCategoryId(defaultItem.categoryId());
-            changed = true;
-        }
-        if (
-            !item
-                .getCategoryDisplayName()
-                .equals(defaultItem.categoryDisplayName())
-        ) {
-            item.setCategoryDisplayName(defaultItem.categoryDisplayName());
             changed = true;
         }
         return changed;

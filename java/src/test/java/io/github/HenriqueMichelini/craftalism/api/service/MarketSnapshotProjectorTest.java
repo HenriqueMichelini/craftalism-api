@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 
 import io.github.HenriqueMichelini.craftalism.api.dto.MarketSnapshotItemDTO;
+import io.github.HenriqueMichelini.craftalism.api.model.MarketCategory;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketItem;
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -254,11 +255,39 @@ class MarketSnapshotProjectorTest {
     ) {
         MarketItem item = pressureItem();
         item.setItemId(itemId);
-        item.setCategoryId(categoryId);
-        item.setCategoryDisplayName(categoryDisplayName);
+        item.setCategory(category(categoryId, categoryDisplayName));
         item.setDisplayName(displayName);
         item.setIconKey(itemId.toUpperCase());
         return item;
+    }
+
+    private MarketCategory category(String categoryId, String displayName) {
+        MarketCategory category = new MarketCategory();
+        category.setCategoryId(categoryId);
+        category.setDisplayName(displayName);
+        category.setIconKey(switch (categoryId) {
+            case "farming" -> "WHEAT";
+            case "animal_products" -> "BEEF";
+            case "mob_drops" -> "BONE";
+            case "natural_blocks" -> "DIRT";
+            case "decorative_blocks" -> "WHITE_WOOL";
+            case "forestry" -> "OAK_LOG";
+            case "minerals" -> "COAL";
+            default -> "CHEST";
+        });
+        category.setDisplayOrder(switch (categoryId) {
+            case "farming" -> 0;
+            case "animal_products" -> 1;
+            case "mob_drops" -> 2;
+            case "natural_blocks" -> 3;
+            case "decorative_blocks" -> 4;
+            case "forestry" -> 5;
+            case "minerals" -> 6;
+            default -> Integer.MAX_VALUE;
+        });
+        category.setCreatedAt(Instant.parse("2026-04-12T18:30:00Z"));
+        category.setUpdatedAt(Instant.parse("2026-04-12T18:30:00Z"));
+        return category;
     }
 
     private MarketItem pressureItem() {

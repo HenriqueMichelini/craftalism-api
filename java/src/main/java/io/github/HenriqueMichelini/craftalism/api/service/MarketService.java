@@ -7,6 +7,7 @@ import io.github.HenriqueMichelini.craftalism.api.dto.MarketQuoteResponseDTO;
 import io.github.HenriqueMichelini.craftalism.api.dto.MarketSnapshotResponseDTO;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketQuote;
 import io.github.HenriqueMichelini.craftalism.api.repository.BalanceRepository;
+import io.github.HenriqueMichelini.craftalism.api.repository.MarketCategoryRepository;
 import io.github.HenriqueMichelini.craftalism.api.repository.MarketItemRepository;
 import io.github.HenriqueMichelini.craftalism.api.repository.MarketQuoteRepository;
 import io.github.HenriqueMichelini.craftalism.api.repository.MarketTradeHistoryRepository;
@@ -33,6 +34,7 @@ public class MarketService {
     @Autowired
     public MarketService(
         MarketItemRepository marketItemRepository,
+        MarketCategoryRepository marketCategoryRepository,
         BalanceRepository balanceRepository,
         MarketQuoteStore quoteStore,
         MarketQuoteRepository marketQuoteRepository,
@@ -51,6 +53,7 @@ public class MarketService {
     ) {
         this(
             marketItemRepository,
+            marketCategoryRepository,
             balanceRepository,
             quoteStore,
             marketQuoteRepository,
@@ -68,6 +71,7 @@ public class MarketService {
 
     MarketService(
         MarketItemRepository marketItemRepository,
+        MarketCategoryRepository marketCategoryRepository,
         BalanceRepository balanceRepository,
         MarketQuoteStore quoteStore,
         MarketQuoteRepository marketQuoteRepository,
@@ -88,6 +92,7 @@ public class MarketService {
         );
         this.catalogInitializer = new MarketCatalogInitializer(
             marketItemRepository,
+            marketCategoryRepository,
             defaultMarketCatalog,
             tradePlanner
         );

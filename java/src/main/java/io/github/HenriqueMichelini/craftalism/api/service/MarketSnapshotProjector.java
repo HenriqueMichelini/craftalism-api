@@ -18,24 +18,6 @@ import java.util.Map;
 
 final class MarketSnapshotProjector {
 
-    private static final Map<String, Integer> CATEGORY_ORDER = Map.of(
-        "farming",
-        0,
-        "animal_products",
-        1,
-        "mob_drops",
-        2,
-        "natural_blocks",
-        3,
-        "decorative_blocks",
-        4,
-        "forestry",
-        5,
-        "minerals",
-        6
-    );
-    private static final int UNKNOWN_CATEGORY_ORDER = CATEGORY_ORDER.size();
-
     private final MarketTradePlanner tradePlanner;
 
     MarketSnapshotProjector(MarketTradePlanner tradePlanner) {
@@ -61,6 +43,7 @@ final class MarketSnapshotProjector {
                     new MarketSnapshotCategoryDTO(
                         item.categoryId(),
                         item.categoryDisplayName(),
+                        item.categoryIconKey(),
                         new ArrayList<>()
                     )
             );
@@ -124,6 +107,12 @@ final class MarketSnapshotProjector {
                     item.getItemId(),
                     item.getCategoryId(),
                     item.getCategoryDisplayName(),
+                    item.getCategory() == null
+                        ? Integer.MAX_VALUE
+                        : item.getCategory().getDisplayOrder(),
+                    item.getCategory() == null
+                        ? "CHEST"
+                        : item.getCategory().getIconKey(),
                     item.getDisplayName(),
                     item.getIconKey(),
                     item.getBuyUnitEstimate(),
@@ -156,19 +145,12 @@ final class MarketSnapshotProjector {
         }
         projections.sort(
             Comparator
-                .comparingInt(MarketSnapshotProjector::categoryOrder)
+                .comparingInt(MarketSnapshotProjection::categoryDisplayOrder)
                 .thenComparing(MarketSnapshotProjection::categoryId)
                 .thenComparing(MarketSnapshotProjection::displayName)
                 .thenComparing(MarketSnapshotProjection::itemId)
         );
         return List.copyOf(projections);
-    }
-
-    private static int categoryOrder(MarketSnapshotProjection projection) {
-        return CATEGORY_ORDER.getOrDefault(
-            projection.categoryId(),
-            UNKNOWN_CATEGORY_ORDER
-        );
     }
 
     String snapshotVersion(List<MarketSnapshotProjection> items) {
@@ -240,6 +222,8 @@ final class MarketSnapshotProjector {
         String itemId,
         String categoryId,
         String categoryDisplayName,
+        int categoryDisplayOrder,
+        String categoryIconKey,
         String displayName,
         String iconKey,
         long buyUnitEstimate,

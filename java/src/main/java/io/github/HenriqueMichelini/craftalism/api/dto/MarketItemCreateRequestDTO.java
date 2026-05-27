@@ -18,10 +18,6 @@ public record MarketItemCreateRequestDTO(
     @Size(max = 64, message = "Category ID must be at most 64 characters")
     String categoryId,
 
-    @NotBlank(message = "Category display name is required")
-    @Size(max = 128, message = "Category display name must be at most 128 characters")
-    String categoryDisplayName,
-
     @NotBlank(message = "Display name is required")
     @Size(max = 128, message = "Display name must be at most 128 characters")
     String displayName,

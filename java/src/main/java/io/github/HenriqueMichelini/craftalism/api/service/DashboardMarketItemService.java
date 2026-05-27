@@ -7,7 +7,9 @@ import io.github.HenriqueMichelini.craftalism.api.exceptions.MarketItemInUseExce
 import io.github.HenriqueMichelini.craftalism.api.exceptions.MarketItemManagedByCatalogException;
 import io.github.HenriqueMichelini.craftalism.api.exceptions.MarketItemNotFoundException;
 import io.github.HenriqueMichelini.craftalism.api.exceptions.MarketItemValidationException;
+import io.github.HenriqueMichelini.craftalism.api.model.MarketCategory;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketItem;
+import io.github.HenriqueMichelini.craftalism.api.repository.MarketCategoryRepository;
 import io.github.HenriqueMichelini.craftalism.api.repository.MarketItemRepository;
 import io.github.HenriqueMichelini.craftalism.api.repository.MarketQuoteRepository;
 import io.github.HenriqueMichelini.craftalism.api.repository.MarketTradeHistoryRepository;
@@ -37,6 +39,7 @@ public class DashboardMarketItemService {
     private static final long DEFAULT_NET_POSITION = 0L;
 
     private final MarketItemRepository marketItemRepository;
+    private final MarketCategoryRepository marketCategoryRepository;
     private final MarketQuoteRepository marketQuoteRepository;
     private final MarketTradeHistoryRepository marketTradeHistoryRepository;
     private final Set<String> defaultCatalogItemIds;
@@ -44,11 +47,13 @@ public class DashboardMarketItemService {
 
     public DashboardMarketItemService(
         MarketItemRepository marketItemRepository,
+        MarketCategoryRepository marketCategoryRepository,
         MarketQuoteRepository marketQuoteRepository,
         MarketTradeHistoryRepository marketTradeHistoryRepository,
         DefaultMarketCatalog defaultMarketCatalog
     ) {
         this.marketItemRepository = marketItemRepository;
+        this.marketCategoryRepository = marketCategoryRepository;
         this.marketQuoteRepository = marketQuoteRepository;
         this.marketTradeHistoryRepository = marketTradeHistoryRepository;
         this.defaultCatalogItemIds = defaultMarketCatalog
@@ -73,8 +78,7 @@ public class DashboardMarketItemService {
 
         MarketItem item = new MarketItem();
         item.setItemId(itemId);
-        item.setCategoryId(request.categoryId().trim());
-        item.setCategoryDisplayName(request.categoryDisplayName().trim());
+        item.setCategory(getMarketCategory(request.categoryId().trim()));
         item.setDisplayName(request.displayName().trim());
         applyCreateValues(item, request);
         return marketItemRepository.save(item);
@@ -108,6 +112,16 @@ public class DashboardMarketItemService {
         return marketItemRepository
             .findByItemId(itemId)
             .orElseThrow(() -> new MarketItemNotFoundException(itemId));
+    }
+
+    private MarketCategory getMarketCategory(String categoryId) {
+        return marketCategoryRepository
+            .findByCategoryId(categoryId)
+            .orElseThrow(() ->
+                new io.github.HenriqueMichelini.craftalism.api.exceptions.MarketCategoryNotFoundException(
+                    categoryId
+                )
+            );
     }
 
     private void applyCreateValues(
@@ -163,7 +177,6 @@ public class DashboardMarketItemService {
         MarketItem item,
         MarketItemUpdateRequestDTO request
     ) {
-        item.setCategoryDisplayName(request.categoryDisplayName().trim());
         item.setIconKey(request.iconKey().trim());
         item.setCurrency(request.currency().trim());
         item.setBlocked(request.blocked());

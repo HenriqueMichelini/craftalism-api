@@ -10,6 +10,9 @@ public record MarketSnapshotCategoryDTO(
     @Schema(description = "Category display name", example = "Farming")
     String displayName,
 
+    @Schema(description = "Category icon material key", example = "WHEAT")
+    String iconKey,
+
     @Schema(description = "Items inside the category")
     List<MarketSnapshotItemDTO> items
 ) {}

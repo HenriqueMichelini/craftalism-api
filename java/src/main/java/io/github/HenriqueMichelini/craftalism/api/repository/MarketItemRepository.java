@@ -13,11 +13,13 @@ import org.springframework.stereotype.Repository;
 @Repository
 public interface MarketItemRepository extends JpaRepository<MarketItem, String> {
     @Query(
-        "SELECT m FROM market_items m ORDER BY m.categoryId ASC, m.displayName ASC"
+        "SELECT m FROM market_items m JOIN FETCH m.category c ORDER BY c.displayOrder ASC, c.categoryId ASC, m.displayName ASC"
     )
     List<MarketItem> findAllForMarketRead();
 
     Optional<MarketItem> findByItemId(String itemId);
+
+    boolean existsByCategoryId(String categoryId);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT m FROM market_items m WHERE m.itemId = :itemId")

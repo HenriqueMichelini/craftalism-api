@@ -21,6 +21,7 @@ import io.github.HenriqueMichelini.craftalism.api.model.MarketItem;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketQuote;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketTradeHistory;
 import io.github.HenriqueMichelini.craftalism.api.repository.BalanceRepository;
+import io.github.HenriqueMichelini.craftalism.api.repository.MarketCategoryRepository;
 import io.github.HenriqueMichelini.craftalism.api.repository.MarketItemRepository;
 import io.github.HenriqueMichelini.craftalism.api.repository.MarketQuoteRepository;
 import io.github.HenriqueMichelini.craftalism.api.repository.MarketTradeHistoryRepository;
@@ -49,6 +50,9 @@ class MarketServiceTest {
     private MarketItemRepository marketItemRepository;
 
     @Mock
+    private MarketCategoryRepository marketCategoryRepository;
+
+    @Mock
     private BalanceRepository balanceRepository;
 
     @Mock
@@ -66,6 +70,7 @@ class MarketServiceTest {
     void setUp() {
         marketService = new MarketService(
             marketItemRepository,
+            marketCategoryRepository,
             balanceRepository,
             quoteStore,
             marketQuoteRepository,
@@ -629,6 +634,7 @@ class MarketServiceTest {
     ) {
         return new MarketService(
             marketItemRepository,
+            marketCategoryRepository,
             balanceRepository,
             quoteStore,
             marketQuoteRepository,

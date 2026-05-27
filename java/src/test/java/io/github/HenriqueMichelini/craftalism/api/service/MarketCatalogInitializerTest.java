@@ -9,6 +9,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import io.github.HenriqueMichelini.craftalism.api.model.MarketItem;
+import io.github.HenriqueMichelini.craftalism.api.repository.MarketCategoryRepository;
 import io.github.HenriqueMichelini.craftalism.api.repository.MarketItemRepository;
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -28,6 +29,9 @@ class MarketCatalogInitializerTest {
     @Mock
     private MarketItemRepository marketItemRepository;
 
+    @Mock
+    private MarketCategoryRepository marketCategoryRepository;
+
     private final MarketTradePlanner tradePlanner = new MarketTradePlanner();
 
     @Test
@@ -36,6 +40,7 @@ class MarketCatalogInitializerTest {
 
         MarketCatalogInitializer initializer = new MarketCatalogInitializer(
             marketItemRepository,
+            marketCategoryRepository,
             new DefaultMarketCatalog(),
             tradePlanner
         );
@@ -316,6 +321,7 @@ class MarketCatalogInitializerTest {
 
         MarketCatalogInitializer initializer = new MarketCatalogInitializer(
             marketItemRepository,
+            marketCategoryRepository,
             new DefaultMarketCatalog(),
             tradePlanner
         );
@@ -360,6 +366,7 @@ class MarketCatalogInitializerTest {
 
         MarketCatalogInitializer initializer = new MarketCatalogInitializer(
             marketItemRepository,
+            marketCategoryRepository,
             new DefaultMarketCatalog(),
             tradePlanner
         );
@@ -380,7 +387,6 @@ class MarketCatalogInitializerTest {
             .findFirst()
             .orElseThrow();
         assertEquals("minerals", savedDiamond.getCategoryId());
-        assertEquals("Minerals", savedDiamond.getCategoryDisplayName());
 
         MarketItem savedBeef = savedItems
             .stream()
@@ -388,7 +394,6 @@ class MarketCatalogInitializerTest {
             .findFirst()
             .orElseThrow();
         assertEquals("animal_products", savedBeef.getCategoryId());
-        assertEquals("Animal Products", savedBeef.getCategoryDisplayName());
     }
 
     @Test
@@ -407,6 +412,7 @@ class MarketCatalogInitializerTest {
 
         MarketCatalogInitializer initializer = new MarketCatalogInitializer(
             marketItemRepository,
+            marketCategoryRepository,
             new DefaultMarketCatalog(),
             tradePlanner
         );
@@ -425,6 +431,7 @@ class MarketCatalogInitializerTest {
 
         MarketCatalogInitializer initializer = new MarketCatalogInitializer(
             marketItemRepository,
+            marketCategoryRepository,
             new DefaultMarketCatalog(),
             tradePlanner
         );
@@ -455,6 +462,7 @@ class MarketCatalogInitializerTest {
 
         MarketCatalogInitializer initializer = new MarketCatalogInitializer(
             marketItemRepository,
+            marketCategoryRepository,
             new DefaultMarketCatalog(),
             tradePlanner
         );

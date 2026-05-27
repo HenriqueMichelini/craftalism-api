@@ -9,8 +9,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import io.github.HenriqueMichelini.craftalism.api.dto.MarketSide;
+import io.github.HenriqueMichelini.craftalism.api.model.MarketCategory;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketItem;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketQuote;
+import io.github.HenriqueMichelini.craftalism.api.repository.MarketCategoryRepository;
 import io.github.HenriqueMichelini.craftalism.api.repository.MarketItemRepository;
 import io.github.HenriqueMichelini.craftalism.api.repository.MarketQuoteRepository;
 import io.github.HenriqueMichelini.craftalism.api.repository.MarketTradeHistoryRepository;
@@ -40,6 +42,9 @@ class DashboardMarketItemCrudApiIntegrationTest {
     private MarketItemRepository marketItemRepository;
 
     @Autowired
+    private MarketCategoryRepository marketCategoryRepository;
+
+    @Autowired
     private MarketQuoteRepository marketQuoteRepository;
 
     @Autowired
@@ -50,6 +55,8 @@ class DashboardMarketItemCrudApiIntegrationTest {
         marketQuoteRepository.deleteAll();
         marketTradeHistoryRepository.deleteAll();
         marketItemRepository.deleteAll();
+        marketCategoryRepository.deleteAll();
+        marketCategoryRepository.save(marketCategory("custom", "Custom", 0));
     }
 
     @Test
@@ -80,6 +87,7 @@ class DashboardMarketItemCrudApiIntegrationTest {
             )
             .andExpect(jsonPath("$.itemId").value("custom_item"))
             .andExpect(jsonPath("$.categoryId").value("custom"))
+            .andExpect(jsonPath("$.categoryDisplayName").value("Custom"))
             .andExpect(jsonPath("$.displayName").value("Custom Item"))
             .andExpect(jsonPath("$.baseUnitPrice").value(100))
             .andExpect(jsonPath("$.sellPricePercentage").value(0.7))
@@ -97,7 +105,7 @@ class DashboardMarketItemCrudApiIntegrationTest {
             .andExpect(jsonPath("$.itemId").value("custom_item"))
             .andExpect(jsonPath("$.categoryId").value("custom"))
             .andExpect(jsonPath("$.displayName").value("Custom Item"))
-            .andExpect(jsonPath("$.categoryDisplayName").value("Updated Category"))
+            .andExpect(jsonPath("$.categoryDisplayName").value("Custom"))
             .andExpect(jsonPath("$.baseUnitPrice").value(200))
             .andExpect(jsonPath("$.sellPricePercentage").value(0.7))
             .andExpect(jsonPath("$.buyUnitEstimate").value(200))
@@ -281,7 +289,6 @@ class DashboardMarketItemCrudApiIntegrationTest {
         MarketItem item = new MarketItem();
         item.setItemId(itemId);
         item.setCategoryId("custom");
-        item.setCategoryDisplayName("Custom");
         item.setDisplayName(displayName);
         item.setIconKey("STONE");
         item.setCurrency("coins");
@@ -305,6 +312,21 @@ class DashboardMarketItemCrudApiIntegrationTest {
         return item;
     }
 
+    private static MarketCategory marketCategory(
+        String categoryId,
+        String displayName,
+        int displayOrder
+    ) {
+        MarketCategory category = new MarketCategory();
+        category.setCategoryId(categoryId);
+        category.setDisplayName(displayName);
+        category.setIconKey("CHEST");
+        category.setDisplayOrder(displayOrder);
+        category.setCreatedAt(Instant.parse("2026-01-01T00:00:00Z"));
+        category.setUpdatedAt(Instant.parse("2026-01-01T00:00:00Z"));
+        return category;
+    }
+
     private static MarketQuote quote(String itemId) {
         MarketQuote quote = new MarketQuote();
         quote.setQuoteToken(UUID.randomUUID().toString());
@@ -326,7 +348,6 @@ class DashboardMarketItemCrudApiIntegrationTest {
             {
               "itemId": "%s",
               "categoryId": "custom",
-              "categoryDisplayName": "Custom",
               "displayName": "Custom Item",
               "iconKey": "STONE",
               "currency": "coins",
@@ -350,7 +371,6 @@ class DashboardMarketItemCrudApiIntegrationTest {
     private static String updatePayload() {
         return """
             {
-              "categoryDisplayName": "Updated Category",
               "displayName": "Should Be Ignored",
               "iconKey": "DIAMOND",
               "currency": "coins",
