@@ -20,15 +20,14 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.time.Instant;
-import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -36,7 +35,10 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/market")
-@Tag(name = "Market", description = "Authoritative market snapshot, quote, and execute operations")
+@Tag(
+    name = "Market",
+    description = "Authoritative market snapshot, quote, and execute operations"
+)
 public class MarketController {
 
     private final MarketService marketService;
@@ -58,7 +60,11 @@ public class MarketController {
         @ApiResponse(
             responseCode = "200",
             description = "Market snapshot returned successfully",
-            content = @Content(schema = @Schema(implementation = MarketSnapshotResponseDTO.class))
+            content = @Content(
+                schema = @Schema(
+                    implementation = MarketSnapshotResponseDTO.class
+                )
+            )
         ),
     })
     @GetMapping("/snapshot")
@@ -79,8 +85,12 @@ public class MarketController {
         @RequestParam(required = false) MarketSide side,
         @RequestParam(required = false) Long minTotalPrice,
         @RequestParam(required = false) Long maxTotalPrice,
-        @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant executedFrom,
-        @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant executedTo,
+        @RequestParam(required = false) @DateTimeFormat(
+            iso = DateTimeFormat.ISO.DATE_TIME
+        ) Instant executedFrom,
+        @RequestParam(required = false) @DateTimeFormat(
+            iso = DateTimeFormat.ISO.DATE_TIME
+        ) Instant executedTo,
         Pageable pageable
     ) {
         MarketTradeHistoryFilterDTO filter = new MarketTradeHistoryFilterDTO(
@@ -94,7 +104,9 @@ public class MarketController {
             executedFrom,
             executedTo
         );
-        return ResponseEntity.ok(tradeHistoryReadService.findTrades(filter, pageable));
+        return ResponseEntity.ok(
+            tradeHistoryReadService.findTrades(filter, pageable)
+        );
     }
 
     @Operation(
@@ -116,40 +128,65 @@ public class MarketController {
         @ApiResponse(
             responseCode = "200",
             description = "Quote created successfully",
-            content = @Content(schema = @Schema(implementation = MarketQuoteResponseDTO.class))
+            content = @Content(
+                schema = @Schema(implementation = MarketQuoteResponseDTO.class)
+            )
         ),
         @ApiResponse(
             responseCode = "409",
             description = "Quote rejected because the snapshot or item state is stale",
-            content = @Content(schema = @Schema(implementation = MarketRejectionResponseDTO.class))
+            content = @Content(
+                schema = @Schema(
+                    implementation = MarketRejectionResponseDTO.class
+                )
+            )
         ),
         @ApiResponse(
             responseCode = "404",
             description = "Quote rejected because the market item does not exist",
-            content = @Content(schema = @Schema(implementation = MarketRejectionResponseDTO.class))
+            content = @Content(
+                schema = @Schema(
+                    implementation = MarketRejectionResponseDTO.class
+                )
+            )
         ),
         @ApiResponse(
             responseCode = "422",
             description = "Quote rejected due to business constraints",
-            content = @Content(schema = @Schema(implementation = MarketRejectionResponseDTO.class))
+            content = @Content(
+                schema = @Schema(
+                    implementation = MarketRejectionResponseDTO.class
+                )
+            )
         ),
         @ApiResponse(
             responseCode = "503",
             description = "Quote rejected because the market is closed or authenticated player context is unavailable",
-            content = @Content(schema = @Schema(implementation = MarketRejectionResponseDTO.class))
+            content = @Content(
+                schema = @Schema(
+                    implementation = MarketRejectionResponseDTO.class
+                )
+            )
         ),
     })
     @PostMapping("/quotes")
     public ResponseEntity<MarketQuoteResponseDTO> quote(
         JwtAuthenticationToken authentication,
-        @RequestHeader(name = "X-Craftalism-Player-Uuid", required = false) String playerUuidHeader,
+        @RequestHeader(
+            name = "X-Craftalism-Player-Uuid",
+            required = false
+        ) String playerUuidHeader,
         @RequestBody(
             description = "Quote request payload",
             required = true,
-            content = @Content(schema = @Schema(implementation = MarketQuoteRequestDTO.class))
+            content = @Content(
+                schema = @Schema(implementation = MarketQuoteRequestDTO.class)
+            )
         ) @Valid @org.springframework.web.bind.annotation.RequestBody MarketQuoteRequestDTO request
     ) {
-        return ResponseEntity.ok(marketService.quote(authentication, request, playerUuidHeader));
+        return ResponseEntity.ok(
+            marketService.quote(authentication, request, playerUuidHeader)
+        );
     }
 
     @Operation(
@@ -160,39 +197,66 @@ public class MarketController {
         @ApiResponse(
             responseCode = "200",
             description = "Trade executed successfully",
-            content = @Content(schema = @Schema(implementation = MarketExecuteSuccessResponseDTO.class))
+            content = @Content(
+                schema = @Schema(
+                    implementation = MarketExecuteSuccessResponseDTO.class
+                )
+            )
         ),
         @ApiResponse(
             responseCode = "409",
             description = "Execution rejected because the quote is stale or expired",
-            content = @Content(schema = @Schema(implementation = MarketRejectionResponseDTO.class))
+            content = @Content(
+                schema = @Schema(
+                    implementation = MarketRejectionResponseDTO.class
+                )
+            )
         ),
         @ApiResponse(
             responseCode = "404",
             description = "Execution rejected because the market item does not exist",
-            content = @Content(schema = @Schema(implementation = MarketRejectionResponseDTO.class))
+            content = @Content(
+                schema = @Schema(
+                    implementation = MarketRejectionResponseDTO.class
+                )
+            )
         ),
         @ApiResponse(
             responseCode = "422",
             description = "Execution rejected due to business constraints",
-            content = @Content(schema = @Schema(implementation = MarketRejectionResponseDTO.class))
+            content = @Content(
+                schema = @Schema(
+                    implementation = MarketRejectionResponseDTO.class
+                )
+            )
         ),
         @ApiResponse(
             responseCode = "503",
             description = "Execution rejected because the market is closed or authenticated player context is unavailable",
-            content = @Content(schema = @Schema(implementation = MarketRejectionResponseDTO.class))
+            content = @Content(
+                schema = @Schema(
+                    implementation = MarketRejectionResponseDTO.class
+                )
+            )
         ),
     })
     @PostMapping("/execute")
     public ResponseEntity<MarketExecuteSuccessResponseDTO> execute(
         JwtAuthenticationToken authentication,
-        @RequestHeader(name = "X-Craftalism-Player-Uuid", required = false) String playerUuidHeader,
+        @RequestHeader(
+            name = "X-Craftalism-Player-Uuid",
+            required = false
+        ) String playerUuidHeader,
         @RequestBody(
             description = "Execution request payload",
             required = true,
-            content = @Content(schema = @Schema(implementation = MarketExecuteRequestDTO.class))
+            content = @Content(
+                schema = @Schema(implementation = MarketExecuteRequestDTO.class)
+            )
         ) @Valid @org.springframework.web.bind.annotation.RequestBody MarketExecuteRequestDTO request
     ) {
-        return ResponseEntity.ok(marketService.execute(authentication, request, playerUuidHeader));
+        return ResponseEntity.ok(
+            marketService.execute(authentication, request, playerUuidHeader)
+        );
     }
 }

@@ -2,6 +2,7 @@ package io.github.HenriqueMichelini.craftalism.api.service;
 
 import io.github.HenriqueMichelini.craftalism.api.dto.BalanceTransferResponseDTO;
 import io.github.HenriqueMichelini.craftalism.api.dto.TransactionResponseDTO;
+import io.github.HenriqueMichelini.craftalism.api.exceptions.BalanceArithmeticOverflowException;
 import io.github.HenriqueMichelini.craftalism.api.exceptions.IdempotencyConflictException;
 import io.github.HenriqueMichelini.craftalism.api.exceptions.InvalidAmountException;
 import io.github.HenriqueMichelini.craftalism.api.exceptions.InvalidTransferException;
@@ -26,6 +27,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Slf4j
 @Service
+@Transactional(readOnly = true)
 public class TransferService {
 
     private final BalanceRepository balanceRepository;
@@ -80,7 +82,10 @@ public class TransferService {
                 to,
                 normalizedKey,
                 "Idempotency key was reused with a different transfer payload",
-                "expectedHash=" + record.getRequestHash() + ", actualHash=" + requestHash,
+                "expectedHash=" +
+                    record.getRequestHash() +
+                    ", actualHash=" +
+                    requestHash,
                 null
             );
             throw new IdempotencyConflictException(normalizedKey);
@@ -92,10 +97,12 @@ public class TransferService {
         ) {
             Transaction persisted = transactionRepository
                 .findById(record.getTransactionId())
-                .orElseThrow(() -> new IllegalStateException(
-                    "Idempotency record references missing transaction " +
-                    record.getTransactionId()
-                ));
+                .orElseThrow(() ->
+                    new IllegalStateException(
+                        "Idempotency record references missing transaction " +
+                            record.getTransactionId()
+                    )
+                );
             return new BalanceTransferResponseDTO(
                 transactionMapper.toDto(persisted),
                 true
@@ -156,8 +163,12 @@ public class TransferService {
             );
         }
 
+        long creditedDestinationAmount = addBalanceAmounts(
+            toBalance.getAmount(),
+            amount
+        );
         fromBalance.setAmount(fromBalance.getAmount() - amount);
-        toBalance.setAmount(toBalance.getAmount() + amount);
+        toBalance.setAmount(creditedDestinationAmount);
         balanceRepository.save(fromBalance);
         balanceRepository.save(toBalance);
 
@@ -169,10 +180,15 @@ public class TransferService {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             String payload = from + "|" + to + "|" + amount;
-            byte[] hash = digest.digest(payload.getBytes(StandardCharsets.UTF_8));
+            byte[] hash = digest.digest(
+                payload.getBytes(StandardCharsets.UTF_8)
+            );
             return HexFormat.of().formatHex(hash);
         } catch (NoSuchAlgorithmException ex) {
-            throw new IllegalStateException("SHA-256 digest is not available", ex);
+            throw new IllegalStateException(
+                "SHA-256 digest is not available",
+                ex
+            );
         }
     }
 
@@ -182,7 +198,9 @@ public class TransferService {
     ) {
         return idempotencyRepository
             .findForUpdateByIdempotencyKey(normalizedKey)
-            .orElseGet(() -> createIdempotencyRecord(normalizedKey, requestHash));
+            .orElseGet(() ->
+                createIdempotencyRecord(normalizedKey, requestHash)
+            );
     }
 
     private TransferIdempotencyRecord createIdempotencyRecord(
@@ -237,6 +255,14 @@ public class TransferService {
                     incidentError
                 );
             }
+        }
+    }
+
+    private long addBalanceAmounts(long currentAmount, long amount) {
+        try {
+            return Math.addExact(currentAmount, amount);
+        } catch (ArithmeticException ex) {
+            throw new BalanceArithmeticOverflowException();
         }
     }
 }

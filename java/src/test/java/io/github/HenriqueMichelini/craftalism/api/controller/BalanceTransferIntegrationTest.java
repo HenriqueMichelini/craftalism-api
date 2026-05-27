@@ -105,6 +105,31 @@ class BalanceTransferIntegrationTest {
     }
 
     @Test
+    void transfer_destinationCreditOverflow_returns422WithoutPartialMutation()
+        throws Exception {
+        balanceRepository.save(new Balance(receiverId, Long.MAX_VALUE - 50L));
+
+        mockMvc
+            .perform(
+                post("/api/balances/transfer")
+                    .header("Idempotency-Key", "idem-overflow")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(payload(senderId, receiverId, 100))
+            )
+            .andExpect(status().isUnprocessableEntity())
+            .andExpect(jsonPath("$.detail").value("Balance amount exceeds supported range."));
+
+        Balance sender = balanceRepository.findById(senderId).orElseThrow();
+        Balance receiver = balanceRepository.findById(receiverId).orElseThrow();
+        org.junit.jupiter.api.Assertions.assertEquals(1000L, sender.getAmount());
+        org.junit.jupiter.api.Assertions.assertEquals(
+            Long.MAX_VALUE - 50L,
+            receiver.getAmount()
+        );
+        org.junit.jupiter.api.Assertions.assertEquals(0, transactionRepository.count());
+    }
+
+    @Test
     void transfer_senderNotFound_returns404() throws Exception {
         mockMvc
             .perform(

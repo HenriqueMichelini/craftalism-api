@@ -15,6 +15,7 @@ import io.github.HenriqueMichelini.craftalism.api.model.Balance;
 import io.github.HenriqueMichelini.craftalism.api.service.BalanceService;
 import io.github.HenriqueMichelini.craftalism.api.service.TransferService;
 import java.net.URI;
+import java.lang.reflect.Method;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -24,6 +25,9 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.RequestHeader;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 
 @ExtendWith(MockitoExtension.class)
 class BalanceControllerTest {
@@ -266,6 +270,33 @@ class BalanceControllerTest {
         assertEquals(HttpStatus.OK, resp.getStatusCode());
         assertSame(response, resp.getBody());
         verify(transferService).transfer(from, to, amount, "idem-1");
+    }
+
+    @Test
+    void transfer_documentsRequiredIdempotencyHeader() throws Exception {
+        Method transfer = BalanceController.class.getMethod(
+            "transfer",
+            BalanceTransferRequestDTO.class,
+            String.class
+        );
+
+        Operation operation = transfer.getAnnotation(Operation.class);
+        assertNotNull(operation);
+        assertTrue(operation.description().contains("Idempotency-Key"));
+        assertTrue(operation.description().contains("original successful transfer response"));
+        assertTrue(operation.description().contains("conflict response"));
+
+        Parameter headerDocumentation = transfer
+            .getParameters()[1]
+            .getAnnotation(Parameter.class);
+        RequestHeader requestHeader = transfer
+            .getParameters()[1]
+            .getAnnotation(RequestHeader.class);
+        assertNotNull(headerDocumentation);
+        assertEquals("Idempotency-Key", headerDocumentation.name());
+        assertTrue(headerDocumentation.required());
+        assertNotNull(requestHeader);
+        assertEquals("Idempotency-Key", requestHeader.name());
     }
 
     @Test

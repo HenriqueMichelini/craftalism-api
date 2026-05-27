@@ -119,8 +119,13 @@ final class MarketTradeExecutor {
             quote,
             currentSnapshotVersion
         );
+        long creditedBalanceAmount = addBalanceAmounts(
+            balance.getAmount(),
+            plan.totalPrice(),
+            currentSnapshotVersion
+        );
         balance.setUuid(playerUuid);
-        balance.setAmount(balance.getAmount() + plan.totalPrice());
+        balance.setAmount(creditedBalanceAmount);
         balanceRepository.save(balance);
         item.setNetPosition(
             Math.subtractExact(item.getNetPosition(), plan.executedQuantity())
@@ -236,6 +241,23 @@ final class MarketTradeExecutor {
             status,
             snapshotVersion
         );
+    }
+
+    private long addBalanceAmounts(
+        long currentAmount,
+        long amount,
+        Supplier<String> currentSnapshotVersion
+    ) {
+        try {
+            return Math.addExact(currentAmount, amount);
+        } catch (ArithmeticException ex) {
+            throw rejection(
+                MarketRejectionCode.BALANCE_OVERFLOW,
+                "Balance amount exceeds supported range.",
+                HttpStatus.UNPROCESSABLE_ENTITY,
+                currentSnapshotVersion.get()
+            );
+        }
     }
 
     record AppliedTrade(

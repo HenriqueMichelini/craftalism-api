@@ -138,6 +138,36 @@ class MarketTradeExecutorTest {
     }
 
     @Test
+    void applyTrade_sellRejectsBalanceOverflowWithoutMutation() {
+        MarketItem item = marketItem();
+        Balance balance = new Balance(PLAYER_UUID, Long.MAX_VALUE);
+        when(balanceRepository.findForUpdate(PLAYER_UUID)).thenReturn(
+            Optional.of(balance)
+        );
+        MarketTradeExecutor executor = executor();
+
+        MarketRejectionException exception = assertThrows(
+            MarketRejectionException.class,
+            () ->
+                executor.applyTrade(
+                    PLAYER_UUID,
+                    item,
+                    quote(MarketSide.SELL, 10L, 4L, 40L),
+                    "market:snapshot",
+                    () -> "market:current"
+                )
+        );
+
+        assertEquals(MarketRejectionCode.BALANCE_OVERFLOW, exception.getCode());
+        assertEquals("market:current", exception.getSnapshotVersion());
+        assertEquals(0L, item.getNetPosition());
+        assertEquals(Long.MAX_VALUE, balance.getAmount());
+        verify(balanceRepository, never()).save(any());
+        verify(marketItemRepository, never()).save(any());
+        verify(marketTradeHistoryRepository, never()).save(any());
+    }
+
+    @Test
     void applyTrade_buyInsufficientFundsLeavesPressureUnchanged() {
         MarketItem item = marketItem();
         Balance balance = new Balance(PLAYER_UUID, 49L);

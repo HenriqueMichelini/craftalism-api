@@ -192,99 +192,20 @@ class BalanceServiceTest {
     }
 
     @Test
-    void transfer_success_updatesBothBalances() {
-        UUID from = UUID.randomUUID();
-        UUID to = UUID.randomUUID();
-
-        Balance balFrom = new Balance();
-        balFrom.setUuid(from);
-        balFrom.setAmount(500L);
-
-        Balance balTo = new Balance();
-        balTo.setUuid(to);
-        balTo.setAmount(200L);
-
-        when(repository.findForUpdate(any())).thenAnswer(inv -> {
-            UUID id = inv.getArgument(0);
-            return Optional.of(id.equals(from) ? balFrom : balTo);
-        });
-
-        service.transfer(from, to, 100L);
-
-        assertEquals(400L, balFrom.getAmount());
-        assertEquals(300L, balTo.getAmount());
-        verify(repository, times(2)).save(any());
-    }
-
-    @Test
-    void transfer_sameUuid_throwsException() {
+    void deposit_overflow_throwsBeforeSave() {
         UUID uuid = UUID.randomUUID();
-        assertThrows(InvalidTransferException.class, () ->
-            service.transfer(uuid, uuid, 100)
-        );
-    }
+        Balance balance = new Balance();
+        balance.setUuid(uuid);
+        balance.setAmount(Long.MAX_VALUE);
 
-    @Test
-    void transfer_invalidAmountZero_throwsException() {
-        UUID from = UUID.randomUUID();
-        UUID to = UUID.randomUUID();
-        assertThrows(InvalidAmountException.class, () ->
-            service.transfer(from, to, 0)
-        );
-    }
+        when(repository.findForUpdate(uuid)).thenReturn(Optional.of(balance));
 
-    @Test
-    void transfer_insufficientFunds_throwsException() {
-        UUID from = UUID.randomUUID();
-        UUID to = UUID.randomUUID();
-
-        Balance balFrom = new Balance();
-        balFrom.setUuid(from);
-        balFrom.setAmount(50L);
-
-        Balance balTo = new Balance();
-        balTo.setUuid(to);
-        balTo.setAmount(200L);
-
-        when(repository.findForUpdate(from)).thenReturn(Optional.of(balFrom));
-        when(repository.findForUpdate(to)).thenReturn(Optional.of(balTo));
-
-        assertThrows(InsufficientFundsException.class, () ->
-            service.transfer(from, to, 100)
-        );
-    }
-
-    @Test
-    void transfer_outOfOrder_lockingStillWorks() {
-        UUID from = UUID.randomUUID();
-        UUID to = UUID.randomUUID();
-
-        UUID first = from.compareTo(to) < 0 ? from : to;
-        UUID second = first.equals(from) ? to : from;
-
-        Balance balFirst = new Balance();
-        balFirst.setUuid(first);
-        balFirst.setAmount(400L);
-
-        Balance balSecond = new Balance();
-        balSecond.setUuid(second);
-        balSecond.setAmount(100L);
-
-        when(repository.findForUpdate(first)).thenReturn(Optional.of(balFirst));
-        when(repository.findForUpdate(second)).thenReturn(
-            Optional.of(balSecond)
+        assertThrows(BalanceArithmeticOverflowException.class, () ->
+            service.deposit(uuid, 1L)
         );
 
-        Balance fromBalance = from.equals(first) ? balFirst : balSecond;
-        Balance toBalance = to.equals(first) ? balFirst : balSecond;
-        long expectedFrom = fromBalance.getAmount() - 50;
-        long expectedTo = toBalance.getAmount() + 50;
-
-        service.transfer(from, to, 50L);
-
-        assertEquals(expectedFrom, fromBalance.getAmount());
-        assertEquals(expectedTo, toBalance.getAmount());
-        verify(repository, times(2)).save(any());
+        assertEquals(Long.MAX_VALUE, balance.getAmount());
+        verify(repository, never()).save(any());
     }
 
     @Test

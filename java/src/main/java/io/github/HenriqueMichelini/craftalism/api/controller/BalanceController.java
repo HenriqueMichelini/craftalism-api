@@ -12,6 +12,7 @@ import io.github.HenriqueMichelini.craftalism.api.service.BalanceService;
 import io.github.HenriqueMichelini.craftalism.api.service.TransferService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import io.swagger.v3.oas.annotations.media.ArraySchema;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -318,7 +319,7 @@ public class BalanceController {
 
     @Operation(
         summary = "Transfer funds between players",
-        description = "Atomically withdraws from one player and deposits to another in a single request."
+        description = "Atomically withdraws from one player and deposits to another in a single request. Requires the Idempotency-Key header. Reusing the same key with the same payload returns the original successful transfer response; reusing the same key with a different payload returns the existing conflict response."
     )
     @ApiResponses(
         {
@@ -343,6 +344,12 @@ public class BalanceController {
     @PostMapping("/transfer")
     public ResponseEntity<BalanceTransferResponseDTO> transfer(
         @RequestBody @Valid BalanceTransferRequestDTO request,
+        @Parameter(
+            name = "Idempotency-Key",
+            in = ParameterIn.HEADER,
+            required = true,
+            description = "Required idempotency key for safe transfer retries."
+        )
         @RequestHeader(name = "Idempotency-Key", required = false) String idempotencyKey
     ) {
         BalanceTransferResponseDTO response = transferService.transfer(

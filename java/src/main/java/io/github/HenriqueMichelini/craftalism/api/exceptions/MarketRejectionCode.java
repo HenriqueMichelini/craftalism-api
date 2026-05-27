@@ -11,5 +11,6 @@ public enum MarketRejectionCode {
     RATE_LIMITED,
     QUOTE_EXPIRED,
     API_UNAVAILABLE,
+    BALANCE_OVERFLOW,
     UNKNOWN_ITEM,
 }

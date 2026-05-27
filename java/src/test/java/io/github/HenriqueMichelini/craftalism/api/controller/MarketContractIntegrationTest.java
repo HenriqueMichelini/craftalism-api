@@ -615,6 +615,26 @@ class MarketContractIntegrationTest {
         assertEquals(0L, item.getNetPosition());
         assertEquals(20L, balance.getAmount());
         assertEquals(MarketQuote.Status.CONSUMED, quote.getStatus());
+        assertEquals(0L, marketTradeHistoryRepository.count());
+
+        mockMvc
+            .perform(
+                post("/api/market/execute")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(
+                        """
+                        {
+                          "itemId": "wheat",
+                          "side": "BUY",
+                          "quantity": 10,
+                          "quoteToken": "%s",
+                          "snapshotVersion": "%s"
+                        }
+                        """.formatted(quoteToken, quotedSnapshotVersion)
+                    )
+            )
+            .andExpect(status().isConflict())
+            .andExpect(jsonPath("$.code").value("STALE_QUOTE"));
     }
 
     @Test
@@ -689,6 +709,7 @@ class MarketContractIntegrationTest {
         assertEquals(0L, item.getNetPosition());
         assertEquals(1_000L, balance.getAmount());
         assertEquals(MarketQuote.Status.CONSUMED, quote.getStatus());
+        assertEquals(0L, marketTradeHistoryRepository.count());
     }
 
     @Test
@@ -752,6 +773,7 @@ class MarketContractIntegrationTest {
         assertEquals(0L, item.getNetPosition());
         assertEquals(1_000L, balance.getAmount());
         assertEquals(MarketQuote.Status.CONSUMED, quote.getStatus());
+        assertEquals(0L, marketTradeHistoryRepository.count());
     }
 
     @ParameterizedTest
@@ -1079,6 +1101,67 @@ class MarketContractIntegrationTest {
         assertEquals(10L, history.getQuantity());
         assertEquals(4L, history.getUnitPrice());
         assertEquals(40L, history.getTotalPrice());
+    }
+
+    @Test
+    @WithMockJwt(playerUuid = "220e8400-e29b-41d4-a716-446655440000")
+    void execute_sellRejectsBalanceOverflowWithoutPressureOrTradeHistory()
+        throws Exception {
+        balanceRepository.save(new Balance(playerUuid, Long.MAX_VALUE));
+        String snapshotVersion = snapshotVersion();
+
+        MvcResult quoteResult =
+            mockMvc
+                .perform(
+                    post("/api/market/quotes")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                            """
+                            {
+                              "itemId": "wheat",
+                              "side": "SELL",
+                              "quantity": 10,
+                              "snapshotVersion": "%s"
+                            }
+                            """.formatted(snapshotVersion)
+                        )
+                )
+                .andExpect(status().isOk())
+                .andReturn();
+
+        String quoteToken = jsonField(quoteResult.getResponse().getContentAsString(), "quoteToken");
+        String quotedSnapshotVersion = jsonField(
+            quoteResult.getResponse().getContentAsString(),
+            "snapshotVersion"
+        );
+
+        mockMvc
+            .perform(
+                post("/api/market/execute")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(
+                        """
+                        {
+                          "itemId": "wheat",
+                          "side": "SELL",
+                          "quantity": 10,
+                          "quoteToken": "%s",
+                          "snapshotVersion": "%s"
+                        }
+                        """.formatted(quoteToken, quotedSnapshotVersion)
+                    )
+            )
+            .andExpect(status().isUnprocessableEntity())
+            .andExpect(jsonPath("$.status").value("REJECTED"))
+            .andExpect(jsonPath("$.code").value("BALANCE_OVERFLOW"));
+
+        Balance balance = balanceRepository.findById(playerUuid).orElseThrow();
+        MarketItem item = marketItemRepository.findByItemId("wheat").orElseThrow();
+        MarketQuote quote = marketQuoteRepository.findById(quoteToken).orElseThrow();
+        assertEquals(Long.MAX_VALUE, balance.getAmount());
+        assertEquals(0L, item.getNetPosition());
+        assertEquals(MarketQuote.Status.CONSUMED, quote.getStatus());
+        assertEquals(0L, marketTradeHistoryRepository.count());
     }
 
     @Test

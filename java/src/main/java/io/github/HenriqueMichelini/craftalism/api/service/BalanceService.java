@@ -1,10 +1,10 @@
 package io.github.HenriqueMichelini.craftalism.api.service;
 
 import io.github.HenriqueMichelini.craftalism.api.exceptions.BalanceAlreadyExistsException;
+import io.github.HenriqueMichelini.craftalism.api.exceptions.BalanceArithmeticOverflowException;
 import io.github.HenriqueMichelini.craftalism.api.exceptions.BalanceNotFoundException;
 import io.github.HenriqueMichelini.craftalism.api.exceptions.InsufficientFundsException;
 import io.github.HenriqueMichelini.craftalism.api.exceptions.InvalidAmountException;
-import io.github.HenriqueMichelini.craftalism.api.exceptions.InvalidTransferException;
 import io.github.HenriqueMichelini.craftalism.api.exceptions.PlayerNotFoundException;
 import io.github.HenriqueMichelini.craftalism.api.model.Balance;
 import io.github.HenriqueMichelini.craftalism.api.repository.BalanceRepository;
@@ -74,31 +74,8 @@ public class BalanceService {
         Balance balance = repository
             .findForUpdate(uuid)
             .orElseThrow(() -> new BalanceNotFoundException(uuid));
-        balance.setAmount(balance.getAmount() + amount);
+        balance.setAmount(addBalanceAmounts(balance.getAmount(), amount));
         return repository.save(balance);
-    }
-
-    @Transactional
-    public void transfer(UUID from, UUID to, long amount) {
-        if (from.equals(to)) throw new InvalidTransferException();
-        if (amount <= 0) throw new InvalidAmountException();
-        UUID first = (from.compareTo(to) < 0) ? from : to;
-        UUID second = (first.equals(from)) ? to : from;
-        Balance firstBalance = repository
-            .findForUpdate(first)
-            .orElseThrow(() -> new BalanceNotFoundException(first));
-        Balance secondBalance = repository
-            .findForUpdate(second)
-            .orElseThrow(() -> new BalanceNotFoundException(second));
-        Balance fromBalance = from.equals(first) ? firstBalance : secondBalance;
-        Balance toBalance = to.equals(first) ? firstBalance : secondBalance;
-        if (
-            fromBalance.getAmount() < amount
-        ) throw new InsufficientFundsException(from, amount);
-        fromBalance.setAmount(fromBalance.getAmount() - amount);
-        toBalance.setAmount(toBalance.getAmount() + amount);
-        repository.save(fromBalance);
-        repository.save(toBalance);
     }
 
     public List<Balance> getTopBalances(int limit) {
@@ -113,6 +90,14 @@ public class BalanceService {
         Balance balance = getBalance(uuid);
         balance.setAmount(newAmount);
         return repository.save(balance);
+    }
+
+    private long addBalanceAmounts(long currentAmount, long amount) {
+        try {
+            return Math.addExact(currentAmount, amount);
+        } catch (ArithmeticException ex) {
+            throw new BalanceArithmeticOverflowException();
+        }
     }
 
     @Transactional
