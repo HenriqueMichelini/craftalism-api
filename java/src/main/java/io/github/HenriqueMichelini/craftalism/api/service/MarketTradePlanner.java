@@ -8,6 +8,10 @@ final class MarketTradePlanner {
 
     private final MarketPressurePricing pressurePricing =
         new MarketPressurePricing();
+    private final MarketPricingPipeline pricingPipeline =
+        new MarketPricingPipeline(pressurePricing);
+    private final MarketPricingPipeline.PricingContext neutralPricingContext =
+        MarketPricingPipeline.PricingContext.neutral();
 
     long pressureSegment(MarketItem item, long netPosition) {
         return pressurePricing.segment(item, netPosition);
@@ -62,33 +66,22 @@ final class MarketTradePlanner {
     }
 
     void recomputeDerivedProjections(MarketItem item) {
-        long buyUnitEstimate = pressurePricing.unitPrice(
+        long buyUnitEstimate = pricingPipeline.buyUnitPrice(
             item,
-            item.getNetPosition()
+            item.getNetPosition(),
+            neutralPricingContext
         );
         item.setCurrentStock(0L);
         item.setMarketMomentum(
             pressurePricing.segment(item, item.getNetPosition())
         );
         item.setBuyUnitEstimate(buyUnitEstimate);
-        item.setSellUnitEstimate(sellUnitPrice(item, buyUnitEstimate));
+        item.setSellUnitEstimate(
+            pricingPipeline.sellUnitPrice(item, buyUnitEstimate)
+        );
         item.setVariationPercent(
             variationPercent(item, buyUnitEstimate)
         );
-    }
-
-    private long sellUnitPrice(MarketItem item, long buyUnitPrice) {
-        long sellUnitPrice = BigDecimal
-            .valueOf(buyUnitPrice)
-            .multiply(item.getSellPricePercentage())
-            .setScale(0, RoundingMode.HALF_UP)
-            .longValueExact();
-        if (sellUnitPrice <= 0L || sellUnitPrice >= buyUnitPrice) {
-            throw new IllegalStateException(
-                "Sell price percentage must produce a positive sell price below the buy price."
-            );
-        }
-        return sellUnitPrice;
     }
 
     private BigDecimal variationPercent(
@@ -157,9 +150,13 @@ final class MarketTradePlanner {
         long pressurePosition,
         Direction direction
     ) {
-        long buyUnitPrice = pressurePricing.unitPrice(item, pressurePosition);
+        long buyUnitPrice = pricingPipeline.buyUnitPrice(
+            item,
+            pressurePosition,
+            neutralPricingContext
+        );
         return direction == Direction.DOWN
-            ? sellUnitPrice(item, buyUnitPrice)
+            ? pricingPipeline.sellUnitPrice(item, buyUnitPrice)
             : buyUnitPrice;
     }
 

@@ -2,7 +2,7 @@
 
 ## Status
 
-planned
+completed
 
 ## Objective
 
@@ -65,3 +65,9 @@ Run from `java/`.
 - Scheduler or admin APIs.
 
 ## Completion Notes
+
+- Added internal market quote pricing context fields for context version, quote-time pressure position, drift revision, named event instance id, and event effect version.
+- Stored neutral drift/event context and quote-time pressure position when quotes are created.
+- Preserved pricing context fields through `MarketQuoteStore` entity mapping.
+- Added V21 migration with defaults for existing quote rows and migration coverage for default/null behavior.
+- Validation: `rtk ./gradlew test --tests io.github.HenriqueMichelini.craftalism.api.migration.MarketQuoteMigrationTest --tests io.github.HenriqueMichelini.craftalism.api.service.MarketQuoteServiceTest` passed from `java/`.

@@ -66,6 +66,7 @@ class MarketQuoteServiceTest {
     @Test
     void quote_storesSameQuoteValuesReturnedToClient() {
         MarketItem item = marketItem(5L);
+        item.setNetPosition(12L);
         when(marketItemRepository.findAllForMarketRead()).thenReturn(List.of(item));
         String snapshotVersion = marketSnapshotService
             .getSnapshot()
@@ -107,6 +108,11 @@ class MarketQuoteServiceTest {
         assertEquals(5L, storedQuote.unitPrice());
         assertEquals(50L, storedQuote.totalPrice());
         assertEquals(response.snapshotVersion(), storedQuote.snapshotVersion());
+        assertEquals(1, storedQuote.pricingContextVersion());
+        assertEquals(12L, storedQuote.pressurePosition());
+        assertEquals(null, storedQuote.driftRevision());
+        assertEquals(null, storedQuote.namedEventInstanceId());
+        assertEquals(null, storedQuote.eventEffectVersion());
         assertEquals(response.expiresAt(), storedQuote.expiresAt());
     }
 

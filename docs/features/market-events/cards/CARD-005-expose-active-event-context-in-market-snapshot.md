@@ -2,7 +2,7 @@
 
 ## Status
 
-planned
+completed
 
 ## Objective
 
@@ -70,3 +70,10 @@ Run from `java/`.
 - UI rendering.
 
 ## Completion Notes
+
+- Added optional public `activeEvent` snapshot context with player-facing name, description, broad scope hint, and rough temporal label.
+- Resolved active event context only for effective active events using lifecycle status plus wall-clock start/end timestamps.
+- Included public active event context in snapshot version hashing.
+- Updated the market contract snapshot example and semantics for the optional event context.
+- Verified public snapshots omit exact effects, rarity, source, scheduler/audit metadata, and expired event context.
+- Validation: `rtk ./gradlew test --tests io.github.HenriqueMichelini.craftalism.api.controller.MarketContractIntegrationTest --tests io.github.HenriqueMichelini.craftalism.api.service.MarketSnapshotProjectorTest` passed from `java/`.

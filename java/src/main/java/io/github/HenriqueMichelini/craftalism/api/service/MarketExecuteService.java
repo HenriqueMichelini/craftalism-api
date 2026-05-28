@@ -121,17 +121,6 @@ final class MarketExecuteService {
             );
         }
 
-        String currentSnapshotVersion = currentSnapshotVersion();
-        if (!currentSnapshotVersion.equals(storedQuote.snapshotVersion())) {
-            quoteStore.invalidate(request.quoteToken());
-            throw rejection(
-                MarketRejectionCode.STALE_QUOTE,
-                "Quote is no longer valid.",
-                HttpStatus.CONFLICT,
-                currentSnapshotVersion
-            );
-        }
-
         if (!quoteStore.consume(request.quoteToken())) {
             throw rejection(
                 MarketRejectionCode.STALE_QUOTE,
@@ -148,17 +137,17 @@ final class MarketExecuteService {
                     MarketRejectionCode.UNKNOWN_ITEM,
                     "Market item does not exist.",
                     HttpStatus.NOT_FOUND,
-                    currentSnapshotVersion
+                    currentSnapshotVersion()
                 )
             );
 
-        validateItemAvailability(item, currentSnapshotVersion);
+        validateItemAvailability(item, currentSnapshotVersion());
         MarketTradeExecutor.AppliedTrade appliedTrade =
             tradeExecutor.applyTrade(
                 playerUuid,
                 item,
                 storedQuote,
-                currentSnapshotVersion,
+                storedQuote.snapshotVersion(),
                 this::currentSnapshotVersion
             );
 

@@ -10,11 +10,19 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import io.github.HenriqueMichelini.craftalism.api.dto.MarketSide;
 import io.github.HenriqueMichelini.craftalism.api.model.Balance;
+import io.github.HenriqueMichelini.craftalism.api.model.MarketEventInstance;
+import io.github.HenriqueMichelini.craftalism.api.model.MarketEventRarity;
+import io.github.HenriqueMichelini.craftalism.api.model.MarketEventScope;
+import io.github.HenriqueMichelini.craftalism.api.model.MarketEventSource;
+import io.github.HenriqueMichelini.craftalism.api.model.MarketEventStatus;
+import io.github.HenriqueMichelini.craftalism.api.model.MarketEventTemplate;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketItem;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketQuote;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketTradeHistory;
 import io.github.HenriqueMichelini.craftalism.api.model.Player;
 import io.github.HenriqueMichelini.craftalism.api.repository.BalanceRepository;
+import io.github.HenriqueMichelini.craftalism.api.repository.MarketEventInstanceRepository;
+import io.github.HenriqueMichelini.craftalism.api.repository.MarketEventTemplateRepository;
 import io.github.HenriqueMichelini.craftalism.api.repository.MarketItemRepository;
 import io.github.HenriqueMichelini.craftalism.api.repository.MarketQuoteRepository;
 import io.github.HenriqueMichelini.craftalism.api.repository.MarketTradeHistoryRepository;
@@ -79,12 +87,20 @@ class MarketContractIntegrationTest {
     @Autowired
     private MarketTradeHistoryRepository marketTradeHistoryRepository;
 
+    @Autowired
+    private MarketEventInstanceRepository marketEventInstanceRepository;
+
+    @Autowired
+    private MarketEventTemplateRepository marketEventTemplateRepository;
+
     private UUID playerUuid;
 
     @BeforeEach
     void setUp() {
         marketQuoteStore.clear();
         marketTradeHistoryRepository.deleteAll();
+        marketEventInstanceRepository.deleteAll();
+        marketEventTemplateRepository.deleteAll();
         balanceRepository.deleteAll();
         playerRepository.deleteAll();
         marketItemRepository.deleteAll();
@@ -101,12 +117,52 @@ class MarketContractIntegrationTest {
             .perform(get("/api/market/snapshot"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.snapshotVersion").value(org.hamcrest.Matchers.startsWith("market:")))
+            .andExpect(jsonPath("$.activeEvent").doesNotExist())
             .andExpect(jsonPath("$.categories[0].categoryId").value("farming"))
             .andExpect(jsonPath("$.categories[0].items[0].itemId").value("wheat"))
             .andExpect(jsonPath("$.categories[0].items[0].marketPressure").value(0))
             .andExpect(jsonPath("$.categories[0].items[0].marketSegment").value(0))
             .andExpect(jsonPath("$.categories[0].items[0].pressureMagnitude").value(0))
             .andExpect(jsonPath("$.categories[0].items[0].currentStock").doesNotExist());
+    }
+
+    @Test
+    void snapshot_includesFuzzyActiveEventContextWithoutInternalMetadata() throws Exception {
+        marketEventTemplateRepository.save(activeEventTemplate());
+        marketEventInstanceRepository.save(
+            activeEvent(
+                Instant.now().minusSeconds(60L),
+                Instant.now().plusSeconds(600L)
+            )
+        );
+
+        mockMvc
+            .perform(get("/api/market/snapshot"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.activeEvent.name").value("Bumper Crop"))
+            .andExpect(jsonPath("$.activeEvent.description").value("Farms are overflowing."))
+            .andExpect(jsonPath("$.activeEvent.broadScopeHint").value("Farming goods"))
+            .andExpect(jsonPath("$.activeEvent.temporalLabel").value("active now"))
+            .andExpect(jsonPath("$.activeEvent.rarity").doesNotExist())
+            .andExpect(jsonPath("$.activeEvent.source").doesNotExist())
+            .andExpect(jsonPath("$.activeEvent.effectBasisPoints").doesNotExist())
+            .andExpect(jsonPath("$.activeEvent.auditMetadata").doesNotExist());
+    }
+
+    @Test
+    void snapshot_omitsExpiredEventContextEvenBeforeCleanup() throws Exception {
+        marketEventTemplateRepository.save(activeEventTemplate());
+        marketEventInstanceRepository.save(
+            activeEvent(
+                Instant.now().minusSeconds(600L),
+                Instant.now().minusSeconds(60L)
+            )
+        );
+
+        mockMvc
+            .perform(get("/api/market/snapshot"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.activeEvent").doesNotExist());
     }
 
     @Test
@@ -898,7 +954,7 @@ class MarketContractIntegrationTest {
 
     @Test
     @WithMockJwt(playerUuid = "220e8400-e29b-41d4-a716-446655440000")
-    void execute_rejectsStaleQuoteAfterMarketStateChanges() throws Exception {
+    void execute_allowsIssuedQuoteAfterMarketStateChangesWhenQuotePriceStillMatches() throws Exception {
         String snapshotVersion = snapshotVersion();
 
         MvcResult quoteResult =
@@ -950,15 +1006,15 @@ class MarketContractIntegrationTest {
                         """.formatted(quoteToken, quotedSnapshotVersion)
                     )
             )
-            .andExpect(status().isConflict())
-            .andExpect(jsonPath("$.status").value("REJECTED"))
-            .andExpect(jsonPath("$.code").value("STALE_QUOTE"));
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.status").value("SUCCESS"))
+            .andExpect(jsonPath("$.executedQuantity").value(10));
 
         MarketQuote quote = marketQuoteRepository.findById(quoteToken).orElseThrow();
         MarketItem persistedItem = marketItemRepository.findById("wheat").orElseThrow();
-        assertEquals(1L, persistedItem.getNetPosition());
-        assertEquals(MarketQuote.Status.INVALIDATED, quote.getStatus());
-        assertEquals(0L, marketTradeHistoryRepository.count());
+        assertEquals(11L, persistedItem.getNetPosition());
+        assertEquals(MarketQuote.Status.CONSUMED, quote.getStatus());
+        assertEquals(1L, marketTradeHistoryRepository.count());
     }
 
     @Test
@@ -1453,6 +1509,48 @@ class MarketContractIntegrationTest {
         item.setOperating(true);
         item.setLastUpdatedAt(Instant.parse("2026-04-12T18:29:42Z"));
         return item;
+    }
+
+    private MarketEventTemplate activeEventTemplate() {
+        MarketEventTemplate template = new MarketEventTemplate();
+        template.setTemplateId("farming_bumper_crop");
+        template.setRarity(MarketEventRarity.MEDIUM);
+        template.setScope(MarketEventScope.CATEGORY);
+        template.setAutomaticWeight(80);
+        template.setAutomaticEnabled(true);
+        template.setBlockingAllowed(false);
+        template.setMinDurationSeconds(1_800L);
+        template.setMaxDurationSeconds(3_600L);
+        template.setMinEffectBasisPoints(9_200);
+        template.setMaxEffectBasisPoints(9_700);
+        template.setEffectDirection("DOWN");
+        template.setCooldownSeconds(7_200L);
+        template.setPlayerFacingName("Bumper Crop");
+        template.setPlayerFacingDescription("Farms are overflowing.");
+        template.setBroadScopeHint("Farming goods");
+        template.setEligibleTargetMetadata("{\"categoryIds\":[\"farming\"]}");
+        template.setCreatedAt(Instant.parse("2026-01-01T00:00:00Z"));
+        template.setUpdatedAt(Instant.parse("2026-01-01T00:00:00Z"));
+        return template;
+    }
+
+    private MarketEventInstance activeEvent(Instant startedAt, Instant endsAt) {
+        MarketEventInstance event = new MarketEventInstance();
+        event.setTemplateId("farming_bumper_crop");
+        event.setSource(MarketEventSource.SYSTEM);
+        event.setRarity(MarketEventRarity.MEDIUM);
+        event.setScope(MarketEventScope.CATEGORY);
+        event.setSelectedCategoryId("farming");
+        event.setEffectBasisPoints(9_500);
+        event.setEffectVersion(1);
+        event.setBlocking(false);
+        event.setStartedAt(startedAt);
+        event.setEndsAt(endsAt);
+        event.setStatus(MarketEventStatus.ACTIVE);
+        event.setAuditMetadata("{\"roll\":0.42}");
+        event.setCreatedAt(startedAt);
+        event.setUpdatedAt(startedAt);
+        return event;
     }
 
     private MarketTradeHistory tradeHistory(

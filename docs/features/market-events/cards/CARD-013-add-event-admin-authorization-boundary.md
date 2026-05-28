@@ -2,7 +2,7 @@
 
 ## Status
 
-planned
+completed
 
 ## Objective
 
@@ -59,3 +59,8 @@ Run from `java/`.
 - Admin trigger/cancel/supersede service behavior.
 
 ## Completion Notes
+
+- Enforced `/api/dashboard/market/events/**` behind the dedicated `SCOPE_market:admin` authority before generic public/read and write API matchers.
+- Verified generic `SCOPE_api:write` is insufficient for event-admin mutations.
+- Verified internal event-admin read routes are not public while public market routes and ordinary quote/execute authorization remain unchanged.
+- Validation: `rtk ./gradlew test --tests io.github.HenriqueMichelini.craftalism.api.controller.DashboardMarketEventAdminSecurityTest` passed from `java/`.

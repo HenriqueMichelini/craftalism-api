@@ -1,5 +1,6 @@
 package io.github.HenriqueMichelini.craftalism.api.service;
 
+import io.github.HenriqueMichelini.craftalism.api.dto.MarketActiveEventContextDTO;
 import io.github.HenriqueMichelini.craftalism.api.dto.MarketSnapshotCategoryDTO;
 import io.github.HenriqueMichelini.craftalism.api.dto.MarketSnapshotItemDTO;
 import io.github.HenriqueMichelini.craftalism.api.dto.MarketSnapshotResponseDTO;
@@ -26,7 +27,8 @@ final class MarketSnapshotProjector {
 
     MarketSnapshotResponseDTO response(
         List<MarketSnapshotProjection> projections,
-        String snapshotVersion
+        String snapshotVersion,
+        MarketActiveEventContextDTO activeEvent
     ) {
         Instant generatedAt = projections
             .stream()
@@ -53,8 +55,16 @@ final class MarketSnapshotProjector {
         return new MarketSnapshotResponseDTO(
             snapshotVersion,
             generatedAt,
+            activeEvent,
             List.copyOf(categories.values())
         );
+    }
+
+    MarketSnapshotResponseDTO response(
+        List<MarketSnapshotProjection> projections,
+        String snapshotVersion
+    ) {
+        return response(projections, snapshotVersion, null);
     }
 
     MarketSnapshotItemDTO toSnapshotItem(MarketItem item) {
@@ -154,6 +164,13 @@ final class MarketSnapshotProjector {
     }
 
     String snapshotVersion(List<MarketSnapshotProjection> items) {
+        return snapshotVersion(items, null);
+    }
+
+    String snapshotVersion(
+        List<MarketSnapshotProjection> items,
+        MarketActiveEventContextDTO activeEvent
+    ) {
         StringBuilder payload = new StringBuilder("market");
         for (MarketSnapshotProjection item : items) {
             payload
@@ -189,6 +206,17 @@ final class MarketSnapshotProjector {
                 .append(item.operating())
                 .append(':')
                 .append(item.lastUpdatedAt());
+        }
+        if (activeEvent != null) {
+            payload
+                .append("|event:")
+                .append(activeEvent.name())
+                .append(':')
+                .append(activeEvent.description())
+                .append(':')
+                .append(activeEvent.broadScopeHint())
+                .append(':')
+                .append(activeEvent.temporalLabel());
         }
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");

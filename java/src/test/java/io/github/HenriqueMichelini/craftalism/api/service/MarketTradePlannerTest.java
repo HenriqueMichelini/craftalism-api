@@ -74,6 +74,25 @@ class MarketTradePlannerTest {
     }
 
     @Test
+    void pricingPipeline_neutralContextMatchesPressureOnlyBuyAndSellPrices() {
+        MarketItem item = pressureItem(50L);
+        MarketPricingPipeline pipeline = new MarketPricingPipeline(
+            new MarketPressurePricing()
+        );
+        MarketPricingPipeline.PricingContext context =
+            MarketPricingPipeline.PricingContext.neutral();
+
+        long buyUnitPrice = pipeline.buyUnitPrice(
+            item,
+            item.getNetPosition(),
+            context
+        );
+
+        assertEquals(115L, buyUnitPrice);
+        assertEquals(81L, pipeline.sellUnitPrice(item, buyUnitPrice));
+    }
+
+    @Test
     void buyPlan_pricesVirtualPositionsAcrossPositiveBoundary() {
         MarketItem item = pressureItem(49L);
 

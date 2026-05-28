@@ -32,6 +32,11 @@ public class MarketQuoteStore {
         entity.setUnitPrice(quote.unitPrice());
         entity.setTotalPrice(quote.totalPrice());
         entity.setSnapshotVersion(quote.snapshotVersion());
+        entity.setPricingContextVersion(quote.pricingContextVersion());
+        entity.setPressurePosition(quote.pressurePosition());
+        entity.setDriftRevision(quote.driftRevision());
+        entity.setNamedEventInstanceId(quote.namedEventInstanceId());
+        entity.setEventEffectVersion(quote.eventEffectVersion());
         entity.setExpiresAt(quote.expiresAt());
         entity.setCreatedAt(Instant.now());
         entity.setStatus(MarketQuote.Status.ACTIVE);
@@ -107,6 +112,11 @@ public class MarketQuoteStore {
             quote.getUnitPrice(),
             quote.getTotalPrice(),
             quote.getSnapshotVersion(),
+            quote.getPricingContextVersion(),
+            quote.getPressurePosition(),
+            quote.getDriftRevision(),
+            quote.getNamedEventInstanceId(),
+            quote.getEventEffectVersion(),
             quote.getExpiresAt(),
             quote.getStatus()
         );
@@ -121,6 +131,11 @@ public class MarketQuoteStore {
         long unitPrice,
         long totalPrice,
         String snapshotVersion,
+        int pricingContextVersion,
+        long pressurePosition,
+        Long driftRevision,
+        Long namedEventInstanceId,
+        Integer eventEffectVersion,
         Instant expiresAt,
         MarketQuote.Status status
     ) {}

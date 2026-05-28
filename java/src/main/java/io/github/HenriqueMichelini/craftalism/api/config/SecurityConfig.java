@@ -32,6 +32,8 @@ public class SecurityConfig {
                     .permitAll()
                     .requestMatchers("/swagger-ui/**", "/v3/api-docs/**")
                     .permitAll()
+                    .requestMatchers("/api/dashboard/market/events/**")
+                    .hasAuthority("SCOPE_market:admin")
                     // Dashboard is currently a static SPA with no OAuth2 login
                     // flow, so read-only API routes must be public.
                     .requestMatchers(HttpMethod.GET, "/api/**")

@@ -2,7 +2,7 @@
 
 ## Status
 
-planned
+completed
 
 ## Objective
 
@@ -64,3 +64,9 @@ Run from `java/`.
 - Scheduler or admin APIs.
 
 ## Completion Notes
+
+- Removed execute-time rejection based only on current snapshot version differing from the stored quote snapshot version.
+- Kept quote creation stale-snapshot checks and execute request-vs-stored quote identity validation.
+- Added regression coverage for execution after an unrelated snapshot-version change.
+- Updated integration coverage so same-item market state movement no longer fails solely because the snapshot token moved when the stored quote price still matches.
+- Validation: `rtk ./gradlew test --tests io.github.HenriqueMichelini.craftalism.api.service.MarketServiceTest --tests io.github.HenriqueMichelini.craftalism.api.service.MarketTradeExecutorTest --tests io.github.HenriqueMichelini.craftalism.api.controller.MarketContractIntegrationTest` passed from `java/`.

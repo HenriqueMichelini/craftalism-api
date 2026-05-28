@@ -46,6 +46,12 @@ Response:
 {
   "snapshotVersion": "opaque-version-token",
   "generatedAt": "2026-04-12T18:30:00Z",
+  "activeEvent": {
+    "name": "Bumper Crop",
+    "description": "Farms are overflowing.",
+    "broadScopeHint": "Farming goods",
+    "temporalLabel": "active now"
+  },
   "categories": [
     {
       "categoryId": "farming",
@@ -75,6 +81,7 @@ Response:
 Required semantics:
 
 - `snapshotVersion`: opaque stale-detection token.
+- `activeEvent`: optional fuzzy player-facing named-event context. It is present only while a named event is effectively active and omits exact multipliers, exact targets, rarity, source, scheduler rolls, audit metadata, and exact countdowns.
 - `buyUnitEstimate`: display-only buy price estimate.
 - `sellUnitEstimate`: display-only sell price estimate calculated as `buyUnitEstimate * sellPricePercentage`; default catalog items use `0.7000`.
 - `marketPressure`: signed backend pressure position.

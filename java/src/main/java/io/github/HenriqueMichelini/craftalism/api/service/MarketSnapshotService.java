@@ -1,9 +1,12 @@
 package io.github.HenriqueMichelini.craftalism.api.service;
 
+import io.github.HenriqueMichelini.craftalism.api.dto.MarketActiveEventContextDTO;
 import io.github.HenriqueMichelini.craftalism.api.dto.MarketSnapshotItemDTO;
 import io.github.HenriqueMichelini.craftalism.api.dto.MarketSnapshotResponseDTO;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketItem;
+import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -11,13 +14,23 @@ final class MarketSnapshotService {
 
     private final MarketReadService marketReadService;
     private final MarketSnapshotProjector snapshotProjector;
+    private final MarketEventPublicContextService eventPublicContextService;
 
     MarketSnapshotService(
         MarketReadService marketReadService,
         MarketSnapshotProjector snapshotProjector
     ) {
+        this(marketReadService, snapshotProjector, null);
+    }
+
+    MarketSnapshotService(
+        MarketReadService marketReadService,
+        MarketSnapshotProjector snapshotProjector,
+        MarketEventPublicContextService eventPublicContextService
+    ) {
         this.marketReadService = marketReadService;
         this.snapshotProjector = snapshotProjector;
+        this.eventPublicContextService = eventPublicContextService;
     }
 
     MarketSnapshotResponseDTO getSnapshot() {
@@ -30,9 +43,14 @@ final class MarketSnapshotService {
         List<MarketSnapshotProjector.MarketSnapshotProjection> projections =
             snapshotProjector.projections(readState.items());
         long projectionBuildNanos = System.nanoTime() - projectionStartNanos;
+        MarketActiveEventContextDTO activeEvent = activeEventContext()
+            .orElse(null);
 
         long hashStartNanos = System.nanoTime();
-        String snapshotVersion = snapshotProjector.snapshotVersion(projections);
+        String snapshotVersion = snapshotProjector.snapshotVersion(
+            projections,
+            activeEvent
+        );
         long hashNanos = System.nanoTime() - hashStartNanos;
 
         long totalNanos = System.nanoTime() - totalStartNanos;
@@ -44,7 +62,11 @@ final class MarketSnapshotService {
             totalNanos
         );
 
-        return snapshotProjector.response(projections, snapshotVersion);
+        return snapshotProjector.response(
+            projections,
+            snapshotVersion,
+            activeEvent
+        );
     }
 
     CurrentSnapshot currentSnapshot() {
@@ -52,9 +74,11 @@ final class MarketSnapshotService {
             marketReadService.regeneratedItems();
         List<MarketSnapshotProjector.MarketSnapshotProjection> projections =
             snapshotProjector.projections(readState.items());
+        MarketActiveEventContextDTO activeEvent = activeEventContext()
+            .orElse(null);
         return new CurrentSnapshot(
             readState.items(),
-            snapshotProjector.snapshotVersion(projections)
+            snapshotProjector.snapshotVersion(projections, activeEvent)
         );
     }
 
@@ -87,6 +111,13 @@ final class MarketSnapshotService {
 
     private long nanosToMillis(long nanos) {
         return nanos / 1_000_000L;
+    }
+
+    private Optional<MarketActiveEventContextDTO> activeEventContext() {
+        if (eventPublicContextService == null) {
+            return Optional.empty();
+        }
+        return eventPublicContextService.activeContext(Instant.now());
     }
 
     record CurrentSnapshot(List<MarketItem> items, String snapshotVersion) {}

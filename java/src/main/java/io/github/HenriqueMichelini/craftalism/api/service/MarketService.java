@@ -39,6 +39,7 @@ public class MarketService {
         MarketQuoteStore quoteStore,
         MarketQuoteRepository marketQuoteRepository,
         MarketTradeHistoryRepository marketTradeHistoryRepository,
+        MarketEventPublicContextService eventPublicContextService,
         DefaultMarketCatalog defaultMarketCatalog,
         @Value("${craftalism.market.enabled:true}") boolean marketEnabled,
         @Value(
@@ -58,6 +59,7 @@ public class MarketService {
             quoteStore,
             marketQuoteRepository,
             marketTradeHistoryRepository,
+            eventPublicContextService,
             defaultMarketCatalog,
             marketEnabled,
             quoteTtlSeconds,
@@ -85,6 +87,42 @@ public class MarketService {
         long rateLimitWindowSeconds,
         Clock clock
     ) {
+        this(
+            marketItemRepository,
+            marketCategoryRepository,
+            balanceRepository,
+            quoteStore,
+            marketQuoteRepository,
+            marketTradeHistoryRepository,
+            null,
+            defaultMarketCatalog,
+            marketEnabled,
+            quoteTtlSeconds,
+            trustedMinecraftServerClientId,
+            quoteRateLimitMaxRequests,
+            executeRateLimitMaxRequests,
+            rateLimitWindowSeconds,
+            clock
+        );
+    }
+
+    MarketService(
+        MarketItemRepository marketItemRepository,
+        MarketCategoryRepository marketCategoryRepository,
+        BalanceRepository balanceRepository,
+        MarketQuoteStore quoteStore,
+        MarketQuoteRepository marketQuoteRepository,
+        MarketTradeHistoryRepository marketTradeHistoryRepository,
+        MarketEventPublicContextService eventPublicContextService,
+        DefaultMarketCatalog defaultMarketCatalog,
+        boolean marketEnabled,
+        long quoteTtlSeconds,
+        String trustedMinecraftServerClientId,
+        int quoteRateLimitMaxRequests,
+        int executeRateLimitMaxRequests,
+        long rateLimitWindowSeconds,
+        Clock clock
+    ) {
         this.quoteStore = quoteStore;
         this.marketQuoteRepository = marketQuoteRepository;
         this.playerResolver = new MarketPlayerResolver(
@@ -102,7 +140,8 @@ public class MarketService {
         );
         this.marketSnapshotService = new MarketSnapshotService(
             marketReadService,
-            new MarketSnapshotProjector(tradePlanner)
+            new MarketSnapshotProjector(tradePlanner),
+            eventPublicContextService
         );
         MarketTradeExecutor tradeExecutor = new MarketTradeExecutor(
             balanceRepository,

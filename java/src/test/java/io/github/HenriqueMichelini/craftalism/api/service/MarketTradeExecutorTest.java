@@ -289,6 +289,11 @@ class MarketTradeExecutorTest {
             unitPrice,
             totalPrice,
             "market:snapshot",
+            1,
+            0L,
+            null,
+            null,
+            null,
             Instant.now().plusSeconds(60L),
             MarketQuote.Status.ACTIVE
         );

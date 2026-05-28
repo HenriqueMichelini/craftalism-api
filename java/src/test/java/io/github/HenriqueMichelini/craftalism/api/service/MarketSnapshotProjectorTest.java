@@ -3,6 +3,7 @@ package io.github.HenriqueMichelini.craftalism.api.service;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 
+import io.github.HenriqueMichelini.craftalism.api.dto.MarketActiveEventContextDTO;
 import io.github.HenriqueMichelini.craftalism.api.dto.MarketSnapshotItemDTO;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketCategory;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketItem;
@@ -104,6 +105,25 @@ class MarketSnapshotProjectorTest {
         item.setVariationPercent(new BigDecimal("99.99"));
 
         assertEquals(baseline, snapshotVersion(item));
+    }
+
+    @Test
+    void snapshotVersion_changesWhenPublicActiveEventContextChanges() {
+        List<MarketSnapshotProjector.MarketSnapshotProjection> projections =
+            projector.projections(List.of(pressureItem()));
+        String baseline = projector.snapshotVersion(projections);
+
+        String withEvent = projector.snapshotVersion(
+            projections,
+            new MarketActiveEventContextDTO(
+                "Bumper Crop",
+                "Farms are overflowing.",
+                "Farming goods",
+                "active now"
+            )
+        );
+
+        assertNotEquals(baseline, withEvent);
     }
 
     @Test

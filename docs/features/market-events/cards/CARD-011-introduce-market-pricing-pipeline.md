@@ -2,7 +2,7 @@
 
 ## Status
 
-planned
+completed
 
 ## Objective
 
@@ -62,3 +62,9 @@ Run from `java/`.
 - Scheduler or admin APIs.
 
 ## Completion Notes
+
+- Added `MarketPricingPipeline` as the shared internal path for pressure-derived buy price, neutral drift input, neutral named-event input, final clamp, and sell percentage derivation.
+- Routed market snapshot projection, quote planning, and quote-backed execution planning through the neutral pipeline via `MarketTradePlanner`.
+- Preserved existing pressure-ladder traversal, min/max clamps, sell percentage behavior, variation calculation, quote lifecycle, pressure mutation, and public DTO shape.
+- Added planner coverage proving the neutral pipeline matches current pressure-only buy/sell prices.
+- Validation: `rtk ./gradlew test --tests io.github.HenriqueMichelini.craftalism.api.service.MarketTradePlannerTest --tests io.github.HenriqueMichelini.craftalism.api.service.MarketSnapshotProjectorTest --tests io.github.HenriqueMichelini.craftalism.api.service.MarketTradeExecutorTest` passed from `java/`.

@@ -48,6 +48,21 @@ public class MarketQuote {
     private String snapshotVersion;
 
     @Column(nullable = false)
+    private int pricingContextVersion = 1;
+
+    @Column(nullable = false)
+    private long pressurePosition;
+
+    @Column
+    private Long driftRevision;
+
+    @Column
+    private Long namedEventInstanceId;
+
+    @Column
+    private Integer eventEffectVersion;
+
+    @Column(nullable = false)
     private Instant expiresAt;
 
     @Column(nullable = false)
@@ -122,6 +137,46 @@ public class MarketQuote {
 
     public void setSnapshotVersion(String snapshotVersion) {
         this.snapshotVersion = snapshotVersion;
+    }
+
+    public int getPricingContextVersion() {
+        return pricingContextVersion;
+    }
+
+    public void setPricingContextVersion(int pricingContextVersion) {
+        this.pricingContextVersion = pricingContextVersion;
+    }
+
+    public long getPressurePosition() {
+        return pressurePosition;
+    }
+
+    public void setPressurePosition(long pressurePosition) {
+        this.pressurePosition = pressurePosition;
+    }
+
+    public Long getDriftRevision() {
+        return driftRevision;
+    }
+
+    public void setDriftRevision(Long driftRevision) {
+        this.driftRevision = driftRevision;
+    }
+
+    public Long getNamedEventInstanceId() {
+        return namedEventInstanceId;
+    }
+
+    public void setNamedEventInstanceId(Long namedEventInstanceId) {
+        this.namedEventInstanceId = namedEventInstanceId;
+    }
+
+    public Integer getEventEffectVersion() {
+        return eventEffectVersion;
+    }
+
+    public void setEventEffectVersion(Integer eventEffectVersion) {
+        this.eventEffectVersion = eventEffectVersion;
     }
 
     public Instant getExpiresAt() {

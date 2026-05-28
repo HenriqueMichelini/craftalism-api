@@ -154,6 +154,11 @@ class MarketServiceTest {
                     5L,
                     50L,
                     quote.snapshotVersion(),
+                    1,
+                    0L,
+                    null,
+                    null,
+                    null,
                     quote.expiresAt(),
                     MarketQuote.Status.ACTIVE
                 )
@@ -214,6 +219,11 @@ class MarketServiceTest {
                     6L,
                     310L,
                     snapshotVersion,
+                    1,
+                    0L,
+                    null,
+                    null,
+                    null,
                     Instant.now().plusSeconds(60L),
                     MarketQuote.Status.ACTIVE
                 )
@@ -257,6 +267,11 @@ class MarketServiceTest {
                     5L,
                     250L,
                     snapshotVersion,
+                    1,
+                    0L,
+                    null,
+                    null,
+                    null,
                     Instant.now().plusSeconds(60L),
                     MarketQuote.Status.ACTIVE
                 )
@@ -281,6 +296,74 @@ class MarketServiceTest {
     }
 
     @Test
+    void execute_allowsIssuedQuoteAfterUnrelatedSnapshotVersionChange() {
+        MarketItem quotedWheat = marketItem(5L);
+        MarketItem initialCarrot = marketItem("carrot", 10L);
+        MarketItem changedCarrot = marketItem("carrot", 10L);
+        changedCarrot.setBlocked(true);
+        MarketItem lockedWheat = marketItem(5L);
+        when(marketItemRepository.findAllForMarketRead())
+            .thenReturn(
+                java.util.List.of(quotedWheat, initialCarrot),
+                java.util.List.of(quotedWheat, initialCarrot),
+                java.util.List.of(quotedWheat, changedCarrot),
+                java.util.List.of(quotedWheat, changedCarrot),
+                java.util.List.of(lockedWheat, changedCarrot)
+            );
+        String snapshotVersion = marketService.getSnapshot().snapshotVersion();
+
+        MarketQuoteResponseDTO quote = marketService.quote(
+            authentication(),
+            new MarketQuoteRequestDTO("wheat", MarketSide.BUY, 10L, snapshotVersion, null),
+            null
+        );
+        Balance balance = new Balance(playerUuid(), 1_000L);
+        when(quoteStore.get(quote.quoteToken())).thenReturn(
+            Optional.of(
+                new MarketQuoteStore.StoredQuote(
+                    quote.quoteToken(),
+                    playerUuid(),
+                    "wheat",
+                    MarketSide.BUY,
+                    10L,
+                    5L,
+                    50L,
+                    quote.snapshotVersion(),
+                    1,
+                    0L,
+                    null,
+                    null,
+                    null,
+                    quote.expiresAt(),
+                    MarketQuote.Status.ACTIVE
+                )
+            )
+        );
+        when(quoteStore.consume(quote.quoteToken())).thenReturn(true);
+        when(marketItemRepository.findForUpdate("wheat")).thenReturn(Optional.of(lockedWheat));
+        when(balanceRepository.findForUpdate(playerUuid())).thenReturn(Optional.of(balance));
+
+        MarketExecuteSuccessResponseDTO response = marketService.execute(
+            authentication(),
+            new MarketExecuteRequestDTO(
+                "wheat",
+                MarketSide.BUY,
+                10L,
+                quote.quoteToken(),
+                quote.snapshotVersion(),
+                null
+            ),
+            null
+        );
+
+        assertEquals("SUCCESS", response.status());
+        assertEquals(10L, lockedWheat.getNetPosition());
+        assertEquals(950L, balance.getAmount());
+        verify(quoteStore).consume(quote.quoteToken());
+        verify(marketItemRepository).save(lockedWheat);
+    }
+
+    @Test
     void execute_postConsumeBuyPlanMismatchRejectsStaleQuoteWithoutMutation() {
         MarketItem snapshotItem = marketItem(5L);
         MarketItem lockedItem = marketItem(5L);
@@ -300,6 +383,11 @@ class MarketServiceTest {
                     5L,
                     50L,
                     snapshotVersion,
+                    1,
+                    0L,
+                    null,
+                    null,
+                    null,
                     Instant.now().plusSeconds(60L),
                     MarketQuote.Status.ACTIVE
                 )
@@ -353,6 +441,11 @@ class MarketServiceTest {
                     6L,
                     60L,
                     snapshotVersion,
+                    1,
+                    0L,
+                    null,
+                    null,
+                    null,
                     Instant.now().plusSeconds(60L),
                     MarketQuote.Status.ACTIVE
                 )
@@ -673,12 +766,16 @@ class MarketServiceTest {
     }
 
     private MarketItem marketItem(long baseUnitPrice) {
+        return marketItem("wheat", baseUnitPrice);
+    }
+
+    private MarketItem marketItem(String itemId, long baseUnitPrice) {
         MarketItem item = new MarketItem();
-        item.setItemId("wheat");
+        item.setItemId(itemId);
         item.setCategoryId("farming");
         item.setCategoryDisplayName("Farming");
-        item.setDisplayName("Wheat");
-        item.setIconKey("WHEAT");
+        item.setDisplayName(itemId);
+        item.setIconKey(itemId.toUpperCase());
         item.setBuyUnitEstimate(baseUnitPrice);
         item.setSellUnitEstimate(baseUnitPrice);
         item.setCurrency("coins");

@@ -109,6 +109,11 @@ final class MarketQuoteService {
                 plan.unitPrice(),
                 plan.totalPrice(),
                 currentSnapshotVersion,
+                1,
+                item.getNetPosition(),
+                null,
+                null,
+                null,
                 expiresAt,
                 MarketQuote.Status.ACTIVE
             )

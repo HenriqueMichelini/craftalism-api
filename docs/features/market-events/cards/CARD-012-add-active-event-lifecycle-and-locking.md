@@ -2,7 +2,7 @@
 
 ## Status
 
-planned
+completed
 
 ## Objective
 
@@ -63,3 +63,10 @@ Run from `java/`.
 - Admin HTTP APIs.
 
 ## Completion Notes
+
+- Added persisted event lifecycle status, start/end timestamps, end reason, and active slot state on market event instances.
+- Effective active-event reads use `ACTIVE` status plus wall-clock `startedAt <= now` and `endsAt > now`.
+- Added opportunistic expiration update for elapsed active events.
+- Added a database-backed one-active-event guard with a unique active slot for active named events.
+- Added lifecycle service coverage for start, duplicate guard handling, effective-active lookup, expiration cleanup, and terminal supersede behavior.
+- Validation: `rtk ./gradlew test --tests io.github.HenriqueMichelini.craftalism.api.migration.MarketEventMigrationTest --tests io.github.HenriqueMichelini.craftalism.api.service.MarketEventLifecycleServiceTest` passed from `java/`.

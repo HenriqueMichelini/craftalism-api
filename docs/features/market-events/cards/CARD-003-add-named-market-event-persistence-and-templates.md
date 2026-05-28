@@ -2,7 +2,7 @@
 
 ## Status
 
-planned
+completed
 
 ## Objective
 
@@ -70,3 +70,9 @@ Run from `java/`.
 - Admin mutation APIs.
 
 ## Completion Notes
+
+- Added named market event template and instance persistence models, repositories, and V22 schema.
+- Stored source, rarity, scope, selected targets, effect roll/version, duration window, lifecycle status, end reason, actor, and audit metadata for event instances.
+- Added conceptual support for item, item-set, category, and market-wide scopes; category targets store category ids, and item/item-set targets store explicit item ids.
+- Added initial medium automatic templates, a safe rare manual blocking template, and manual-only/automatic-disabled extra-rare template coverage.
+- Validation: `rtk ./gradlew test --tests io.github.HenriqueMichelini.craftalism.api.service.MarketEventTemplateTest --tests io.github.HenriqueMichelini.craftalism.api.migration.MarketEventMigrationTest` passed from `java/`.
