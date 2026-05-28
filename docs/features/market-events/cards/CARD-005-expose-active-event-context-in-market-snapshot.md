@@ -12,10 +12,14 @@ Expose fuzzy active event context alongside the public market snapshot.
 
 Players should almost always see enough event information to feel the market is fair, but not exact math. The existing colored item variation remains the main mechanical signal.
 
+This card depends on named event persistence and active lifecycle rules so expired events are not exposed.
+
 ## Required Reading
 
 - `../contract.md`
 - `../../../market-contract-mvp.md`
+- `CARD-003-add-named-market-event-persistence-and-templates.md`
+- `CARD-012-add-active-event-lifecycle-and-locking.md`
 
 ## Expected Behavior
 
@@ -26,7 +30,9 @@ Market snapshots include active event context with event name, narrative descrip
 - [ ] Snapshot response includes active event context when a named event is active.
 - [ ] Event context includes player-facing name, description, category/world flavor if allowed, broad scope hint, and rough temporal label.
 - [ ] Snapshot response omits event context when no named event is active.
-- [ ] Blocked items remain clearly marked through existing item-level blocked semantics.
+- [ ] Snapshot response omits event context for expired events even if expiration cleanup has not persisted yet.
+- [ ] Effectively blocked items remain clearly marked through existing item-level blocked semantics.
+- [ ] Snapshot version changes when public active event context changes.
 - [ ] Public response does not expose exact effect values, exact scheduler rolls, seed data, admin audit metadata, or exact countdown.
 - [ ] Public response does not expose rarity labels unless a later product decision explicitly allows them.
 - [ ] Existing snapshot price fields remain authoritative.

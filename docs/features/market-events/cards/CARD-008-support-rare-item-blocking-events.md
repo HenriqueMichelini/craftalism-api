@@ -12,22 +12,28 @@ Support narrow rare/manual item blocking events that reject trades while active.
 
 Blocking is MVP-supported only for rare/manual events. For MVP, a blocking event should usually just block, not combine with price effects.
 
+Event blocking is derived effective availability. It must not mutate or restore the durable `MarketItem.blocked` field.
+
 ## Required Reading
 
 - `../contract.md`
 - `../../../market-contract-mvp.md`
+- `CARD-009-split-snapshot-freshness-from-quote-execution-validity.md`
+- `CARD-012-add-active-event-lifecycle-and-locking.md`
 
 ## Expected Behavior
 
-An active blocking event marks affected items as blocked for snapshots and rejects quote or execute attempts according to existing blocked item semantics. Issued quotes are not proactively cancelled, but execution rejects if the item becomes blocked before execution.
+An active blocking event makes affected items effectively blocked for snapshots and rejects quote or execute attempts according to existing blocked item semantics. Issued quotes are not proactively cancelled, but execution rejects if the item becomes effectively blocked before execution.
 
 ## Acceptance Criteria
 
 - [ ] Blocking templates are rare/manual-only unless explicitly enabled for safe automatic rare templates.
 - [ ] Blocking applies at item level for MVP.
-- [ ] Blocked items appear blocked in snapshots.
-- [ ] Quote requests for blocked items reject using the existing blocked/non-tradable rejection semantics.
-- [ ] Execute rejects if an item becomes blocked after quote creation and before execution.
+- [ ] Event blocking is derived from active event state and does not mutate `MarketItem.blocked`.
+- [ ] Effectively blocked items appear blocked in snapshots.
+- [ ] Quote requests for effectively blocked items reject using the existing blocked/non-tradable rejection semantics.
+- [ ] Execute rejects if an item becomes effectively blocked after quote creation and before execution.
+- [ ] Ending or expiring a blocking event does not change durable manual blocked state.
 - [ ] Blocking events do not mutate player assets, market pressure, or balances.
 - [ ] Blocking events do not automatically shut down the full market.
 
@@ -47,6 +53,7 @@ java/src/test/java/io/github/HenriqueMichelini/craftalism/api/controller/
 - Do not add player-specific blocking.
 - Do not cancel outstanding quotes proactively.
 - Do not reinterpret `operating`.
+- Do not persist event blocking by toggling item `blocked`.
 
 ## Validation Commands
 

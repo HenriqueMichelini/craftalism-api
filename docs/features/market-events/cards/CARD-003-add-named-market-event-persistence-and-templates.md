@@ -12,19 +12,24 @@ Persist named market events and hand-authored event templates without applying t
 
 Named events are authored world conditions. Templates carry rarity, weight, scope, duration range, effect range, blocking capability, cooldown behavior, and player-facing narrative text.
 
+This card persists template and instance data only. Runtime lifecycle enforcement and database-backed one-active-event locking are handled by `CARD-012`.
+
 ## Required Reading
 
 - `../contract.md`
+- `CARD-012-add-active-event-lifecycle-and-locking.md`
 
 ## Expected Behavior
 
-The backend can store event templates and active/ended event instances with enough internal data for audit, telemetry, replay, and admin visibility. No event should affect market prices until a later card wires pricing.
+The backend can store event templates and event instances with enough internal data for audit, telemetry, replay, and admin visibility. No event should affect market prices or item availability until later cards wire lifecycle, pricing, and blocking behavior.
 
 ## Acceptance Criteria
 
 - [ ] Add persistence for event templates or seedable template definitions.
 - [ ] Add persistence for event instances with source, rarity, scope, selected targets, effect roll, duration, start/end timestamps, status, end reason, and audit metadata.
 - [ ] Support item, category, item-set, and market-wide scopes conceptually.
+- [ ] Store category-scoped event targets as selected category ids.
+- [ ] Store item-scoped and mixed rare event targets as explicit item ids.
 - [ ] Store exact internal values while preserving later ability to expose only fuzzy player-facing details.
 - [ ] Seed initial medium and safe rare templates.
 - [ ] Extra-rare templates are manual-only or disabled for automatic selection.
@@ -44,6 +49,7 @@ java/src/test/java/io/github/HenriqueMichelini/craftalism/api/service/
 ## Constraints
 
 - Do not apply event modifiers to pricing in this card.
+- Do not make event instances effective for pricing or blocking in this card.
 - Do not expose public player APIs yet.
 - Do not create player-targeted events.
 - Do not implement scheduler selection yet.

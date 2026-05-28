@@ -56,13 +56,30 @@ Named events are explicit temporary world conditions. They use authored template
 - Drift is per item for MVP.
 - Drift affects actual trade prices, not display-only decoration.
 - Drift must be small, bounded, and mean-reverting or otherwise constrained so prices stay readable.
-- Drift should update on the same lazy or timed market update rhythm, but less visibly than named events. MVP tuning should target roughly 0.5 to 1 hour between drift evaluations.
+- Drift uses persistence and timestamps separate from pressure regeneration state. It must not reuse `lastUpdatedAt`, because `lastUpdatedAt` controls pressure regeneration.
+- Drift may update lazily or through a timed process, but it must still be evaluated for balanced items where `netPosition == 0`. MVP tuning should target roughly 0.5 to 1 hour between drift evaluations.
 - Drift movement should be designer-tunable. The initial MVP band should be small and stock-like, around -6% to +6% per drift evaluation, with a tighter cumulative cap or mean-reversion rule so drift cannot run away.
 - Drift must not mutate `netPosition`.
 - Drift applies to every tradable item, though later item profiles may tune sensitivity.
 - Drift may continue while named events are active because it is tiny and separate.
-- Drift applies after pressure price derivation and before final min/max clamp.
+- Drift applies through the shared pricing pipeline after pressure price derivation and before named event modifiers and final min/max clamp.
 - Snapshot estimates, quote totals, execute prices, and `variationPercent` must reflect drift whenever drift affects current price.
+
+## Pricing Pipeline Rules
+
+Market Events require one shared pricing pipeline used by snapshot projection, quote planning, and quote-backed execution.
+
+The MVP pricing order is:
+
+1. derive pressure buy price from the pressure ladder
+2. apply per-item drift
+3. apply the active named event modifier, if one applies
+4. clamp the adjusted buy price within `minUnitPrice` and `maxUnitPrice`
+5. derive sell price from the adjusted buy price using `sellPricePercentage`
+
+Implementations must not add drift or named event modifiers in only the snapshot path, only the quote path, or only the execute path.
+
+SELL prices must continue to derive from the adjusted buy price using the configured `sellPricePercentage`; event behavior must not introduce a separate sell-side formula for MVP.
 
 ## Named Event Rules
 
@@ -70,11 +87,12 @@ Named events are explicit temporary world conditions. They use authored template
 - The MVP supports only one active named event at a time.
 - Named events are globally shared world state.
 - Named events are systemically random or admin-triggered, never player-targeted.
-- Named event price effects apply as temporary modifiers to current pressure-plus-drift prices before final min/max clamp.
+- Named event price effects apply as temporary modifiers in the shared pricing pipeline after pressure-plus-drift pricing and before final min/max clamp.
 - Named event price effects must not bypass `minUnitPrice` or `maxUnitPrice`.
 - Named event effects stop affecting new snapshots and new quotes immediately when the event ends.
 - Prices return to normal pressure-plus-drift behavior immediately after an event ends.
-- Named event duration is wall-clock based. Lazy or timed market updates must observe expired events and stop applying them immediately to new snapshots and new quotes.
+- Named event duration is wall-clock based. An event is price-effective only when its lifecycle status is active and the current time is within its start/end timestamps.
+- Expired events may be transitioned to an expired status opportunistically by snapshot, quote, scheduler, or admin paths, but pricing must not depend on cleanup having already run.
 - Event source is stored internally but is not normally player-facing.
 
 ## Rarity Rules
@@ -111,6 +129,8 @@ Supported conceptual scopes:
 - market-wide
 
 MVP implementation should focus primarily on item, category, and market-wide scopes. Item-set scope may exist conceptually or internally but should not be emphasized until needed.
+
+Event instances must persist selected targets explicitly enough for audit. Category-scoped events store the selected category target and resolve currently affected items dynamically during pricing. Item-scoped events store explicit item targets. Rare mixed-target events should store explicit item targets to avoid ambiguous pricing.
 
 High-value items may be eligible for events, but should have lower weights and stronger cooldowns.
 
@@ -170,11 +190,19 @@ Existing item price variation remains the main mechanical signal.
 
 ## Quote And Execute Rules
 
-Quotes preserve the event conditions they were created under until quote expiry.
+Market Events split snapshot freshness from quote execution validity.
+
+`snapshotVersion` remains the browse and quote-creation freshness token. Once the backend issues a quote, execute must validate the quote token, quote expiry, single-use lifecycle, request identity, effective item availability, and the stored quote price promise. Execute must not reject solely because the current market snapshot version changed after quote creation.
+
+Quotes preserve the pricing conditions they were created under until quote expiry.
+
+Quote persistence must store an immutable price promise and lightweight pricing context metadata sufficient for audit and debugging. Context metadata may include the pricing context version, drift value or revision, event instance id, event effect version, and base pressure position used at quote creation.
+
+Execute should settle using the stored quote unit and total price after validity checks. It must not recompute a current event-adjusted price and reject only because drift moved or a price event ended after quote creation.
 
 If a named price event ends after quote creation, the quote price remains valid until expiry.
 
-If an item becomes blocked after quote creation and before execution, execute must reject.
+If an item becomes effectively blocked after quote creation and before execution, execute must reject.
 
 Outstanding quotes are not proactively cancelled by blocking events.
 
@@ -190,6 +218,16 @@ Event behavior must preserve:
 ## Blocking Rules
 
 Blocking is allowed in MVP only for rare/manual events.
+
+Event blocking is derived effective availability, not a mutation of `MarketItem.blocked`.
+
+Effective blocked state is:
+
+```text
+effectiveBlocked = item.blocked || activeBlockingEventTargetsItem
+```
+
+Snapshots expose effective blocked state. Quote and execute reject when effective blocked state is true. Event blocking must not overwrite, restore, or otherwise mutate durable item blocked state.
 
 Automatic blocking, if enabled, must be narrow and safe:
 
@@ -209,11 +247,12 @@ Automatic named events use weighted randomness with guardrails.
 
 Scheduler behavior:
 
+- uses a scheduled worker with a database lock or lease so only one application instance rolls an event window at a time
 - uses jittered event windows
 - may choose to start nothing
 - does not roll a meaningful named event on every market update
 - uses named-event windows that are rarer than drift evaluations and preserve stretches of normal market behavior
-- does not start automatic events while the market is globally closed
+- does not start automatic events while the market is globally closed; MVP uses the existing config-backed market closure state exposed as a dependency
 - uses template weights and eligibility
 - uses cooldowns per item, category, market, and template
 - stores generated decisions and exact rolls internally for audit and telemetry
@@ -230,10 +269,26 @@ Automatic extra-rare events are disabled for MVP unless a later card explicitly 
 - An item can have at most one named event modifier at a time.
 - A category can have at most one category event at a time.
 - A market-wide event blocks other named events while active.
-- The MVP should enforce one active named event globally.
+- The MVP enforces one active named event globally in both service logic and persistence.
 - Drift can always exist.
+- Named event modifiers do not stack in MVP. Drift always applies, and at most one named event may apply.
+- Manual supersede has priority over the current active named event. Supersede ends the previous event immediately with reason `SUPERSEDED`, then starts the replacement event.
 - New named events must not target the same item/category/market immediately after a related event ends.
 - If an admin action supersedes an active event, the previous event ends immediately with reason `SUPERSEDED`.
+
+## Lifecycle Rules
+
+Named event instances use wall-clock start and end timestamps plus persisted lifecycle status.
+
+An event is effective only when:
+
+```text
+status == ACTIVE
+startedAt <= now
+endsAt > now
+```
+
+The persistence model must defend the MVP one-active-named-event invariant with a database-backed guard, not only an in-memory check.
 
 ## Admin Rules
 
@@ -250,6 +305,8 @@ Admins may:
 Admin actions may bypass selected scheduler guardrails, but must be warning-backed and auditable.
 
 Admin event source and exact values are internal metadata.
+
+Admin mutation controls must not rely only on generic `SCOPE_api:write`. They require a narrower event-admin authority such as `SCOPE_market:admin`, or an explicitly documented equivalent dashboard/admin authority if the wider platform defines one.
 
 ## Audit And Telemetry Rules
 

@@ -12,25 +12,32 @@ Apply the active named market event modifier to snapshot, quote, and execute pri
 
 Named events are explicit temporary modifiers. They apply to current pressure-plus-drift price before final min/max clamp. Prices return immediately to pressure plus drift when the event ends.
 
+This card is unsafe until quote execution validity, quote pricing context, the shared pricing pipeline, and active event lifecycle/locking are implemented.
+
 ## Required Reading
 
 - `../contract.md`
 - `../../../market-pressure-ladder-sigmoid-pricing.md`
 - `../../../market-contract-mvp.md`
+- `CARD-009-split-snapshot-freshness-from-quote-execution-validity.md`
+- `CARD-010-persist-quote-pricing-context.md`
+- `CARD-011-introduce-market-pricing-pipeline.md`
+- `CARD-012-add-active-event-lifecycle-and-locking.md`
 
 ## Expected Behavior
 
-At most one active named event can affect a market price in MVP. Active price events modify eligible item prices multiplicatively, then clamp to item min/max. Quotes preserve event conditions until quote expiry unless the item becomes blocked before execution.
+At most one active named event can affect a market price in MVP. Active price events modify eligible item prices through the shared pricing pipeline, after pressure-plus-drift pricing and before final min/max clamp. Quotes preserve the event pricing context active when the quote was created until quote expiry unless the item becomes effectively blocked before execution.
 
 ## Acceptance Criteria
 
 - [ ] Snapshot buy/sell estimates include active event modifiers for affected items.
 - [ ] Quote totals preserve the event modifier active when the quote was created.
-- [ ] Execute uses the quote-preserved event conditions for price settlement.
+- [ ] Execute settles using the stored quote price promise and quote pricing context, not a recomputed current event price.
 - [ ] If an event ends before quote execution, the quote price remains valid until expiry.
-- [ ] If an item becomes blocked before execution, execution rejects.
+- [ ] If an item becomes effectively blocked before execution, execution rejects.
 - [ ] `variationPercent` reflects actual pressure, drift, and active event pricing.
 - [ ] Ended events stop affecting new snapshots and new quotes immediately.
+- [ ] Event modifiers are included in snapshot version generation for new snapshots and quote creation.
 
 ## Expected Files to Change
 
@@ -49,6 +56,7 @@ java/src/test/java/io/github/HenriqueMichelini/craftalism/api/controller/
 - Do not change `sellPricePercentage` semantics.
 - Do not allow event modifiers to bypass min/max bounds.
 - Do not expose exact multipliers in public market responses.
+- Do not reintroduce current-snapshot equality as a standalone execute-time quote rejection.
 
 ## Validation Commands
 
