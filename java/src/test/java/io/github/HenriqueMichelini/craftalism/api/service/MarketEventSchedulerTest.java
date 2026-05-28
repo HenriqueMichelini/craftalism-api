@@ -8,6 +8,7 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -116,6 +117,32 @@ class MarketEventSchedulerTest {
     }
 
     @Test
+    void rollWindow_waitsForNextJitteredWindowAfterDecision() {
+        when(lockRepository.acquireExpiredLease(anyString(), anyString(), any(), any()))
+            .thenReturn(1);
+        when(lifecycleService.effectiveActiveEvent(any())).thenReturn(
+            Optional.empty()
+        );
+        when(random.nextLong(10_000L)).thenReturn(9_999L);
+        when(random.nextLong(1_801L)).thenReturn(900L);
+        MarketEventScheduler scheduler = scheduler(true, true, 2_500L);
+
+        MarketEventScheduler.SchedulerDecision firstDecision =
+            scheduler.rollWindow();
+        MarketEventScheduler.SchedulerDecision secondDecision =
+            scheduler.rollWindow();
+
+        assertEquals("no_event_roll", firstDecision.reason());
+        assertEquals("window_not_due", secondDecision.reason());
+        verify(lockRepository, times(1)).acquireExpiredLease(
+            anyString(),
+            anyString(),
+            any(),
+            any()
+        );
+    }
+
+    @Test
     void rollWindow_duplicateExecutionsOnlyAcquireOneLease() {
         MarketEventTemplate template = automaticTemplate(
             "farming_bumper_crop",
@@ -204,6 +231,8 @@ class MarketEventSchedulerTest {
             false,
             startChanceBasisPoints,
             Duration.ofSeconds(60L),
+            Duration.ofSeconds(7_200L),
+            Duration.ofSeconds(1_800L),
             "test-owner"
         );
     }

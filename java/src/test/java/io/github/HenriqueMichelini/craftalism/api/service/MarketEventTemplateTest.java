@@ -47,5 +47,16 @@ class MarketEventTemplateTest {
                 )
                 .anyMatch(MarketEventTemplate::isAutomaticEnabled)
         );
+        assertFalse(
+            templates.stream().anyMatch(this::isNeutralNoEffectTemplate)
+        );
+    }
+
+    private boolean isNeutralNoEffectTemplate(MarketEventTemplate template) {
+        return (
+            !template.isBlockingAllowed() &&
+            template.getMinEffectBasisPoints() == 10_000 &&
+            template.getMaxEffectBasisPoints() == 10_000
+        );
     }
 }

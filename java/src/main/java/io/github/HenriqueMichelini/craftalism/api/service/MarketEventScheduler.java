@@ -18,11 +18,11 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Random;
 import java.util.UUID;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.beans.factory.annotation.Autowired;
 
 @Service
 public class MarketEventScheduler {
@@ -41,6 +41,9 @@ public class MarketEventScheduler {
     private final boolean automaticExtraRareEnabled;
     private final long startChanceBasisPoints;
     private final Duration leaseDuration;
+    private final Duration eventWindowInterval;
+    private final Duration eventWindowJitter;
+    private Instant nextWindowAt;
 
     @Autowired
     public MarketEventScheduler(
@@ -52,7 +55,9 @@ public class MarketEventScheduler {
         @Value("${craftalism.market.enabled:true}") boolean marketEnabled,
         @Value("${craftalism.market-events.scheduler.automatic-extra-rare-enabled:false}") boolean automaticExtraRareEnabled,
         @Value("${craftalism.market-events.scheduler.start-chance-basis-points:2500}") long startChanceBasisPoints,
-        @Value("${craftalism.market-events.scheduler.lease-seconds:60}") long leaseSeconds
+        @Value("${craftalism.market-events.scheduler.lease-seconds:60}") long leaseSeconds,
+        @Value("${craftalism.market-events.scheduler.window-interval-seconds:7200}") long eventWindowIntervalSeconds,
+        @Value("${craftalism.market-events.scheduler.window-jitter-seconds:1800}") long eventWindowJitterSeconds
     ) {
         this(
             templateRepository,
@@ -66,6 +71,8 @@ public class MarketEventScheduler {
             automaticExtraRareEnabled,
             startChanceBasisPoints,
             Duration.ofSeconds(leaseSeconds),
+            Duration.ofSeconds(eventWindowIntervalSeconds),
+            Duration.ofSeconds(eventWindowJitterSeconds),
             UUID.randomUUID().toString()
         );
     }
@@ -82,6 +89,8 @@ public class MarketEventScheduler {
         boolean automaticExtraRareEnabled,
         long startChanceBasisPoints,
         Duration leaseDuration,
+        Duration eventWindowInterval,
+        Duration eventWindowJitter,
         String owner
     ) {
         this.templateRepository = templateRepository;
@@ -95,6 +104,8 @@ public class MarketEventScheduler {
         this.automaticExtraRareEnabled = automaticExtraRareEnabled;
         this.startChanceBasisPoints = startChanceBasisPoints;
         this.leaseDuration = leaseDuration;
+        this.eventWindowInterval = eventWindowInterval;
+        this.eventWindowJitter = eventWindowJitter;
         this.owner = owner;
     }
 
@@ -115,31 +126,60 @@ public class MarketEventScheduler {
         if (!marketEnabled) {
             return SchedulerDecision.skipped("market_closed");
         }
+        if (!eventWindowDue(now)) {
+            return SchedulerDecision.skipped("window_not_due");
+        }
         if (!acquireLease(now)) {
             return SchedulerDecision.skipped("lease_unavailable");
         }
 
-        lifecycleService.expireElapsedActiveEvents(now);
-        if (lifecycleService.effectiveActiveEvent(now).isPresent()) {
-            return SchedulerDecision.skipped("active_event_exists");
-        }
+        try {
+            lifecycleService.expireElapsedActiveEvents(now);
+            if (lifecycleService.effectiveActiveEvent(now).isPresent()) {
+                return SchedulerDecision.skipped("active_event_exists");
+            }
 
-        long startRoll = random.nextLong(10_000L);
-        if (startRoll >= startChanceBasisPoints) {
-            return SchedulerDecision.skipped("no_event_roll");
-        }
+            long startRoll = random.nextLong(10_000L);
+            if (startRoll >= startChanceBasisPoints) {
+                return SchedulerDecision.skipped("no_event_roll");
+            }
 
-        List<MarketEventTemplate> eligibleTemplates = eligibleTemplates(now);
-        if (eligibleTemplates.isEmpty()) {
-            return SchedulerDecision.skipped("no_eligible_templates");
-        }
+            List<MarketEventTemplate> eligibleTemplates = eligibleTemplates(now);
+            if (eligibleTemplates.isEmpty()) {
+                return SchedulerDecision.skipped("no_eligible_templates");
+            }
 
-        MarketEventTemplate template = chooseWeightedTemplate(
-            eligibleTemplates
-        );
-        MarketEventInstance event = buildEvent(template, now, startRoll);
-        MarketEventInstance started = lifecycleService.start(event);
-        return SchedulerDecision.started(started.getId(), template.getTemplateId());
+            MarketEventTemplate template = chooseWeightedTemplate(
+                eligibleTemplates
+            );
+            MarketEventInstance event = buildEvent(template, now, startRoll);
+            MarketEventInstance started = lifecycleService.start(event);
+            return SchedulerDecision.started(
+                started.getId(),
+                template.getTemplateId()
+            );
+        } finally {
+            nextWindowAt = nextWindowAfter(now);
+        }
+    }
+
+    private boolean eventWindowDue(Instant now) {
+        if (nextWindowAt == null) {
+            nextWindowAt = now;
+        }
+        return !now.isBefore(nextWindowAt);
+    }
+
+    private Instant nextWindowAfter(Instant now) {
+        return now.plus(eventWindowInterval).plus(randomJitter());
+    }
+
+    private Duration randomJitter() {
+        long jitterSeconds = eventWindowJitter.getSeconds();
+        if (jitterSeconds <= 0L) {
+            return Duration.ZERO;
+        }
+        return Duration.ofSeconds(random.nextLong(jitterSeconds + 1L));
     }
 
     private boolean acquireLease(Instant now) {

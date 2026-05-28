@@ -79,3 +79,5 @@ Run from `java/`.
 - Added V24 scheduler lock migration and scheduling configuration.
 - Added coverage for successful start, market-closed skip, no-event roll, duplicate lease acquisition, and rare/extra-rare guardrails.
 - Validation: `rtk ./gradlew test --tests io.github.HenriqueMichelini.craftalism.api.service.MarketEventSchedulerTest` passed from `java/`.
+- Reverification fix: added explicit jittered named-event window gating so scheduler wakeups can run frequently while meaningful event-window rolls remain rarer than drift evaluations.
+- Reverification validation: `rtk ./gradlew test --tests io.github.HenriqueMichelini.craftalism.api.service.MarketEventSchedulerTest` passed from `java/`.

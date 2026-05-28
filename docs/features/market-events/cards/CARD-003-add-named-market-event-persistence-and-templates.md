@@ -76,3 +76,5 @@ Run from `java/`.
 - Added conceptual support for item, item-set, category, and market-wide scopes; category targets store category ids, and item/item-set targets store explicit item ids.
 - Added initial medium automatic templates, a safe rare manual blocking template, and manual-only/automatic-disabled extra-rare template coverage.
 - Validation: `rtk ./gradlew test --tests io.github.HenriqueMichelini.craftalism.api.service.MarketEventTemplateTest --tests io.github.HenriqueMichelini.craftalism.api.migration.MarketEventMigrationTest` passed from `java/`.
+- Reverification fix: changed the manual-only extra-rare seed from a neutral no-effect template to an explicit non-neutral price-effect template while keeping automatic selection disabled.
+- Reverification validation: `rtk ./gradlew test --tests io.github.HenriqueMichelini.craftalism.api.service.MarketEventTemplateTest --tests io.github.HenriqueMichelini.craftalism.api.migration.MarketEventMigrationTest` passed from `java/`.
