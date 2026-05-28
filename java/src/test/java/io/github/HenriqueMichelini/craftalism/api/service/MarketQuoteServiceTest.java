@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -15,7 +16,13 @@ import io.github.HenriqueMichelini.craftalism.api.dto.MarketQuoteResponseDTO;
 import io.github.HenriqueMichelini.craftalism.api.dto.MarketSide;
 import io.github.HenriqueMichelini.craftalism.api.exceptions.MarketRejectionCode;
 import io.github.HenriqueMichelini.craftalism.api.exceptions.MarketRejectionException;
+import io.github.HenriqueMichelini.craftalism.api.model.MarketEventInstance;
+import io.github.HenriqueMichelini.craftalism.api.model.MarketEventRarity;
+import io.github.HenriqueMichelini.craftalism.api.model.MarketEventScope;
+import io.github.HenriqueMichelini.craftalism.api.model.MarketEventSource;
+import io.github.HenriqueMichelini.craftalism.api.model.MarketEventStatus;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketItem;
+import io.github.HenriqueMichelini.craftalism.api.repository.MarketEventInstanceRepository;
 import io.github.HenriqueMichelini.craftalism.api.repository.MarketItemRepository;
 import java.math.BigDecimal;
 import java.time.Clock;
@@ -23,6 +30,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -110,10 +118,59 @@ class MarketQuoteServiceTest {
         assertEquals(response.snapshotVersion(), storedQuote.snapshotVersion());
         assertEquals(1, storedQuote.pricingContextVersion());
         assertEquals(12L, storedQuote.pressurePosition());
-        assertEquals(null, storedQuote.driftRevision());
+        assertEquals(0L, storedQuote.driftRevision());
         assertEquals(null, storedQuote.namedEventInstanceId());
         assertEquals(null, storedQuote.eventEffectVersion());
         assertEquals(response.expiresAt(), storedQuote.expiresAt());
+    }
+
+    @Test
+    void quote_storesActiveEventPricingContext() {
+        MarketEventInstance event = categoryEvent(12_000);
+        MarketTradePlanner eventPlanner = new MarketTradePlanner(
+            eventPricingService(event)
+        );
+        MarketSnapshotService eventSnapshotService = new MarketSnapshotService(
+            new MarketReadService(marketItemRepository, eventPlanner),
+            new MarketSnapshotProjector(eventPlanner)
+        );
+        MarketQuoteService eventQuoteService = new MarketQuoteService(
+            eventSnapshotService,
+            quoteStore,
+            eventPlanner,
+            new MarketPlayerResolver("minecraft-server"),
+            new MarketRateLimiter(0, Duration.ofSeconds(60L), fixedClock()),
+            true,
+            60L
+        );
+        MarketItem item = marketItem(100L);
+        when(marketItemRepository.findAllForMarketRead()).thenReturn(List.of(item));
+        String snapshotVersion = eventSnapshotService
+            .getSnapshot()
+            .snapshotVersion();
+
+        MarketQuoteResponseDTO response = eventQuoteService.quote(
+            authentication(),
+            new MarketQuoteRequestDTO(
+                "wheat",
+                MarketSide.BUY,
+                1L,
+                snapshotVersion,
+                null
+            ),
+            null
+        );
+
+        ArgumentCaptor<MarketQuoteStore.StoredQuote> quoteCaptor =
+            ArgumentCaptor.forClass(MarketQuoteStore.StoredQuote.class);
+        verify(quoteStore).put(quoteCaptor.capture());
+        MarketQuoteStore.StoredQuote storedQuote = quoteCaptor.getValue();
+
+        assertEquals("120", response.unitPrice());
+        assertEquals("120", response.totalPrice());
+        assertEquals(0L, storedQuote.driftRevision());
+        assertEquals(event.getId(), storedQuote.namedEventInstanceId());
+        assertEquals(event.getEffectVersion(), storedQuote.eventEffectVersion());
     }
 
     @Test
@@ -260,6 +317,42 @@ class MarketQuoteServiceTest {
         item.setBlocked(false);
         item.setOperating(true);
         item.setLastUpdatedAt(Instant.parse("2026-04-12T18:29:42Z"));
+        item.setDriftMultiplierBasisPoints(10_000L);
+        item.setDriftRevision(0L);
+        item.setDriftEvaluatedAt(Instant.parse("2026-04-12T18:29:42Z"));
         return item;
+    }
+
+    private MarketEventPricingService eventPricingService(
+        MarketEventInstance event
+    ) {
+        MarketEventInstanceRepository repository = mock(
+            MarketEventInstanceRepository.class
+        );
+        when(repository.findEffectiveActive(any())).thenReturn(
+            Optional.of(event)
+        );
+        return new MarketEventPricingService(
+            new MarketEventLifecycleService(repository)
+        );
+    }
+
+    private MarketEventInstance categoryEvent(int effectBasisPoints) {
+        MarketEventInstance event = new MarketEventInstance();
+        event.setId(42L);
+        event.setTemplateId("farming_bumper_crop");
+        event.setSource(MarketEventSource.SCHEDULER);
+        event.setRarity(MarketEventRarity.MEDIUM);
+        event.setScope(MarketEventScope.CATEGORY);
+        event.setSelectedCategoryId("farming");
+        event.setEffectBasisPoints(effectBasisPoints);
+        event.setEffectVersion(3);
+        event.setBlocking(false);
+        event.setStartedAt(Instant.parse("2026-04-12T18:00:00Z"));
+        event.setEndsAt(Instant.parse("2026-04-12T19:00:00Z"));
+        event.setStatus(MarketEventStatus.ACTIVE);
+        event.setCreatedAt(Instant.parse("2026-04-12T18:00:00Z"));
+        event.setUpdatedAt(Instant.parse("2026-04-12T18:00:00Z"));
+        return event;
     }
 }

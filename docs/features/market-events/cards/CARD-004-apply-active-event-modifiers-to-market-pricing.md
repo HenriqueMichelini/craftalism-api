@@ -2,7 +2,7 @@
 
 ## Status
 
-planned
+completed
 
 ## Objective
 
@@ -74,3 +74,10 @@ Run from `java/`.
 - Multiple simultaneous named events.
 
 ## Completion Notes
+
+- Added active named-event pricing resolution for item, item-set, category, and market-wide scopes.
+- Routed active event multipliers through the shared pricing pipeline after drift and before final clamps for snapshots and quote planning.
+- Stored quote-time named event instance/effect metadata in quote pricing context.
+- Changed execute settlement to use the stored quote unit and total price after validity, availability, and pressure-bound checks, so quotes survive event/drift price changes until expiry.
+- Included active event pricing metadata and resulting projections in snapshot-version generation without exposing exact multipliers publicly.
+- Validation: `rtk ./gradlew test --tests io.github.HenriqueMichelini.craftalism.api.service.MarketTradePlannerTest --tests io.github.HenriqueMichelini.craftalism.api.service.MarketTradeExecutorTest --tests io.github.HenriqueMichelini.craftalism.api.service.MarketSnapshotProjectorTest --tests io.github.HenriqueMichelini.craftalism.api.controller.MarketContractIntegrationTest --tests io.github.HenriqueMichelini.craftalism.api.service.MarketQuoteServiceTest` passed from `java/`.

@@ -2,11 +2,21 @@ package io.github.HenriqueMichelini.craftalism.api.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
+import io.github.HenriqueMichelini.craftalism.api.model.MarketEventInstance;
+import io.github.HenriqueMichelini.craftalism.api.model.MarketEventRarity;
+import io.github.HenriqueMichelini.craftalism.api.model.MarketEventScope;
+import io.github.HenriqueMichelini.craftalism.api.model.MarketEventSource;
+import io.github.HenriqueMichelini.craftalism.api.model.MarketEventStatus;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketItem;
+import io.github.HenriqueMichelini.craftalism.api.repository.MarketEventInstanceRepository;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Instant;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
@@ -292,6 +302,56 @@ class MarketTradePlannerTest {
         );
     }
 
+    @Test
+    void recomputeDerivedProjections_appliesDriftBeforeSellPercentageAndVariation() {
+        MarketItem item = pressureItem(0L);
+        item.setDriftMultiplierBasisPoints(10_600L);
+
+        planner.recomputeDerivedProjections(item);
+
+        assertEquals(106L, item.getBuyUnitEstimate());
+        assertEquals(74L, item.getSellUnitEstimate());
+        assertEquals(
+            0,
+            new BigDecimal("6.00").compareTo(item.getVariationPercent())
+        );
+    }
+
+    @Test
+    void recomputeDerivedProjections_appliesActiveNamedEventAfterDrift() {
+        MarketTradePlanner eventPlanner = new MarketTradePlanner(
+            eventPricingService(categoryEvent(12_000))
+        );
+        MarketItem item = pressureItem(0L);
+        item.setDriftMultiplierBasisPoints(10_500L);
+
+        eventPlanner.recomputeDerivedProjections(item);
+
+        assertEquals(126L, item.getBuyUnitEstimate());
+        assertEquals(88L, item.getSellUnitEstimate());
+        assertEquals(
+            0,
+            new BigDecimal("26.00").compareTo(item.getVariationPercent())
+        );
+    }
+
+    @Test
+    void buyPlan_recordsActiveEventPricingMetadata() {
+        MarketEventInstance event = categoryEvent(12_000);
+        MarketTradePlanner eventPlanner = new MarketTradePlanner(
+            eventPricingService(event)
+        );
+        MarketItem item = pressureItem(0L);
+
+        MarketTradePlanner.TradePlan plan = eventPlanner.buyPlan(item, 1L);
+
+        assertEquals(120L, plan.unitPrice());
+        assertEquals(120L, plan.totalPrice());
+        assertEquals(0L, plan.driftRevision());
+        assertEquals(event.getId(), plan.namedEventInstanceId());
+        assertEquals(event.getEffectVersion(), plan.eventEffectVersion());
+    }
+
     private MarketItem baseMarketItem() {
         MarketItem item = new MarketItem();
         item.setItemId("wheat");
@@ -304,6 +364,9 @@ class MarketTradePlannerTest {
         item.setBlocked(false);
         item.setOperating(true);
         item.setLastUpdatedAt(Instant.parse("2026-04-12T18:29:42Z"));
+        item.setDriftMultiplierBasisPoints(10_000L);
+        item.setDriftRevision(0L);
+        item.setDriftEvaluatedAt(Instant.parse("2026-04-12T18:29:42Z"));
         return item;
     }
 
@@ -316,5 +379,38 @@ class MarketTradePlannerTest {
         item.setPriceSensitivity(new BigDecimal("0.0800"));
         item.setNetPosition(netPosition);
         return item;
+    }
+
+    private MarketEventPricingService eventPricingService(
+        MarketEventInstance event
+    ) {
+        MarketEventInstanceRepository repository = mock(
+            MarketEventInstanceRepository.class
+        );
+        when(repository.findEffectiveActive(any())).thenReturn(
+            Optional.of(event)
+        );
+        return new MarketEventPricingService(
+            new MarketEventLifecycleService(repository)
+        );
+    }
+
+    private MarketEventInstance categoryEvent(int effectBasisPoints) {
+        MarketEventInstance event = new MarketEventInstance();
+        event.setId(42L);
+        event.setTemplateId("farming_bumper_crop");
+        event.setSource(MarketEventSource.SCHEDULER);
+        event.setRarity(MarketEventRarity.MEDIUM);
+        event.setScope(MarketEventScope.CATEGORY);
+        event.setSelectedCategoryId("farming");
+        event.setEffectBasisPoints(effectBasisPoints);
+        event.setEffectVersion(3);
+        event.setBlocking(false);
+        event.setStartedAt(Instant.parse("2026-04-12T18:00:00Z"));
+        event.setEndsAt(Instant.parse("2026-04-12T19:00:00Z"));
+        event.setStatus(MarketEventStatus.ACTIVE);
+        event.setCreatedAt(Instant.parse("2026-04-12T18:00:00Z"));
+        event.setUpdatedAt(Instant.parse("2026-04-12T18:00:00Z"));
+        return event;
     }
 }

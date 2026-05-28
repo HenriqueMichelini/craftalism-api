@@ -2,14 +2,24 @@ package io.github.HenriqueMichelini.craftalism.api.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import io.github.HenriqueMichelini.craftalism.api.dto.MarketActiveEventContextDTO;
 import io.github.HenriqueMichelini.craftalism.api.dto.MarketSnapshotItemDTO;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketCategory;
+import io.github.HenriqueMichelini.craftalism.api.model.MarketEventInstance;
+import io.github.HenriqueMichelini.craftalism.api.model.MarketEventRarity;
+import io.github.HenriqueMichelini.craftalism.api.model.MarketEventScope;
+import io.github.HenriqueMichelini.craftalism.api.model.MarketEventSource;
+import io.github.HenriqueMichelini.craftalism.api.model.MarketEventStatus;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketItem;
+import io.github.HenriqueMichelini.craftalism.api.repository.MarketEventInstanceRepository;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.function.Consumer;
 import org.junit.jupiter.api.Test;
 
@@ -26,6 +36,20 @@ class MarketSnapshotProjectorTest {
         assertNotEquals(
             baseline,
             snapshotVersion(item -> item.setNetPosition(1L))
+        );
+        assertNotEquals(
+            baseline,
+            snapshotVersion(item -> item.setDriftMultiplierBasisPoints(10_100L))
+        );
+        assertNotEquals(
+            baseline,
+            snapshotVersion(item -> item.setDriftRevision(1L))
+        );
+        assertNotEquals(
+            baseline,
+            snapshotVersion(item ->
+                item.setDriftEvaluatedAt(Instant.parse("2026-04-12T19:30:00Z"))
+            )
         );
         assertNotEquals(
             baseline,
@@ -127,6 +151,19 @@ class MarketSnapshotProjectorTest {
     }
 
     @Test
+    void snapshotVersion_changesWhenActiveEventModifierChangesProjectedPrice() {
+        MarketSnapshotProjector eventProjector = projectorFor(
+            categoryEvent(12_000)
+        );
+        String baseline = snapshotVersion(pressureItem());
+        String withEvent = eventProjector.snapshotVersion(
+            eventProjector.projections(List.of(pressureItem()))
+        );
+
+        assertNotEquals(baseline, withEvent);
+    }
+
+    @Test
     void response_ordersCategoriesByMarketCatalogOrder() {
         List<MarketSnapshotProjector.MarketSnapshotProjection> projections =
             projector.projections(
@@ -207,6 +244,32 @@ class MarketSnapshotProjectorTest {
         assertEquals("96", snapshotItem.buyUnitEstimate());
         assertEquals("67", snapshotItem.sellUnitEstimate());
         assertEquals("-4", snapshotItem.variationPercent());
+    }
+
+    @Test
+    void toSnapshotItem_includesDriftInDisplayedPricesAndVariation() {
+        MarketItem item = pressureItem();
+        item.setDriftMultiplierBasisPoints(10_600L);
+
+        MarketSnapshotItemDTO snapshotItem = projector.toSnapshotItem(item);
+
+        assertEquals("106", snapshotItem.buyUnitEstimate());
+        assertEquals("74", snapshotItem.sellUnitEstimate());
+        assertEquals("6", snapshotItem.variationPercent());
+    }
+
+    @Test
+    void toSnapshotItem_includesActiveEventModifierInDisplayedPricesAndVariation() {
+        MarketSnapshotProjector eventProjector = projectorFor(
+            categoryEvent(12_000)
+        );
+        MarketItem item = pressureItem();
+
+        MarketSnapshotItemDTO snapshotItem = eventProjector.toSnapshotItem(item);
+
+        assertEquals("120", snapshotItem.buyUnitEstimate());
+        assertEquals("84", snapshotItem.sellUnitEstimate());
+        assertEquals("20", snapshotItem.variationPercent());
     }
 
     @Test
@@ -330,8 +393,46 @@ class MarketSnapshotProjectorTest {
         item.setBlocked(false);
         item.setOperating(true);
         item.setLastUpdatedAt(Instant.parse("2026-04-12T18:30:00Z"));
+        item.setDriftMultiplierBasisPoints(10_000L);
+        item.setDriftRevision(0L);
+        item.setDriftEvaluatedAt(Instant.parse("2026-04-12T18:30:00Z"));
         tradePlanner.recomputeDerivedProjections(item);
         return item;
+    }
+
+    private MarketSnapshotProjector projectorFor(MarketEventInstance event) {
+        MarketEventInstanceRepository repository = mock(
+            MarketEventInstanceRepository.class
+        );
+        when(repository.findEffectiveActive(any())).thenReturn(
+            Optional.of(event)
+        );
+        MarketEventPricingService pricingService =
+            new MarketEventPricingService(
+                new MarketEventLifecycleService(repository)
+            );
+        return new MarketSnapshotProjector(
+            new MarketTradePlanner(pricingService)
+        );
+    }
+
+    private MarketEventInstance categoryEvent(int effectBasisPoints) {
+        MarketEventInstance event = new MarketEventInstance();
+        event.setId(42L);
+        event.setTemplateId("farming_bumper_crop");
+        event.setSource(MarketEventSource.SCHEDULER);
+        event.setRarity(MarketEventRarity.MEDIUM);
+        event.setScope(MarketEventScope.CATEGORY);
+        event.setSelectedCategoryId("farming");
+        event.setEffectBasisPoints(effectBasisPoints);
+        event.setEffectVersion(3);
+        event.setBlocking(false);
+        event.setStartedAt(Instant.parse("2026-04-12T18:00:00Z"));
+        event.setEndsAt(Instant.parse("2026-04-12T19:00:00Z"));
+        event.setStatus(MarketEventStatus.ACTIVE);
+        event.setCreatedAt(Instant.parse("2026-04-12T18:00:00Z"));
+        event.setUpdatedAt(Instant.parse("2026-04-12T18:00:00Z"));
+        return event;
     }
 
 }

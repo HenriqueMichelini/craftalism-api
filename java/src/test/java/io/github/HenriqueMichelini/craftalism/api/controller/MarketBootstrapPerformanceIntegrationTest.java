@@ -53,7 +53,7 @@ class MarketBootstrapPerformanceIntegrationTest {
         assertEquals(0L, statistics.getEntityInsertCount());
         assertEquals(0L, statistics.getEntityUpdateCount());
         assertEquals(0L, statistics.getCollectionFetchCount());
-        assertTrue(statistics.getPrepareStatementCount() <= 2L);
+        assertTrue(statistics.getPrepareStatementCount() <= 5L);
     }
 
     @Test
@@ -68,7 +68,7 @@ class MarketBootstrapPerformanceIntegrationTest {
         assertEquals(0L, statistics.getEntityInsertCount());
         assertEquals(0L, statistics.getEntityUpdateCount());
         assertEquals(0L, statistics.getCollectionFetchCount());
-        assertTrue(statistics.getPrepareStatementCount() <= 2L);
+        assertTrue(statistics.getPrepareStatementCount() <= 5L);
     }
 
     private Statistics statistics() {

@@ -2,7 +2,7 @@
 
 ## Status
 
-planned
+completed
 
 ## Objective
 
@@ -71,3 +71,10 @@ Run from `java/`.
 - Player notifications.
 
 ## Completion Notes
+
+- Added dashboard admin event APIs under `/api/dashboard/market/events` for listing, manual start, update, cancel, and supersede.
+- Added internal admin DTOs that include source, actor, exact effects, targets, timestamps, status/end reason, and audit metadata.
+- Added admin service behavior for manual starts, edits with effect-version bumps, cancellation, and superseding active events with `SUPERSEDED`.
+- Kept admin metadata off public `/api/market/**` responses; event admin routes remain protected by `SCOPE_market:admin`.
+- Added service and API integration coverage for admin lifecycle controls and audit metadata.
+- Validation: `rtk ./gradlew test --tests io.github.HenriqueMichelini.craftalism.api.controller.DashboardMarketEventAdminApiIntegrationTest --tests io.github.HenriqueMichelini.craftalism.api.service.MarketEventAdminServiceTest` passed from `java/`.

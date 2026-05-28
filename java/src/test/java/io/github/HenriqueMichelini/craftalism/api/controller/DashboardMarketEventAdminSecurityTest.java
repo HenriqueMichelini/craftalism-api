@@ -6,8 +6,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import io.github.HenriqueMichelini.craftalism.api.config.SecurityConfig;
-import io.github.HenriqueMichelini.craftalism.api.service.MarketService;
-import io.github.HenriqueMichelini.craftalism.api.service.MarketTradeHistoryReadService;
+import io.github.HenriqueMichelini.craftalism.api.service.MarketEventAdminService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -16,7 +15,7 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
-@WebMvcTest(MarketController.class)
+@WebMvcTest(DashboardMarketEventAdminController.class)
 @Import(SecurityConfig.class)
 class DashboardMarketEventAdminSecurityTest {
 
@@ -24,10 +23,7 @@ class DashboardMarketEventAdminSecurityTest {
     private MockMvc mockMvc;
 
     @MockitoBean
-    private MarketService marketService;
-
-    @MockitoBean
-    private MarketTradeHistoryReadService marketTradeHistoryReadService;
+    private MarketEventAdminService marketEventAdminService;
 
     @Test
     void apiWriteScopeCannotAccessEventAdminMutationRoute() throws Exception {
@@ -46,7 +42,7 @@ class DashboardMarketEventAdminSecurityTest {
                 post("/api/dashboard/market/events")
                     .with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_market:admin")))
             )
-            .andExpect(status().isNotFound());
+            .andExpect(status().isBadRequest());
     }
 
     @Test
@@ -63,6 +59,6 @@ class DashboardMarketEventAdminSecurityTest {
                 get("/api/dashboard/market/events")
                     .with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_market:admin")))
             )
-            .andExpect(status().isNotFound());
+            .andExpect(status().isOk());
     }
 }

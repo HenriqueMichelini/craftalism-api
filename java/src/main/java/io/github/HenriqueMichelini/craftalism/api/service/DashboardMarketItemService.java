@@ -197,7 +197,14 @@ public class DashboardMarketItemService {
 
     private void finishMutation(MarketItem item) {
         validateMarketPressureConfig(item);
-        item.setLastUpdatedAt(Instant.now());
+        Instant now = Instant.now();
+        item.setLastUpdatedAt(now);
+        if (item.getDriftMultiplierBasisPoints() <= 0L) {
+            item.setDriftMultiplierBasisPoints(10_000L);
+        }
+        if (item.getDriftEvaluatedAt() == null) {
+            item.setDriftEvaluatedAt(now);
+        }
         tradePlanner.recomputeDerivedProjections(item);
     }
 

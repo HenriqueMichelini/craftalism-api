@@ -1,6 +1,7 @@
 package io.github.HenriqueMichelini.craftalism.api.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -70,6 +71,7 @@ class MarketReadServiceTest {
     @Test
     void regeneratedItems_doesNotSaveBalancedPressure() {
         MarketItem item = pressureItem(0L, NOW.minusSeconds(60L));
+        item.setDriftEvaluatedAt(NOW);
         when(marketItemRepository.findAllForMarketRead()).thenReturn(
             List.of(item)
         );
@@ -81,6 +83,30 @@ class MarketReadServiceTest {
         assertEquals(0L, item.getNetPosition());
         assertEquals(NOW.minusSeconds(60L), item.getLastUpdatedAt());
         verify(marketItemRepository, never()).save(item);
+    }
+
+    @Test
+    void regeneratedItems_evaluatesDriftForBalancedPressureWithoutTouchingPressureTimestamp() {
+        MarketItem item = pressureItem(0L, NOW.minusSeconds(60L));
+        item.setDriftEvaluatedAt(NOW.minusSeconds(3_600L));
+        when(marketItemRepository.findAllForMarketRead()).thenReturn(
+            List.of(item)
+        );
+        when(marketItemRepository.findForUpdate("wheat")).thenReturn(
+            Optional.of(item)
+        );
+
+        MarketReadService.MarketReadState readState = service()
+            .regeneratedItems();
+
+        assertEquals(1, readState.regeneratedItemCount());
+        assertEquals(0L, item.getNetPosition());
+        assertEquals(NOW.minusSeconds(60L), item.getLastUpdatedAt());
+        assertEquals(1L, item.getDriftRevision());
+        assertEquals(NOW, item.getDriftEvaluatedAt());
+        assertTrue(item.getDriftMultiplierBasisPoints() >= 9_400L);
+        assertTrue(item.getDriftMultiplierBasisPoints() <= 10_600L);
+        verify(marketItemRepository).save(item);
     }
 
     @Test
@@ -161,6 +187,9 @@ class MarketReadServiceTest {
         item.setBlocked(false);
         item.setOperating(true);
         item.setLastUpdatedAt(lastUpdatedAt);
+        item.setDriftMultiplierBasisPoints(10_000L);
+        item.setDriftRevision(0L);
+        item.setDriftEvaluatedAt(NOW);
         tradePlanner.recomputeDerivedProjections(item);
         return item;
     }

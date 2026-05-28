@@ -75,15 +75,10 @@ final class MarketTradeExecutor {
         Balance balance = balanceRepository
             .findForUpdate(playerUuid)
             .orElseThrow(() -> insufficientFunds(currentSnapshotVersion));
-        verifyQuotedExecution(
-            plan,
-            quote,
-            currentSnapshotVersion
-        );
-        if (balance.getAmount() < plan.totalPrice()) {
+        if (balance.getAmount() < quote.totalPrice()) {
             throw insufficientFunds(currentSnapshotVersion);
         }
-        balance.setAmount(balance.getAmount() - plan.totalPrice());
+        balance.setAmount(balance.getAmount() - quote.totalPrice());
         balanceRepository.save(balance);
         item.setNetPosition(
             Math.addExact(item.getNetPosition(), plan.executedQuantity())
@@ -91,11 +86,11 @@ final class MarketTradeExecutor {
         item.setLastUpdatedAt(Instant.now());
         tradePlanner.recomputeDerivedProjections(item);
         marketItemRepository.save(item);
-        saveTradeHistory(playerUuid, item, quote, plan);
+        saveTradeHistory(playerUuid, item, quote, plan.executedQuantity());
         return new AppliedTrade(
             plan.executedQuantity(),
-            plan.unitPrice(),
-            plan.totalPrice()
+            quote.unitPrice(),
+            quote.totalPrice()
         );
     }
 
@@ -114,14 +109,9 @@ final class MarketTradeExecutor {
         Balance balance = balanceRepository
             .findForUpdate(playerUuid)
             .orElseGet(() -> new Balance(playerUuid, 0L));
-        verifyQuotedExecution(
-            plan,
-            quote,
-            currentSnapshotVersion
-        );
         long creditedBalanceAmount = addBalanceAmounts(
             balance.getAmount(),
-            plan.totalPrice(),
+            quote.totalPrice(),
             currentSnapshotVersion
         );
         balance.setUuid(playerUuid);
@@ -133,30 +123,12 @@ final class MarketTradeExecutor {
         item.setLastUpdatedAt(Instant.now());
         tradePlanner.recomputeDerivedProjections(item);
         marketItemRepository.save(item);
-        saveTradeHistory(playerUuid, item, quote, plan);
+        saveTradeHistory(playerUuid, item, quote, plan.executedQuantity());
         return new AppliedTrade(
             plan.executedQuantity(),
-            plan.unitPrice(),
-            plan.totalPrice()
+            quote.unitPrice(),
+            quote.totalPrice()
         );
-    }
-
-    private void verifyQuotedExecution(
-        MarketTradePlanner.TradePlan plan,
-        MarketQuoteStore.StoredQuote quote,
-        Supplier<String> currentSnapshotVersion
-    ) {
-        if (
-            plan.totalPrice() != quote.totalPrice() ||
-            plan.unitPrice() != quote.unitPrice()
-        ) {
-            throw rejection(
-                MarketRejectionCode.STALE_QUOTE,
-                "Quote is no longer valid.",
-                HttpStatus.CONFLICT,
-                currentSnapshotVersion.get()
-            );
-        }
     }
 
     private MarketTradePlanner.TradePlan requireFullBuyPlan(
@@ -214,15 +186,15 @@ final class MarketTradeExecutor {
         UUID playerUuid,
         MarketItem item,
         MarketQuoteStore.StoredQuote quote,
-        MarketTradePlanner.TradePlan plan
+        long executedQuantity
     ) {
         MarketTradeHistory history = new MarketTradeHistory();
         history.setPlayerUuid(playerUuid);
         history.setItemId(item.getItemId());
         history.setSide(quote.side());
-        history.setQuantity(plan.executedQuantity());
-        history.setUnitPrice(plan.unitPrice());
-        history.setTotalPrice(plan.totalPrice());
+        history.setQuantity(executedQuantity);
+        history.setUnitPrice(quote.unitPrice());
+        history.setTotalPrice(quote.totalPrice());
         history.setCurrency(item.getCurrency());
         history.setSnapshotVersion(quote.snapshotVersion());
         history.setExecutedAt(Instant.now());

@@ -364,7 +364,7 @@ class MarketServiceTest {
     }
 
     @Test
-    void execute_postConsumeBuyPlanMismatchRejectsStaleQuoteWithoutMutation() {
+    void execute_settlesStoredBuyQuotePriceWhenCurrentPlanPriceDiffers() {
         MarketItem snapshotItem = marketItem(5L);
         MarketItem lockedItem = marketItem(5L);
         lockedItem.setNetPosition(50L);
@@ -397,34 +397,32 @@ class MarketServiceTest {
         when(marketItemRepository.findForUpdate("wheat")).thenReturn(Optional.of(lockedItem));
         when(balanceRepository.findForUpdate(playerUuid())).thenReturn(Optional.of(balance));
 
-        MarketRejectionException exception = assertThrows(
-            MarketRejectionException.class,
-            () ->
-                marketService.execute(
-                    authentication(),
-                    new MarketExecuteRequestDTO(
-                        "wheat",
-                        MarketSide.BUY,
-                        10L,
-                        "mismatched-buy-quote",
-                        snapshotVersion,
-                        null
-                    ),
-                    null
-                )
+        MarketExecuteSuccessResponseDTO response = marketService.execute(
+            authentication(),
+            new MarketExecuteRequestDTO(
+                "wheat",
+                MarketSide.BUY,
+                10L,
+                "mismatched-buy-quote",
+                snapshotVersion,
+                null
+            ),
+            null
         );
 
-        assertEquals(MarketRejectionCode.STALE_QUOTE, exception.getCode());
-        assertEquals(50L, lockedItem.getNetPosition());
-        assertEquals(1_000L, balance.getAmount());
+        assertEquals("SUCCESS", response.status());
+        assertEquals("5", response.unitPrice());
+        assertEquals("50", response.totalPrice());
+        assertEquals(60L, lockedItem.getNetPosition());
+        assertEquals(950L, balance.getAmount());
         verify(quoteStore).consume("mismatched-buy-quote");
-        verify(balanceRepository, never()).save(any());
-        verify(marketTradeHistoryRepository, never()).save(any());
-        verify(marketItemRepository, never()).save(any());
+        verify(balanceRepository).save(balance);
+        verify(marketTradeHistoryRepository).save(any());
+        verify(marketItemRepository).save(lockedItem);
     }
 
     @Test
-    void execute_postConsumeSellPlanMismatchRejectsStaleQuoteWithoutMutation() {
+    void execute_settlesStoredSellQuotePriceWhenCurrentPlanPriceDiffers() {
         MarketItem item = marketItem(5L);
         when(marketItemRepository.findAllForMarketRead())
             .thenReturn(java.util.List.of(item));
@@ -455,30 +453,28 @@ class MarketServiceTest {
         when(marketItemRepository.findForUpdate("wheat")).thenReturn(Optional.of(item));
         when(balanceRepository.findForUpdate(playerUuid())).thenReturn(Optional.of(balance));
 
-        MarketRejectionException exception = assertThrows(
-            MarketRejectionException.class,
-            () ->
-                marketService.execute(
-                    authentication(),
-                    new MarketExecuteRequestDTO(
-                        "wheat",
-                        MarketSide.SELL,
-                        10L,
-                        "mismatched-sell-quote",
-                        snapshotVersion,
-                        null
-                    ),
-                    null
-                )
+        MarketExecuteSuccessResponseDTO response = marketService.execute(
+            authentication(),
+            new MarketExecuteRequestDTO(
+                "wheat",
+                MarketSide.SELL,
+                10L,
+                "mismatched-sell-quote",
+                snapshotVersion,
+                null
+            ),
+            null
         );
 
-        assertEquals(MarketRejectionCode.STALE_QUOTE, exception.getCode());
-        assertEquals(0L, item.getNetPosition());
-        assertEquals(1_000L, balance.getAmount());
+        assertEquals("SUCCESS", response.status());
+        assertEquals("6", response.unitPrice());
+        assertEquals("60", response.totalPrice());
+        assertEquals(-10L, item.getNetPosition());
+        assertEquals(1_060L, balance.getAmount());
         verify(quoteStore).consume("mismatched-sell-quote");
-        verify(balanceRepository, never()).save(any());
-        verify(marketTradeHistoryRepository, never()).save(any());
-        verify(marketItemRepository, never()).save(any());
+        verify(balanceRepository).save(balance);
+        verify(marketTradeHistoryRepository).save(any());
+        verify(marketItemRepository).save(item);
     }
 
     @Test

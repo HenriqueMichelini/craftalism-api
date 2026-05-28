@@ -20,6 +20,7 @@ final class MarketExecuteService {
     private final MarketTradeExecutor tradeExecutor;
     private final MarketPlayerResolver playerResolver;
     private final MarketRateLimiter executeRateLimiter;
+    private final MarketEventBlockingService eventBlockingService;
     private final boolean marketEnabled;
 
     MarketExecuteService(
@@ -31,12 +32,35 @@ final class MarketExecuteService {
         MarketRateLimiter executeRateLimiter,
         boolean marketEnabled
     ) {
+        this(
+            marketItemRepository,
+            marketSnapshotService,
+            quoteStore,
+            tradeExecutor,
+            playerResolver,
+            executeRateLimiter,
+            null,
+            marketEnabled
+        );
+    }
+
+    MarketExecuteService(
+        MarketItemRepository marketItemRepository,
+        MarketSnapshotService marketSnapshotService,
+        MarketQuoteStore quoteStore,
+        MarketTradeExecutor tradeExecutor,
+        MarketPlayerResolver playerResolver,
+        MarketRateLimiter executeRateLimiter,
+        MarketEventBlockingService eventBlockingService,
+        boolean marketEnabled
+    ) {
         this.marketItemRepository = marketItemRepository;
         this.marketSnapshotService = marketSnapshotService;
         this.quoteStore = quoteStore;
         this.tradeExecutor = tradeExecutor;
         this.playerResolver = playerResolver;
         this.executeRateLimiter = executeRateLimiter;
+        this.eventBlockingService = eventBlockingService;
         this.marketEnabled = marketEnabled;
     }
 
@@ -168,7 +192,7 @@ final class MarketExecuteService {
         MarketItem item,
         String snapshotVersion
     ) {
-        if (item.isBlocked()) {
+        if (isEffectivelyBlocked(item)) {
             throw rejection(
                 MarketRejectionCode.ITEM_BLOCKED,
                 "Item is blocked from trading.",
@@ -184,6 +208,12 @@ final class MarketExecuteService {
                 snapshotVersion
             );
         }
+    }
+
+    private boolean isEffectivelyBlocked(MarketItem item) {
+        return eventBlockingService == null
+            ? item.isBlocked()
+            : eventBlockingService.isEffectivelyBlocked(item);
     }
 
     private void validateQuantity(Long quantity, String snapshotVersion) {

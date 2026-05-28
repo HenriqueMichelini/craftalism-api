@@ -12,13 +12,19 @@ final class MarketReadService {
 
     private final MarketItemRepository marketItemRepository;
     private final MarketTradePlanner tradePlanner;
+    private final MarketDriftService driftService;
     private final Clock clock;
 
     MarketReadService(
         MarketItemRepository marketItemRepository,
         MarketTradePlanner tradePlanner
     ) {
-        this(marketItemRepository, tradePlanner, Clock.systemUTC());
+        this(
+            marketItemRepository,
+            tradePlanner,
+            new MarketDriftService(),
+            Clock.systemUTC()
+        );
     }
 
     MarketReadService(
@@ -26,8 +32,23 @@ final class MarketReadService {
         MarketTradePlanner tradePlanner,
         Clock clock
     ) {
+        this(
+            marketItemRepository,
+            tradePlanner,
+            new MarketDriftService(),
+            clock
+        );
+    }
+
+    MarketReadService(
+        MarketItemRepository marketItemRepository,
+        MarketTradePlanner tradePlanner,
+        MarketDriftService driftService,
+        Clock clock
+    ) {
         this.marketItemRepository = marketItemRepository;
         this.tradePlanner = tradePlanner;
+        this.driftService = driftService;
         this.clock = clock;
     }
 
@@ -43,13 +64,13 @@ final class MarketReadService {
         int regeneratedItemCount = 0;
         for (int index = 0; index < items.size(); index++) {
             MarketItem item = items.get(index);
-            if (!shouldAttemptRegeneration(item, now)) {
+            if (!shouldAttemptMarketStateUpdate(item, now)) {
                 continue;
             }
             MarketItem lockedItem = marketItemRepository
                 .findForUpdate(item.getItemId())
                 .orElse(null);
-            if (lockedItem != null && regenerateItem(lockedItem, now)) {
+            if (lockedItem != null && updateMarketState(lockedItem, now)) {
                 regeneratedItemCount++;
                 marketItemRepository.save(lockedItem);
                 items.set(index, lockedItem);
@@ -73,6 +94,26 @@ final class MarketReadService {
             Duration.between(item.getLastUpdatedAt(), now).getSeconds() /
             item.getRegenIntervalSeconds();
         return ticks > 0L;
+    }
+
+    private boolean shouldAttemptMarketStateUpdate(
+        MarketItem item,
+        Instant now
+    ) {
+        return (
+            shouldAttemptRegeneration(item, now) ||
+            driftService.shouldAttemptDriftEvaluation(item, now)
+        );
+    }
+
+    private boolean updateMarketState(MarketItem item, Instant now) {
+        boolean pressureChanged = regenerateItem(item, now);
+        boolean driftChanged = driftService.evaluateDrift(item, now);
+        if (pressureChanged || driftChanged) {
+            tradePlanner.recomputeDerivedProjections(item);
+            return true;
+        }
+        return false;
     }
 
     private boolean regenerateItem(MarketItem item, Instant now) {

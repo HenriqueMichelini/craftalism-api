@@ -166,6 +166,114 @@ class MarketContractIntegrationTest {
     }
 
     @Test
+    void snapshot_marksItemBlockedWhenActiveBlockingEventTargetsItem() throws Exception {
+        marketEventTemplateRepository.save(blockingEventTemplate());
+        marketEventInstanceRepository.save(
+            activeBlockingEvent(
+                Instant.now().minusSeconds(60L),
+                Instant.now().plusSeconds(600L)
+            )
+        );
+
+        mockMvc
+            .perform(get("/api/market/snapshot"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.categories[0].items[0].blocked").value(true));
+
+        assertEquals(
+            false,
+            marketItemRepository.findById("wheat").orElseThrow().isBlocked()
+        );
+    }
+
+    @Test
+    @WithMockJwt(playerUuid = "220e8400-e29b-41d4-a716-446655440000")
+    void quote_rejectsWhenActiveBlockingEventTargetsItem() throws Exception {
+        marketEventTemplateRepository.save(blockingEventTemplate());
+        marketEventInstanceRepository.save(
+            activeBlockingEvent(
+                Instant.now().minusSeconds(60L),
+                Instant.now().plusSeconds(600L)
+            )
+        );
+        String snapshotVersion = snapshotVersion();
+
+        mockMvc
+            .perform(
+                post("/api/market/quotes")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(
+                        """
+                        {
+                          "itemId": "wheat",
+                          "side": "BUY",
+                          "quantity": 10,
+                          "snapshotVersion": "%s"
+                        }
+                        """.formatted(snapshotVersion)
+                    )
+            )
+            .andExpect(status().isConflict())
+            .andExpect(jsonPath("$.code").value("ITEM_BLOCKED"));
+    }
+
+    @Test
+    @WithMockJwt(playerUuid = "220e8400-e29b-41d4-a716-446655440000")
+    void execute_rejectsWhenBlockingEventStartsAfterQuoteCreation() throws Exception {
+        String snapshotVersion = snapshotVersion();
+        MvcResult quoteResult =
+            mockMvc
+                .perform(
+                    post("/api/market/quotes")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                            """
+                            {
+                              "itemId": "wheat",
+                              "side": "BUY",
+                              "quantity": 10,
+                              "snapshotVersion": "%s"
+                            }
+                            """.formatted(snapshotVersion)
+                        )
+                )
+                .andExpect(status().isOk())
+                .andReturn();
+        String quoteToken = jsonField(quoteResult.getResponse().getContentAsString(), "quoteToken");
+        String quotedSnapshotVersion = jsonField(
+            quoteResult.getResponse().getContentAsString(),
+            "snapshotVersion"
+        );
+
+        marketEventTemplateRepository.save(blockingEventTemplate());
+        marketEventInstanceRepository.save(
+            activeBlockingEvent(
+                Instant.now().minusSeconds(60L),
+                Instant.now().plusSeconds(600L)
+            )
+        );
+
+        mockMvc
+            .perform(
+                post("/api/market/execute")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(
+                        """
+                        {
+                          "itemId": "wheat",
+                          "side": "BUY",
+                          "quantity": 10,
+                          "quoteToken": "%s",
+                          "snapshotVersion": "%s"
+                        }
+                        """.formatted(quoteToken, quotedSnapshotVersion)
+                    )
+            )
+            .andExpect(status().isConflict())
+            .andExpect(jsonPath("$.code").value("ITEM_BLOCKED"));
+    }
+
+    @Test
     void tradeHistory_isPublicRead() throws Exception {
         mockMvc
             .perform(get("/api/market/trades"))
@@ -695,7 +803,7 @@ class MarketContractIntegrationTest {
 
     @Test
     @WithMockJwt(playerUuid = "220e8400-e29b-41d4-a716-446655440000")
-    void execute_postConsumeBuyPlanMismatchRejectsStaleQuoteAndConsumesQuote() throws Exception {
+    void execute_settlesStoredBuyQuotePriceWhenCurrentPlanPriceDiffersAndConsumesQuote() throws Exception {
         String snapshotVersion = snapshotVersion();
 
         MvcResult quoteResult =
@@ -745,9 +853,10 @@ class MarketContractIntegrationTest {
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(executePayload)
             )
-            .andExpect(status().isConflict())
-            .andExpect(jsonPath("$.status").value("REJECTED"))
-            .andExpect(jsonPath("$.code").value("STALE_QUOTE"));
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.status").value("SUCCESS"))
+            .andExpect(jsonPath("$.unitPrice").value("6"))
+            .andExpect(jsonPath("$.totalPrice").value("60"));
 
         mockMvc
             .perform(
@@ -762,15 +871,15 @@ class MarketContractIntegrationTest {
         MarketQuote quote = marketQuoteRepository.findById(quoteToken).orElseThrow();
         MarketItem item = marketItemRepository.findById("wheat").orElseThrow();
         Balance balance = balanceRepository.findById(playerUuid).orElseThrow();
-        assertEquals(0L, item.getNetPosition());
-        assertEquals(1_000L, balance.getAmount());
+        assertEquals(10L, item.getNetPosition());
+        assertEquals(940L, balance.getAmount());
         assertEquals(MarketQuote.Status.CONSUMED, quote.getStatus());
-        assertEquals(0L, marketTradeHistoryRepository.count());
+        assertEquals(1L, marketTradeHistoryRepository.count());
     }
 
     @Test
     @WithMockJwt(playerUuid = "220e8400-e29b-41d4-a716-446655440000")
-    void execute_postConsumeSellPlanMismatchRejectsStaleQuoteAndConsumesQuote() throws Exception {
+    void execute_settlesStoredSellQuotePriceWhenCurrentPlanPriceDiffersAndConsumesQuote() throws Exception {
         String snapshotVersion = snapshotVersion();
 
         MvcResult quoteResult =
@@ -819,17 +928,18 @@ class MarketContractIntegrationTest {
                         """.formatted(quoteToken, quotedSnapshotVersion)
                     )
             )
-            .andExpect(status().isConflict())
-            .andExpect(jsonPath("$.status").value("REJECTED"))
-            .andExpect(jsonPath("$.code").value("STALE_QUOTE"));
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.status").value("SUCCESS"))
+            .andExpect(jsonPath("$.unitPrice").value("5"))
+            .andExpect(jsonPath("$.totalPrice").value("50"));
 
         MarketQuote quote = marketQuoteRepository.findById(quoteToken).orElseThrow();
         MarketItem item = marketItemRepository.findById("wheat").orElseThrow();
         Balance balance = balanceRepository.findById(playerUuid).orElseThrow();
-        assertEquals(0L, item.getNetPosition());
-        assertEquals(1_000L, balance.getAmount());
+        assertEquals(-10L, item.getNetPosition());
+        assertEquals(1_050L, balance.getAmount());
         assertEquals(MarketQuote.Status.CONSUMED, quote.getStatus());
-        assertEquals(0L, marketTradeHistoryRepository.count());
+        assertEquals(1L, marketTradeHistoryRepository.count());
     }
 
     @ParameterizedTest
@@ -1508,6 +1618,9 @@ class MarketContractIntegrationTest {
         item.setBlocked(false);
         item.setOperating(true);
         item.setLastUpdatedAt(Instant.parse("2026-04-12T18:29:42Z"));
+        item.setDriftMultiplierBasisPoints(10_000L);
+        item.setDriftRevision(0L);
+        item.setDriftEvaluatedAt(Instant.parse("2026-04-12T18:29:42Z"));
         return item;
     }
 
@@ -1534,6 +1647,31 @@ class MarketContractIntegrationTest {
         return template;
     }
 
+    private MarketEventTemplate blockingEventTemplate() {
+        MarketEventTemplate template = new MarketEventTemplate();
+        template.setTemplateId("rare_customs_hold");
+        template.setRarity(MarketEventRarity.RARE);
+        template.setScope(MarketEventScope.ITEM);
+        template.setAutomaticWeight(0);
+        template.setAutomaticEnabled(false);
+        template.setBlockingAllowed(true);
+        template.setMinDurationSeconds(900L);
+        template.setMaxDurationSeconds(1_800L);
+        template.setMinEffectBasisPoints(10_000);
+        template.setMaxEffectBasisPoints(10_000);
+        template.setEffectDirection("BLOCK");
+        template.setCooldownSeconds(21_600L);
+        template.setPlayerFacingName("Customs Hold");
+        template.setPlayerFacingDescription(
+            "A specific good is temporarily held from trade."
+        );
+        template.setBroadScopeHint("One item");
+        template.setEligibleTargetMetadata("{\"manualOnly\":true}");
+        template.setCreatedAt(Instant.parse("2026-01-01T00:00:00Z"));
+        template.setUpdatedAt(Instant.parse("2026-01-01T00:00:00Z"));
+        return template;
+    }
+
     private MarketEventInstance activeEvent(Instant startedAt, Instant endsAt) {
         MarketEventInstance event = new MarketEventInstance();
         event.setTemplateId("farming_bumper_crop");
@@ -1548,6 +1686,28 @@ class MarketContractIntegrationTest {
         event.setEndsAt(endsAt);
         event.setStatus(MarketEventStatus.ACTIVE);
         event.setAuditMetadata("{\"roll\":0.42}");
+        event.setCreatedAt(startedAt);
+        event.setUpdatedAt(startedAt);
+        return event;
+    }
+
+    private MarketEventInstance activeBlockingEvent(
+        Instant startedAt,
+        Instant endsAt
+    ) {
+        MarketEventInstance event = new MarketEventInstance();
+        event.setTemplateId("rare_customs_hold");
+        event.setSource(MarketEventSource.ADMIN);
+        event.setRarity(MarketEventRarity.RARE);
+        event.setScope(MarketEventScope.ITEM);
+        event.setSelectedItemIds("wheat");
+        event.setEffectBasisPoints(10_000);
+        event.setEffectVersion(1);
+        event.setBlocking(true);
+        event.setStartedAt(startedAt);
+        event.setEndsAt(endsAt);
+        event.setStatus(MarketEventStatus.ACTIVE);
+        event.setAuditMetadata("{\"reason\":\"test\"}");
         event.setCreatedAt(startedAt);
         event.setUpdatedAt(startedAt);
         return event;

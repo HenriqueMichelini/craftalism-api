@@ -2,7 +2,7 @@
 
 ## Status
 
-planned
+completed
 
 ## Objective
 
@@ -72,3 +72,10 @@ Run from `java/`.
 - Client notifications.
 
 ## Completion Notes
+
+- Added a scheduled market-event worker guarded by a durable database lease.
+- Scheduler skips when disabled, when market is closed, when another event is active, when lease acquisition fails, or when the event-window roll chooses no event.
+- Automatic template selection uses enabled positive-weight templates, filters extra-rare by default, excludes blocking rare templates from automatic selection, applies cooldown checks, and records roll/duration/effect metadata.
+- Added V24 scheduler lock migration and scheduling configuration.
+- Added coverage for successful start, market-closed skip, no-event roll, duplicate lease acquisition, and rare/extra-rare guardrails.
+- Validation: `rtk ./gradlew test --tests io.github.HenriqueMichelini.craftalism.api.service.MarketEventSchedulerTest` passed from `java/`.

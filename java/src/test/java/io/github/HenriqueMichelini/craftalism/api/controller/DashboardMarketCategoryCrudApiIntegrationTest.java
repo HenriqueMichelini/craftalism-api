@@ -142,6 +142,9 @@ class DashboardMarketCategoryCrudApiIntegrationTest {
         item.setBlocked(false);
         item.setOperating(true);
         item.setLastUpdatedAt(Instant.parse("2026-01-01T00:00:00Z"));
+        item.setDriftMultiplierBasisPoints(10_000L);
+        item.setDriftRevision(0L);
+        item.setDriftEvaluatedAt(Instant.parse("2026-01-01T00:00:00Z"));
         return item;
     }
 

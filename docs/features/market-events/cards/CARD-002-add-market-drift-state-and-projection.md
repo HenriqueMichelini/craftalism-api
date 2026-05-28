@@ -2,7 +2,7 @@
 
 ## Status
 
-planned
+completed
 
 ## Objective
 
@@ -76,3 +76,10 @@ Run from `java/`.
 - Client UI labels.
 
 ## Completion Notes
+
+- Added durable per-item drift multiplier, revision, and evaluated-at timestamp separate from pressure `lastUpdatedAt`.
+- Added bounded hourly drift evaluation on the market read/update path, including balanced items where `netPosition == 0`, without mutating pressure.
+- Routed drift multipliers through the shared pricing pipeline for snapshots and quote planning; SELL prices continue to derive from drift-adjusted BUY prices.
+- Included drift state in snapshot-version hashing and quote pricing context.
+- Added V23 migration and targeted planner, projector, read-service, quote-service, and migration coverage.
+- Validation: `rtk ./gradlew test --tests io.github.HenriqueMichelini.craftalism.api.service.MarketTradePlannerTest --tests io.github.HenriqueMichelini.craftalism.api.service.MarketSnapshotProjectorTest --tests io.github.HenriqueMichelini.craftalism.api.service.MarketReadServiceTest --tests io.github.HenriqueMichelini.craftalism.api.service.MarketQuoteServiceTest --tests io.github.HenriqueMichelini.craftalism.api.migration.MarketDriftMigrationTest` passed from `java/`.

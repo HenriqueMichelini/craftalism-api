@@ -12,6 +12,15 @@ final class MarketTradePlanner {
         new MarketPricingPipeline(pressurePricing);
     private final MarketPricingPipeline.PricingContext neutralPricingContext =
         MarketPricingPipeline.PricingContext.neutral();
+    private final MarketEventPricingService eventPricingService;
+
+    MarketTradePlanner() {
+        this(null);
+    }
+
+    MarketTradePlanner(MarketEventPricingService eventPricingService) {
+        this.eventPricingService = eventPricingService;
+    }
 
     long pressureSegment(MarketItem item, long netPosition) {
         return pressurePricing.segment(item, netPosition);
@@ -39,7 +48,8 @@ final class MarketTradePlanner {
             item.getNetPosition(),
             requestedQuantity,
             Direction.UP,
-            totalAvailableQuantity
+            totalAvailableQuantity,
+            pricingMetadata(item)
         );
     }
 
@@ -61,15 +71,17 @@ final class MarketTradePlanner {
             item.getNetPosition(),
             requestedQuantity,
             Direction.DOWN,
-            totalAvailableQuantity
+            totalAvailableQuantity,
+            pricingMetadata(item)
         );
     }
 
     void recomputeDerivedProjections(MarketItem item) {
+        PricingMetadata metadata = pricingMetadata(item);
         long buyUnitEstimate = pricingPipeline.buyUnitPrice(
             item,
             item.getNetPosition(),
-            neutralPricingContext
+            metadata.pricingContext()
         );
         item.setCurrentStock(0L);
         item.setMarketMomentum(
@@ -112,7 +124,8 @@ final class MarketTradePlanner {
         long startPosition,
         long requestedQuantity,
         Direction direction,
-        long totalAvailableQuantity
+        long totalAvailableQuantity,
+        PricingMetadata metadata
     ) {
         long remainingRequest = requestedQuantity;
         long currentPosition = startPosition;
@@ -127,7 +140,7 @@ final class MarketTradePlanner {
                 totalPrice,
                 Math.multiplyExact(
                     take,
-                    unitPrice(item, currentPosition, direction)
+                    unitPrice(item, currentPosition, direction, metadata)
                 )
             );
             remainingRequest -= take;
@@ -141,24 +154,86 @@ final class MarketTradePlanner {
             requestedQuantity,
             effectiveUnitPrice(totalPrice, requestedQuantity),
             totalPrice,
-            totalAvailableQuantity
+            totalAvailableQuantity,
+            metadata.driftRevision(),
+            metadata.namedEventInstanceId(),
+            metadata.eventEffectVersion()
         );
     }
 
     private long unitPrice(
         MarketItem item,
         long pressurePosition,
-        Direction direction
+        Direction direction,
+        PricingMetadata metadata
     ) {
         long buyUnitPrice = pricingPipeline.buyUnitPrice(
             item,
             pressurePosition,
-            neutralPricingContext
+            metadata.pricingContext()
         );
         return direction == Direction.DOWN
             ? pricingPipeline.sellUnitPrice(item, buyUnitPrice)
             : buyUnitPrice;
     }
+
+    private PricingMetadata pricingMetadata(MarketItem item) {
+        long driftMultiplierBasisPoints =
+            item.getDriftMultiplierBasisPoints() > 0L
+                ? item.getDriftMultiplierBasisPoints()
+                : neutralPricingContext.driftMultiplierBasisPoints();
+        MarketEventPricingService.EventPricingContext eventContext =
+            eventPricingService == null
+                ? null
+                : eventPricingService.contextFor(item);
+        long eventMultiplierBasisPoints = eventContext == null
+            ? neutralPricingContext.namedEventMultiplierBasisPoints()
+            : eventContext.multiplierBasisPoints();
+        Long namedEventInstanceId = eventContext == null
+            ? null
+            : eventContext.eventInstanceId();
+        Integer eventEffectVersion = eventContext == null
+            ? null
+            : eventContext.effectVersion();
+        return new PricingMetadata(
+            new MarketPricingPipeline.PricingContext(
+                driftMultiplierBasisPoints,
+                eventMultiplierBasisPoints
+            ),
+            item.getDriftRevision(),
+            namedEventInstanceId,
+            eventEffectVersion
+        );
+    }
+
+    PricingMetadata currentPricingMetadata(MarketItem item) {
+        return pricingMetadata(item);
+    }
+
+    void clearPricingCache() {
+        if (eventPricingService != null) {
+            eventPricingService.clearRequestCache();
+        }
+    }
+
+    private TradePlan unavailablePlan(long totalAvailableQuantity) {
+        return new TradePlan(
+            0L,
+            0L,
+            0L,
+            totalAvailableQuantity,
+            0L,
+            null,
+            null
+        );
+    }
+
+    record PricingMetadata(
+        MarketPricingPipeline.PricingContext pricingContext,
+        long driftRevision,
+        Long namedEventInstanceId,
+        Integer eventEffectVersion
+    ) {}
 
     private long positionsRemainingInSegment(
         MarketItem item,
@@ -169,15 +244,6 @@ final class MarketTradePlanner {
         return direction == Direction.UP
             ? item.getSegmentSize() - offset
             : offset + 1L;
-    }
-
-    private TradePlan unavailablePlan(long totalAvailableQuantity) {
-        return new TradePlan(
-            0L,
-            0L,
-            0L,
-            totalAvailableQuantity
-        );
     }
 
     private long buyPressureCapacity(MarketItem item) {
@@ -203,7 +269,10 @@ final class MarketTradePlanner {
         long executedQuantity,
         long unitPrice,
         long totalPrice,
-        long totalAvailableQuantity
+        long totalAvailableQuantity,
+        long driftRevision,
+        Long namedEventInstanceId,
+        Integer eventEffectVersion
     ) {}
 
 }

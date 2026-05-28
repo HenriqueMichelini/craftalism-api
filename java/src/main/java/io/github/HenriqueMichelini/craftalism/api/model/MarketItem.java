@@ -83,6 +83,15 @@ public class MarketItem {
     @Column(name = "net_position", nullable = false)
     private long netPosition;
 
+    @Column(name = "drift_multiplier_basis_points", nullable = false)
+    private long driftMultiplierBasisPoints = 10_000L;
+
+    @Column(name = "drift_revision", nullable = false)
+    private long driftRevision;
+
+    @Column(name = "drift_evaluated_at", nullable = false)
+    private Instant driftEvaluatedAt;
+
     @Column(name = "min_net_position")
     private Long minNetPosition;
 
@@ -260,6 +269,30 @@ public class MarketItem {
 
     public void setNetPosition(long netPosition) {
         this.netPosition = netPosition;
+    }
+
+    public long getDriftMultiplierBasisPoints() {
+        return driftMultiplierBasisPoints;
+    }
+
+    public void setDriftMultiplierBasisPoints(long driftMultiplierBasisPoints) {
+        this.driftMultiplierBasisPoints = driftMultiplierBasisPoints;
+    }
+
+    public long getDriftRevision() {
+        return driftRevision;
+    }
+
+    public void setDriftRevision(long driftRevision) {
+        this.driftRevision = driftRevision;
+    }
+
+    public Instant getDriftEvaluatedAt() {
+        return driftEvaluatedAt;
+    }
+
+    public void setDriftEvaluatedAt(Instant driftEvaluatedAt) {
+        this.driftEvaluatedAt = driftEvaluatedAt;
     }
 
     public Long getMinNetPosition() {

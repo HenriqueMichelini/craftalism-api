@@ -20,9 +20,18 @@ import java.util.Map;
 final class MarketSnapshotProjector {
 
     private final MarketTradePlanner tradePlanner;
+    private final MarketEventBlockingService eventBlockingService;
 
     MarketSnapshotProjector(MarketTradePlanner tradePlanner) {
+        this(tradePlanner, null);
+    }
+
+    MarketSnapshotProjector(
+        MarketTradePlanner tradePlanner,
+        MarketEventBlockingService eventBlockingService
+    ) {
         this.tradePlanner = tradePlanner;
+        this.eventBlockingService = eventBlockingService;
     }
 
     MarketSnapshotResponseDTO response(
@@ -68,22 +77,27 @@ final class MarketSnapshotProjector {
     }
 
     MarketSnapshotItemDTO toSnapshotItem(MarketItem item) {
-        tradePlanner.recomputeDerivedProjections(item);
-        return new MarketSnapshotItemDTO(
-            item.getItemId(),
-            item.getDisplayName(),
-            item.getIconKey(),
-            Long.toString(item.getBuyUnitEstimate()),
-            Long.toString(item.getSellUnitEstimate()),
-            item.getCurrency(),
-            item.getNetPosition(),
-            tradePlanner.pressureSegment(item, item.getNetPosition()),
-            pressureMagnitude(item.getNetPosition()),
-            item.getVariationPercent().stripTrailingZeros().toPlainString(),
-            item.isBlocked(),
-            item.isOperating(),
-            item.getLastUpdatedAt()
-        );
+        clearEventCaches();
+        try {
+            tradePlanner.recomputeDerivedProjections(item);
+            return new MarketSnapshotItemDTO(
+                item.getItemId(),
+                item.getDisplayName(),
+                item.getIconKey(),
+                Long.toString(item.getBuyUnitEstimate()),
+                Long.toString(item.getSellUnitEstimate()),
+                item.getCurrency(),
+                item.getNetPosition(),
+                tradePlanner.pressureSegment(item, item.getNetPosition()),
+                pressureMagnitude(item.getNetPosition()),
+                item.getVariationPercent().stripTrailingZeros().toPlainString(),
+                isEffectivelyBlocked(item),
+                item.isOperating(),
+                item.getLastUpdatedAt()
+            );
+        } finally {
+            clearEventCaches();
+        }
     }
 
     private MarketSnapshotItemDTO toSnapshotItem(
@@ -107,13 +121,17 @@ final class MarketSnapshotProjector {
     }
 
     List<MarketSnapshotProjection> projections(List<MarketItem> items) {
-        List<MarketSnapshotProjection> projections = new ArrayList<>(
-            items.size()
-        );
-        for (MarketItem item : items) {
-            tradePlanner.recomputeDerivedProjections(item);
-            projections.add(
-                new MarketSnapshotProjection(
+        clearEventCaches();
+        try {
+            List<MarketSnapshotProjection> projections = new ArrayList<>(
+                items.size()
+            );
+            for (MarketItem item : items) {
+                tradePlanner.recomputeDerivedProjections(item);
+                MarketTradePlanner.PricingMetadata pricingMetadata =
+                    tradePlanner.currentPricingMetadata(item);
+                projections.add(
+                    new MarketSnapshotProjection(
                     item.getItemId(),
                     item.getCategoryId(),
                     item.getCategoryDisplayName(),
@@ -138,6 +156,11 @@ final class MarketSnapshotProjector {
                     item.getRegenIntervalSeconds(),
                     item.getCurrentStock(),
                     item.getNetPosition(),
+                    item.getDriftMultiplierBasisPoints(),
+                    item.getDriftRevision(),
+                    item.getDriftEvaluatedAt(),
+                    pricingMetadata.namedEventInstanceId(),
+                    pricingMetadata.eventEffectVersion(),
                     item.getMinNetPosition(),
                     item.getMaxNetPosition(),
                     tradePlanner.pressureSegment(item, item.getNetPosition()),
@@ -147,20 +170,23 @@ final class MarketSnapshotProjector {
                         .getVariationPercent()
                         .stripTrailingZeros()
                         .toPlainString(),
-                    item.isBlocked(),
+                    isEffectivelyBlocked(item),
                     item.isOperating(),
                     item.getLastUpdatedAt()
-                )
+                    )
+                );
+            }
+            projections.sort(
+                Comparator
+                    .comparingInt(MarketSnapshotProjection::categoryDisplayOrder)
+                    .thenComparing(MarketSnapshotProjection::categoryId)
+                    .thenComparing(MarketSnapshotProjection::displayName)
+                    .thenComparing(MarketSnapshotProjection::itemId)
             );
+            return List.copyOf(projections);
+        } finally {
+            clearEventCaches();
         }
-        projections.sort(
-            Comparator
-                .comparingInt(MarketSnapshotProjection::categoryDisplayOrder)
-                .thenComparing(MarketSnapshotProjection::categoryId)
-                .thenComparing(MarketSnapshotProjection::displayName)
-                .thenComparing(MarketSnapshotProjection::itemId)
-        );
-        return List.copyOf(projections);
     }
 
     String snapshotVersion(List<MarketSnapshotProjection> items) {
@@ -196,6 +222,16 @@ final class MarketSnapshotProjector {
                 .append(item.regenIntervalSeconds())
                 .append(':')
                 .append(item.marketPressure())
+                .append(':')
+                .append(item.driftMultiplierBasisPoints())
+                .append(':')
+                .append(item.driftRevision())
+                .append(':')
+                .append(item.driftEvaluatedAt())
+                .append(':')
+                .append(nullableLong(item.namedEventInstanceId()))
+                .append(':')
+                .append(nullableInteger(item.eventEffectVersion()))
                 .append(':')
                 .append(nullableLong(item.minNetPosition()))
                 .append(':')
@@ -240,10 +276,27 @@ final class MarketSnapshotProjector {
         return value == null ? "_" : Long.toString(value);
     }
 
+    private String nullableInteger(Integer value) {
+        return value == null ? "_" : Integer.toString(value);
+    }
+
     private long pressureMagnitude(long marketPressure) {
         return marketPressure == Long.MIN_VALUE
             ? Long.MAX_VALUE
             : Math.abs(marketPressure);
+    }
+
+    private boolean isEffectivelyBlocked(MarketItem item) {
+        return eventBlockingService == null
+            ? item.isBlocked()
+            : eventBlockingService.isEffectivelyBlocked(item);
+    }
+
+    private void clearEventCaches() {
+        tradePlanner.clearPricingCache();
+        if (eventBlockingService != null) {
+            eventBlockingService.clearRequestCache();
+        }
     }
 
     record MarketSnapshotProjection(
@@ -267,6 +320,11 @@ final class MarketSnapshotProjector {
         long regenIntervalSeconds,
         long currentStock,
         long marketPressure,
+        long driftMultiplierBasisPoints,
+        long driftRevision,
+        Instant driftEvaluatedAt,
+        Long namedEventInstanceId,
+        Integer eventEffectVersion,
         Long minNetPosition,
         Long maxNetPosition,
         long marketSegment,

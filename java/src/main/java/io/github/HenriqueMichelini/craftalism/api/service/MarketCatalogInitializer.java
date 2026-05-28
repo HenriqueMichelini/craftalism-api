@@ -162,7 +162,11 @@ final class MarketCatalogInitializer {
         item.setVariationPercent(seed.variationPercent());
         item.setBlocked(false);
         item.setOperating(true);
-        item.setLastUpdatedAt(Instant.now());
+        Instant now = Instant.now();
+        item.setLastUpdatedAt(now);
+        item.setDriftMultiplierBasisPoints(10_000L);
+        item.setDriftRevision(0L);
+        item.setDriftEvaluatedAt(now);
         tradePlanner.recomputeDerivedProjections(item);
         return item;
     }

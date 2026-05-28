@@ -24,7 +24,7 @@ public class MarketService {
 
     private final MarketQuoteStore quoteStore;
     private final MarketQuoteRepository marketQuoteRepository;
-    private final MarketTradePlanner tradePlanner = new MarketTradePlanner();
+    private final MarketTradePlanner tradePlanner;
     private final MarketPlayerResolver playerResolver;
     private final MarketCatalogInitializer catalogInitializer;
     private final MarketSnapshotService marketSnapshotService;
@@ -40,6 +40,8 @@ public class MarketService {
         MarketQuoteRepository marketQuoteRepository,
         MarketTradeHistoryRepository marketTradeHistoryRepository,
         MarketEventPublicContextService eventPublicContextService,
+        MarketEventPricingService eventPricingService,
+        MarketEventBlockingService eventBlockingService,
         DefaultMarketCatalog defaultMarketCatalog,
         @Value("${craftalism.market.enabled:true}") boolean marketEnabled,
         @Value(
@@ -60,6 +62,8 @@ public class MarketService {
             marketQuoteRepository,
             marketTradeHistoryRepository,
             eventPublicContextService,
+            eventPricingService,
+            eventBlockingService,
             defaultMarketCatalog,
             marketEnabled,
             quoteTtlSeconds,
@@ -95,6 +99,8 @@ public class MarketService {
             marketQuoteRepository,
             marketTradeHistoryRepository,
             null,
+            null,
+            null,
             defaultMarketCatalog,
             marketEnabled,
             quoteTtlSeconds,
@@ -114,6 +120,8 @@ public class MarketService {
         MarketQuoteRepository marketQuoteRepository,
         MarketTradeHistoryRepository marketTradeHistoryRepository,
         MarketEventPublicContextService eventPublicContextService,
+        MarketEventPricingService eventPricingService,
+        MarketEventBlockingService eventBlockingService,
         DefaultMarketCatalog defaultMarketCatalog,
         boolean marketEnabled,
         long quoteTtlSeconds,
@@ -125,6 +133,7 @@ public class MarketService {
     ) {
         this.quoteStore = quoteStore;
         this.marketQuoteRepository = marketQuoteRepository;
+        this.tradePlanner = new MarketTradePlanner(eventPricingService);
         this.playerResolver = new MarketPlayerResolver(
             trustedMinecraftServerClientId
         );
@@ -140,7 +149,7 @@ public class MarketService {
         );
         this.marketSnapshotService = new MarketSnapshotService(
             marketReadService,
-            new MarketSnapshotProjector(tradePlanner),
+            new MarketSnapshotProjector(tradePlanner, eventBlockingService),
             eventPublicContextService
         );
         MarketTradeExecutor tradeExecutor = new MarketTradeExecutor(
@@ -166,6 +175,7 @@ public class MarketService {
             tradePlanner,
             playerResolver,
             quoteRateLimiter,
+            eventBlockingService,
             marketEnabled,
             quoteTtlSeconds
         );
@@ -176,6 +186,7 @@ public class MarketService {
             tradeExecutor,
             playerResolver,
             executeRateLimiter,
+            eventBlockingService,
             marketEnabled
         );
     }

@@ -2,7 +2,7 @@
 
 ## Status
 
-planned
+completed
 
 ## Objective
 
@@ -70,3 +70,9 @@ Run from `java/`.
 - Client UI treatment.
 
 ## Completion Notes
+
+- Added derived effective blocking from active item-level blocking events without mutating `MarketItem.blocked`.
+- Wired effective blocking into snapshot projection, quote availability checks, and execute availability checks.
+- Preserved the rare/manual-only blocking template seeded by the named-event template card.
+- Added integration coverage for blocked snapshot state, quote rejection, and execute rejection when a blocking event starts after quote creation.
+- Validation: `rtk ./gradlew test --tests io.github.HenriqueMichelini.craftalism.api.service.MarketTradePlannerTest --tests io.github.HenriqueMichelini.craftalism.api.service.MarketTradeExecutorTest --tests io.github.HenriqueMichelini.craftalism.api.controller.MarketContractIntegrationTest` passed from `java/`.

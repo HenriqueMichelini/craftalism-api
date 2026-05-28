@@ -19,6 +19,7 @@ final class MarketQuoteService {
     private final MarketTradePlanner tradePlanner;
     private final MarketPlayerResolver playerResolver;
     private final MarketRateLimiter quoteRateLimiter;
+    private final MarketEventBlockingService eventBlockingService;
     private final boolean marketEnabled;
     private final long quoteTtlSeconds;
 
@@ -31,11 +32,34 @@ final class MarketQuoteService {
         boolean marketEnabled,
         long quoteTtlSeconds
     ) {
+        this(
+            marketSnapshotService,
+            quoteStore,
+            tradePlanner,
+            playerResolver,
+            quoteRateLimiter,
+            null,
+            marketEnabled,
+            quoteTtlSeconds
+        );
+    }
+
+    MarketQuoteService(
+        MarketSnapshotService marketSnapshotService,
+        MarketQuoteStore quoteStore,
+        MarketTradePlanner tradePlanner,
+        MarketPlayerResolver playerResolver,
+        MarketRateLimiter quoteRateLimiter,
+        MarketEventBlockingService eventBlockingService,
+        boolean marketEnabled,
+        long quoteTtlSeconds
+    ) {
         this.marketSnapshotService = marketSnapshotService;
         this.quoteStore = quoteStore;
         this.tradePlanner = tradePlanner;
         this.playerResolver = playerResolver;
         this.quoteRateLimiter = quoteRateLimiter;
+        this.eventBlockingService = eventBlockingService;
         this.marketEnabled = marketEnabled;
         this.quoteTtlSeconds = quoteTtlSeconds;
     }
@@ -111,9 +135,9 @@ final class MarketQuoteService {
                 currentSnapshotVersion,
                 1,
                 item.getNetPosition(),
-                null,
-                null,
-                null,
+                plan.driftRevision(),
+                plan.namedEventInstanceId(),
+                plan.eventEffectVersion(),
                 expiresAt,
                 MarketQuote.Status.ACTIVE
             )
@@ -129,7 +153,7 @@ final class MarketQuoteService {
             quoteToken,
             currentSnapshotVersion,
             expiresAt,
-            item.isBlocked(),
+            isEffectivelyBlocked(item),
             item.isOperating()
         );
     }
@@ -178,7 +202,7 @@ final class MarketQuoteService {
         MarketItem item,
         String snapshotVersion
     ) {
-        if (item.isBlocked()) {
+        if (isEffectivelyBlocked(item)) {
             throw rejection(
                 MarketRejectionCode.ITEM_BLOCKED,
                 "Item is blocked from trading.",
@@ -194,6 +218,12 @@ final class MarketQuoteService {
                 snapshotVersion
             );
         }
+    }
+
+    private boolean isEffectivelyBlocked(MarketItem item) {
+        return eventBlockingService == null
+            ? item.isBlocked()
+            : eventBlockingService.isEffectivelyBlocked(item);
     }
 
     private void validateQuantity(Long quantity, String snapshotVersion) {

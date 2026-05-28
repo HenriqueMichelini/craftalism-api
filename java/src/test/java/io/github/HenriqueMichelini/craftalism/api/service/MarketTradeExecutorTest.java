@@ -201,7 +201,7 @@ class MarketTradeExecutorTest {
     }
 
     @Test
-    void applyTrade_buyPlanMismatchRejectsStaleQuoteWithoutMutation() {
+    void applyTrade_buySettlesStoredQuotePriceWhenCurrentPlanPriceDiffers() {
         MarketItem item = marketItem();
         Balance balance = new Balance(PLAYER_UUID, 1_000L);
         when(balanceRepository.findForUpdate(PLAYER_UUID)).thenReturn(
@@ -209,29 +209,25 @@ class MarketTradeExecutorTest {
         );
         MarketTradeExecutor executor = executor();
 
-        MarketRejectionException exception = assertThrows(
-            MarketRejectionException.class,
-            () ->
-                executor.applyTrade(
-                    PLAYER_UUID,
-                    item,
-                    quote(MarketSide.BUY, 10L, 6L, 60L),
-                    "market:snapshot",
-                    () -> "market:current"
-                )
+        MarketTradeExecutor.AppliedTrade appliedTrade = executor.applyTrade(
+            PLAYER_UUID,
+            item,
+            quote(MarketSide.BUY, 10L, 6L, 60L),
+            "market:snapshot",
+            () -> "market:current"
         );
 
-        assertEquals(MarketRejectionCode.STALE_QUOTE, exception.getCode());
-        assertEquals("market:current", exception.getSnapshotVersion());
-        assertEquals(0L, item.getNetPosition());
-        assertEquals(1_000L, balance.getAmount());
-        verify(balanceRepository, never()).save(any());
-        verify(marketItemRepository, never()).save(any());
-        verify(marketTradeHistoryRepository, never()).save(any());
+        assertEquals(10L, appliedTrade.executedQuantity());
+        assertEquals(6L, appliedTrade.unitPrice());
+        assertEquals(60L, appliedTrade.totalPrice());
+        assertEquals(10L, item.getNetPosition());
+        assertEquals(940L, balance.getAmount());
+        verify(balanceRepository).save(balance);
+        verify(marketItemRepository).save(item);
     }
 
     @Test
-    void applyTrade_sellPlanMismatchRejectsStaleQuoteWithoutMutation() {
+    void applyTrade_sellSettlesStoredQuotePriceWhenCurrentPlanPriceDiffers() {
         MarketItem item = marketItem();
         item.setBaseUnitPrice(100L);
         item.setMinUnitPrice(50L);
@@ -244,25 +240,21 @@ class MarketTradeExecutorTest {
         );
         MarketTradeExecutor executor = executor();
 
-        MarketRejectionException exception = assertThrows(
-            MarketRejectionException.class,
-            () ->
-                executor.applyTrade(
-                    PLAYER_UUID,
-                    item,
-                    quote(MarketSide.SELL, 51L, 101L, 5_151L),
-                    "market:snapshot",
-                    () -> "market:current"
-                )
+        MarketTradeExecutor.AppliedTrade appliedTrade = executor.applyTrade(
+            PLAYER_UUID,
+            item,
+            quote(MarketSide.SELL, 51L, 101L, 5_151L),
+            "market:snapshot",
+            () -> "market:current"
         );
 
-        assertEquals(MarketRejectionCode.STALE_QUOTE, exception.getCode());
-        assertEquals("market:current", exception.getSnapshotVersion());
-        assertEquals(50L, item.getNetPosition());
-        assertEquals(1_000L, balance.getAmount());
-        verify(balanceRepository, never()).save(any());
-        verify(marketItemRepository, never()).save(any());
-        verify(marketTradeHistoryRepository, never()).save(any());
+        assertEquals(51L, appliedTrade.executedQuantity());
+        assertEquals(101L, appliedTrade.unitPrice());
+        assertEquals(5_151L, appliedTrade.totalPrice());
+        assertEquals(-1L, item.getNetPosition());
+        assertEquals(6_151L, balance.getAmount());
+        verify(balanceRepository).save(balance);
+        verify(marketItemRepository).save(item);
     }
 
     private MarketTradeExecutor executor() {
@@ -291,7 +283,7 @@ class MarketTradeExecutorTest {
             "market:snapshot",
             1,
             0L,
-            null,
+            0L,
             null,
             null,
             Instant.now().plusSeconds(60L),
@@ -318,6 +310,9 @@ class MarketTradeExecutorTest {
         item.setBlocked(false);
         item.setOperating(true);
         item.setLastUpdatedAt(Instant.parse("2026-04-12T18:29:42Z"));
+        item.setDriftMultiplierBasisPoints(10_000L);
+        item.setDriftRevision(0L);
+        item.setDriftEvaluatedAt(Instant.parse("2026-04-12T18:29:42Z"));
         tradePlanner.recomputeDerivedProjections(item);
         return item;
     }
