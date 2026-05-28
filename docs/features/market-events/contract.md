@@ -14,6 +14,10 @@ Market Events add shared world conditions that can temporarily affect market pri
 
 Market Events must extend those rules. They must not simplify, reinterpret, or bypass pressure-ladder pricing, sell percentage pricing, stale quote semantics, min/max clamps, blocked semantics, or operating semantics.
 
+## Related Documents
+
+- `handoff.md` is a non-authoritative implementation handoff for follow-on work.
+
 ## Repository Ownership
 
 `craftalism-api` owns authoritative backend market event state, event templates, event scheduling, event audit data, event pricing modifiers, item blocking effects, quote interaction, snapshot event context, and admin controls.
