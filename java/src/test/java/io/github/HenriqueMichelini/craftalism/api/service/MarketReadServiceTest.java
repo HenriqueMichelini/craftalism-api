@@ -1,6 +1,7 @@
 package io.github.HenriqueMichelini.craftalism.api.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -14,6 +15,7 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.IntStream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -110,6 +112,64 @@ class MarketReadServiceTest {
     }
 
     @Test
+    void regeneratedItems_sixBalancedDriftTicksDoNotSaturateMostCatalogItems() {
+        List<MarketItem> items = IntStream
+            .range(0, 72)
+            .mapToObj(index -> pressureItem("item_" + index, 0L, NOW.minusSeconds(60L)))
+            .toList();
+        when(marketItemRepository.findAllForMarketRead()).thenReturn(items);
+        for (MarketItem item : items) {
+            item.setDriftEvaluatedAt(NOW.minusSeconds(21_600L));
+            when(marketItemRepository.findForUpdate(item.getItemId()))
+                .thenReturn(Optional.of(item));
+        }
+
+        MarketReadService.MarketReadState readState = service()
+            .regeneratedItems();
+
+        long saturatedCount = items
+            .stream()
+            .filter(item ->
+                item.getDriftMultiplierBasisPoints() == 9_400L ||
+                item.getDriftMultiplierBasisPoints() == 10_600L
+            )
+            .count();
+        assertEquals(72, readState.regeneratedItemCount());
+        assertTrue(saturatedCount < 36L);
+        assertTrue(
+            items
+                .stream()
+                .allMatch(item ->
+                    item.getDriftMultiplierBasisPoints() >= 9_400L &&
+                    item.getDriftMultiplierBasisPoints() <= 10_600L
+                )
+        );
+        assertTrue(
+            items
+                .stream()
+                .allMatch(item -> item.getDriftRevision() == 6L)
+        );
+    }
+
+    @Test
+    void regeneratedItems_movesPinnedDriftBackInsideBoundsOnOrdinaryTick() {
+        MarketItem item = pressureItem(0L, NOW.minusSeconds(60L));
+        item.setDriftMultiplierBasisPoints(10_600L);
+        item.setDriftEvaluatedAt(NOW.minusSeconds(3_600L));
+        when(marketItemRepository.findAllForMarketRead()).thenReturn(
+            List.of(item)
+        );
+        when(marketItemRepository.findForUpdate("wheat")).thenReturn(
+            Optional.of(item)
+        );
+
+        service().regeneratedItems();
+
+        assertNotEquals(10_600L, item.getDriftMultiplierBasisPoints());
+        assertTrue(item.getDriftMultiplierBasisPoints() < 10_600L);
+    }
+
+    @Test
     void regeneratedItems_doesNotSaveWhenNoWholeTickElapsed() {
         MarketItem item = pressureItem(10L, NOW.minusSeconds(59L));
         when(marketItemRepository.findAllForMarketRead()).thenReturn(
@@ -168,8 +228,16 @@ class MarketReadServiceTest {
     }
 
     private MarketItem pressureItem(long netPosition, Instant lastUpdatedAt) {
+        return pressureItem("wheat", netPosition, lastUpdatedAt);
+    }
+
+    private MarketItem pressureItem(
+        String itemId,
+        long netPosition,
+        Instant lastUpdatedAt
+    ) {
         MarketItem item = new MarketItem();
-        item.setItemId("wheat");
+        item.setItemId(itemId);
         item.setCategoryId("farming");
         item.setCategoryDisplayName("Farming");
         item.setDisplayName("Wheat");

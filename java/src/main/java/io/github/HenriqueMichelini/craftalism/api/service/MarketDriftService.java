@@ -9,7 +9,7 @@ final class MarketDriftService {
     private static final long EVALUATION_INTERVAL_SECONDS = 3_600L;
     private static final long NEUTRAL_MULTIPLIER_BASIS_POINTS = 10_000L;
     private static final long MAX_ABSOLUTE_DRIFT_BASIS_POINTS = 600L;
-    private static final long MAX_STEP_BASIS_POINTS = 600L;
+    private static final long MAX_STEP_BASIS_POINTS = 90L;
 
     boolean shouldAttemptDriftEvaluation(MarketItem item, Instant now) {
         if (item.getDriftEvaluatedAt() == null) {

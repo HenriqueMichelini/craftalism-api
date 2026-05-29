@@ -1,6 +1,9 @@
 package io.github.HenriqueMichelini.craftalism.api.controller;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -11,8 +14,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import io.github.HenriqueMichelini.craftalism.api.model.MarketEventRarity;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketEventScope;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketEventTemplate;
+import io.github.HenriqueMichelini.craftalism.api.model.MarketItem;
 import io.github.HenriqueMichelini.craftalism.api.repository.MarketEventInstanceRepository;
 import io.github.HenriqueMichelini.craftalism.api.repository.MarketEventTemplateRepository;
+import io.github.HenriqueMichelini.craftalism.api.repository.MarketItemRepository;
+import java.math.BigDecimal;
 import java.time.Instant;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -39,10 +45,14 @@ class DashboardMarketEventAdminApiIntegrationTest {
     @Autowired
     private MarketEventTemplateRepository templateRepository;
 
+    @Autowired
+    private MarketItemRepository marketItemRepository;
+
     @BeforeEach
     void setUp() {
         eventRepository.deleteAll();
         templateRepository.deleteAll();
+        marketItemRepository.deleteAll();
         templateRepository.save(blockingTemplate());
     }
 
@@ -137,6 +147,53 @@ class DashboardMarketEventAdminApiIntegrationTest {
             .andExpect(jsonPath("$.selectedItemIds").value("carrot"));
     }
 
+    @Test
+    void adminCanResetPersistedDriftAndSnapshotVisibleDerivedFields()
+        throws Exception {
+        marketItemRepository.save(driftedItem());
+        String beforeSnapshotVersion = snapshotVersion();
+
+        mockMvc
+            .perform(post("/api/dashboard/market/drift/reset").with(adminJwt()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.resetItemCount").value(1))
+            .andExpect(jsonPath("$.driftMultiplierBasisPoints").value(10_000))
+            .andExpect(jsonPath("$.driftEvaluatedAt").exists());
+
+        MarketItem item = marketItemRepository.findById("wheat").orElseThrow();
+        assertEquals(10_000L, item.getDriftMultiplierBasisPoints());
+        assertEquals(8L, item.getDriftRevision());
+        assertEquals(100L, item.getBuyUnitEstimate());
+        assertEquals(70L, item.getSellUnitEstimate());
+        assertEquals(
+            0,
+            BigDecimal.ZERO.compareTo(item.getVariationPercent())
+        );
+
+        mockMvc
+            .perform(get("/api/market/snapshot"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.snapshotVersion").value(not(beforeSnapshotVersion)))
+            .andExpect(jsonPath("$.categories[0].items[0].buyUnitEstimate").value("100"))
+            .andExpect(jsonPath("$.categories[0].items[0].sellUnitEstimate").value("70"))
+            .andExpect(jsonPath("$.categories[0].items[0].variationPercent").value("0"));
+    }
+
+    @Test
+    void nonAdminCannotResetPersistedDrift() throws Exception {
+        marketItemRepository.save(driftedItem());
+
+        mockMvc
+            .perform(
+                post("/api/dashboard/market/drift/reset")
+                    .with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_api:write")))
+            )
+            .andExpect(status().isForbidden());
+
+        MarketItem item = marketItemRepository.findById("wheat").orElseThrow();
+        assertNotEquals(10_000L, item.getDriftMultiplierBasisPoints());
+    }
+
     private org.springframework.test.web.servlet.request.RequestPostProcessor adminJwt() {
         return jwt()
             .jwt(jwt -> jwt.subject("admin-user"))
@@ -155,6 +212,53 @@ class DashboardMarketEventAdminApiIntegrationTest {
             valueEnd++;
         }
         return body.substring(valueStart, valueEnd);
+    }
+
+    private String snapshotVersion() throws Exception {
+        MvcResult result = mockMvc
+            .perform(get("/api/market/snapshot"))
+            .andExpect(status().isOk())
+            .andReturn();
+        return jsonString(result.getResponse().getContentAsString(), "snapshotVersion");
+    }
+
+    private String jsonString(String body, String field) {
+        String needle = "\"" + field + "\":\"";
+        int start = body.indexOf(needle);
+        int valueStart = start + needle.length();
+        int valueEnd = body.indexOf('"', valueStart);
+        return body.substring(valueStart, valueEnd);
+    }
+
+    private MarketItem driftedItem() {
+        MarketItem item = new MarketItem();
+        item.setItemId("wheat");
+        item.setCategoryId("farming");
+        item.setCategoryDisplayName("Farming");
+        item.setDisplayName("Wheat");
+        item.setIconKey("WHEAT");
+        item.setCurrency("coins");
+        item.setBaseUnitPrice(100L);
+        item.setMinUnitPrice(50L);
+        item.setMaxUnitPrice(300L);
+        item.setSegmentSize(50L);
+        item.setPriceSensitivity(new BigDecimal("0.0800"));
+        item.setSellPricePercentage(new BigDecimal("0.7000"));
+        item.setBaseRegenQuantity(1L);
+        item.setRegenIntervalSeconds(60L);
+        item.setNetPosition(0L);
+        item.setBuyUnitEstimate(106L);
+        item.setSellUnitEstimate(74L);
+        item.setCurrentStock(0L);
+        item.setMarketMomentum(0L);
+        item.setVariationPercent(new BigDecimal("6.00"));
+        item.setBlocked(false);
+        item.setOperating(true);
+        item.setLastUpdatedAt(Instant.now());
+        item.setDriftMultiplierBasisPoints(10_600L);
+        item.setDriftRevision(7L);
+        item.setDriftEvaluatedAt(Instant.now());
+        return item;
     }
 
     private MarketEventTemplate blockingTemplate() {

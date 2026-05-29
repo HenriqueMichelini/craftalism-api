@@ -6,6 +6,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import io.github.HenriqueMichelini.craftalism.api.config.SecurityConfig;
+import io.github.HenriqueMichelini.craftalism.api.service.MarketDriftAdminService;
 import io.github.HenriqueMichelini.craftalism.api.service.MarketEventAdminService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -15,7 +16,10 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
-@WebMvcTest(DashboardMarketEventAdminController.class)
+@WebMvcTest({
+    DashboardMarketEventAdminController.class,
+    DashboardMarketDriftAdminController.class,
+})
 @Import(SecurityConfig.class)
 class DashboardMarketEventAdminSecurityTest {
 
@@ -24,6 +28,9 @@ class DashboardMarketEventAdminSecurityTest {
 
     @MockitoBean
     private MarketEventAdminService marketEventAdminService;
+
+    @MockitoBean
+    private MarketDriftAdminService marketDriftAdminService;
 
     @Test
     void apiWriteScopeCannotAccessEventAdminMutationRoute() throws Exception {
@@ -57,6 +64,26 @@ class DashboardMarketEventAdminSecurityTest {
         mockMvc
             .perform(
                 get("/api/dashboard/market/events")
+                    .with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_market:admin")))
+            )
+            .andExpect(status().isOk());
+    }
+
+    @Test
+    void apiWriteScopeCannotAccessDriftResetRoute() throws Exception {
+        mockMvc
+            .perform(
+                post("/api/dashboard/market/drift/reset")
+                    .with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_api:write")))
+            )
+            .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void marketAdminScopeCanPassDriftResetSecurityBoundary() throws Exception {
+        mockMvc
+            .perform(
+                post("/api/dashboard/market/drift/reset")
                     .with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_market:admin")))
             )
             .andExpect(status().isOk());
