@@ -23,6 +23,9 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionCallback;
+import org.springframework.transaction.support.TransactionOperations;
+import org.springframework.transaction.support.TransactionTemplate;
 
 @Service
 public class MarketEventScheduler {
@@ -35,6 +38,7 @@ public class MarketEventScheduler {
     private final MarketEventLifecycleService lifecycleService;
     private final Clock clock;
     private final Random random;
+    private final TransactionOperations transactionOperations;
     private final String owner;
     private final boolean schedulerEnabled;
     private final boolean marketEnabled;
@@ -57,7 +61,8 @@ public class MarketEventScheduler {
         @Value("${craftalism.market-events.scheduler.start-chance-basis-points:2500}") long startChanceBasisPoints,
         @Value("${craftalism.market-events.scheduler.lease-seconds:60}") long leaseSeconds,
         @Value("${craftalism.market-events.scheduler.window-interval-seconds:7200}") long eventWindowIntervalSeconds,
-        @Value("${craftalism.market-events.scheduler.window-jitter-seconds:1800}") long eventWindowJitterSeconds
+        @Value("${craftalism.market-events.scheduler.window-jitter-seconds:1800}") long eventWindowJitterSeconds,
+        org.springframework.transaction.PlatformTransactionManager transactionManager
     ) {
         this(
             templateRepository,
@@ -73,6 +78,7 @@ public class MarketEventScheduler {
             Duration.ofSeconds(leaseSeconds),
             Duration.ofSeconds(eventWindowIntervalSeconds),
             Duration.ofSeconds(eventWindowJitterSeconds),
+            new TransactionTemplate(transactionManager),
             UUID.randomUUID().toString()
         );
     }
@@ -93,12 +99,49 @@ public class MarketEventScheduler {
         Duration eventWindowJitter,
         String owner
     ) {
+        this(
+            templateRepository,
+            eventRepository,
+            lockRepository,
+            lifecycleService,
+            clock,
+            random,
+            schedulerEnabled,
+            marketEnabled,
+            automaticExtraRareEnabled,
+            startChanceBasisPoints,
+            leaseDuration,
+            eventWindowInterval,
+            eventWindowJitter,
+            directTransactionOperations(),
+            owner
+        );
+    }
+
+    MarketEventScheduler(
+        MarketEventTemplateRepository templateRepository,
+        MarketEventInstanceRepository eventRepository,
+        MarketEventSchedulerLockRepository lockRepository,
+        MarketEventLifecycleService lifecycleService,
+        Clock clock,
+        Random random,
+        boolean schedulerEnabled,
+        boolean marketEnabled,
+        boolean automaticExtraRareEnabled,
+        long startChanceBasisPoints,
+        Duration leaseDuration,
+        Duration eventWindowInterval,
+        Duration eventWindowJitter,
+        TransactionOperations transactionOperations,
+        String owner
+    ) {
         this.templateRepository = templateRepository;
         this.eventRepository = eventRepository;
         this.lockRepository = lockRepository;
         this.lifecycleService = lifecycleService;
         this.clock = clock;
         this.random = random;
+        this.transactionOperations = transactionOperations;
         this.schedulerEnabled = schedulerEnabled;
         this.marketEnabled = marketEnabled;
         this.automaticExtraRareEnabled = automaticExtraRareEnabled;
@@ -114,7 +157,16 @@ public class MarketEventScheduler {
         initialDelayString = "${craftalism.market-events.scheduler.initial-delay-ms:300000}"
     )
     void scheduledRoll() {
-        rollWindow();
+        transactionOperations.execute(status -> rollWindow());
+    }
+
+    private static TransactionOperations directTransactionOperations() {
+        return new TransactionOperations() {
+            @Override
+            public <T> T execute(TransactionCallback<T> action) {
+                return action.doInTransaction(null);
+            }
+        };
     }
 
     @Transactional

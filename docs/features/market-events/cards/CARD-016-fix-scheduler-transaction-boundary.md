@@ -2,7 +2,7 @@
 
 ## Status
 
-planned
+completed
 
 ## Objective
 
@@ -70,3 +70,7 @@ If a Spring-managed scheduler transaction test is added in a different test clas
 
 ## Completion Notes
 
+- Wrapped the scheduled entry point in a Spring-managed `TransactionTemplate` so lease acquisition runs with an active transaction when invoked by scheduling.
+- Preserved existing `rollWindow()` scheduler decisions, lease update repository semantics, probability, window timing, and eligibility behavior.
+- Added Spring-managed coverage that invokes `scheduledRoll()` against the real JPA lock repository and would fail without the transaction boundary.
+- Validation: `rtk ./gradlew test --tests io.github.HenriqueMichelini.craftalism.api.service.MarketEventSchedulerTest --tests io.github.HenriqueMichelini.craftalism.api.service.MarketEventSchedulerSpringTransactionTest` passed from `java/`.
