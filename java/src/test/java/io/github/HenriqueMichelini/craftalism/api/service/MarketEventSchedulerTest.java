@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -62,7 +63,7 @@ class MarketEventSchedulerTest {
         );
         when(random.nextLong(anyLong())).thenReturn(0L);
         when(templateRepository.findAll()).thenReturn(List.of(template));
-        when(eventRepository.findAll()).thenReturn(List.of());
+        when(eventRepository.findByCreatedAtAfter(any())).thenReturn(List.of());
         when(lifecycleService.start(any())).thenAnswer(invocation -> {
             MarketEventInstance event = invocation.getArgument(0);
             event.setId(99L);
@@ -157,7 +158,7 @@ class MarketEventSchedulerTest {
         );
         when(random.nextLong(anyLong())).thenReturn(0L);
         when(templateRepository.findAll()).thenReturn(List.of(template));
-        when(eventRepository.findAll()).thenReturn(List.of());
+        when(eventRepository.findByCreatedAtAfter(any())).thenReturn(List.of());
         when(lifecycleService.start(any())).thenAnswer(invocation -> {
             MarketEventInstance event = invocation.getArgument(0);
             event.setId(99L);
@@ -205,6 +206,46 @@ class MarketEventSchedulerTest {
 
         assertFalse(decision.started());
         assertEquals("no_eligible_templates", decision.reason());
+    }
+
+    @Test
+    void rollWindow_loadsBoundedCooldownHistoryOnceForMultipleCandidates() {
+        MarketEventTemplate shorterCooldown = automaticTemplate(
+            "farming_bumper_crop",
+            MarketEventRarity.MEDIUM,
+            MarketEventScope.CATEGORY,
+            false
+        );
+        shorterCooldown.setCooldownSeconds(3_600L);
+        MarketEventTemplate longerCooldown = automaticTemplate(
+            "farming_supply_shortage",
+            MarketEventRarity.MEDIUM,
+            MarketEventScope.CATEGORY,
+            false
+        );
+        longerCooldown.setCooldownSeconds(7_200L);
+        when(lockRepository.acquireExpiredLease(anyString(), anyString(), any(), any()))
+            .thenReturn(1);
+        when(lifecycleService.effectiveActiveEvent(any())).thenReturn(
+            Optional.empty()
+        );
+        when(random.nextLong(anyLong())).thenReturn(0L);
+        when(templateRepository.findAll()).thenReturn(
+            List.of(shorterCooldown, longerCooldown)
+        );
+        when(eventRepository.findByCreatedAtAfter(any())).thenReturn(List.of());
+        when(lifecycleService.start(any())).thenAnswer(invocation -> {
+            MarketEventInstance event = invocation.getArgument(0);
+            event.setId(99L);
+            return event;
+        });
+
+        assertTrue(scheduler(true, true).rollWindow().started());
+
+        verify(eventRepository, times(1)).findByCreatedAtAfter(
+            eq(NOW.minusSeconds(7_200L))
+        );
+        verify(eventRepository, never()).findAll();
     }
 
     private MarketEventScheduler scheduler(

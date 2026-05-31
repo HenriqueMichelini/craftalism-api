@@ -16,6 +16,8 @@ public interface MarketEventInstanceRepository
     extends JpaRepository<MarketEventInstance, Long> {
     List<MarketEventInstance> findByStatus(MarketEventStatus status);
 
+    List<MarketEventInstance> findByCreatedAtAfter(Instant createdAt);
+
     @Query(
         """
         SELECT e FROM market_event_instances e

@@ -15,7 +15,6 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Optional;
 import java.util.Random;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -32,6 +31,8 @@ public class MarketEventScheduler {
 
     private static final String LOCK_NAME = "market_event_scheduler";
 
+    private final MarketEventTemplateTargetMetadataCodec targetMetadataCodec =
+        new MarketEventTemplateTargetMetadataCodec();
     private final MarketEventTemplateRepository templateRepository;
     private final MarketEventInstanceRepository eventRepository;
     private final MarketEventSchedulerLockRepository lockRepository;
@@ -246,7 +247,7 @@ public class MarketEventScheduler {
     }
 
     private List<MarketEventTemplate> eligibleTemplates(Instant now) {
-        return templateRepository
+        List<MarketEventTemplate> candidates = templateRepository
             .findAll()
             .stream()
             .filter(MarketEventTemplate::isAutomaticEnabled)
@@ -259,15 +260,32 @@ public class MarketEventScheduler {
                 template.getRarity() != MarketEventRarity.RARE ||
                 !template.isBlockingAllowed()
             )
-            .filter(template -> !isCoolingDown(template, now))
+            .toList();
+        if (candidates.isEmpty()) {
+            return List.of();
+        }
+
+        long longestCooldownSeconds = candidates
+            .stream()
+            .mapToLong(MarketEventTemplate::getCooldownSeconds)
+            .max()
+            .orElseThrow();
+        List<MarketEventInstance> recentEvents = eventRepository
+            .findByCreatedAtAfter(now.minusSeconds(longestCooldownSeconds));
+        return candidates
+            .stream()
+            .filter(template -> !isCoolingDown(template, now, recentEvents))
             .sorted(Comparator.comparing(MarketEventTemplate::getTemplateId))
             .toList();
     }
 
-    private boolean isCoolingDown(MarketEventTemplate template, Instant now) {
+    private boolean isCoolingDown(
+        MarketEventTemplate template,
+        Instant now,
+        List<MarketEventInstance> recentEvents
+    ) {
         Instant cutoff = now.minusSeconds(template.getCooldownSeconds());
-        return eventRepository
-            .findAll()
+        return recentEvents
             .stream()
             .filter(event -> event.getCreatedAt() != null)
             .filter(event -> event.getCreatedAt().isAfter(cutoff))
@@ -283,9 +301,13 @@ public class MarketEventScheduler {
     ) {
         return switch (template.getScope()) {
             case CATEGORY -> event.getSelectedCategoryId() != null &&
-            event.getSelectedCategoryId().equals(firstMetadataValue(template, "categoryIds"));
+            event.getSelectedCategoryId().equals(
+                targetMetadataCodec.firstCategoryId(template)
+            );
             case ITEM, ITEM_SET -> event.getSelectedItemIds() != null &&
-            event.getSelectedItemIds().equals(firstMetadataValue(template, "itemIds"));
+            event.getSelectedItemIds().equals(
+                targetMetadataCodec.firstItemId(template)
+            );
             case MARKET_WIDE -> event.getScope() == MarketEventScope.MARKET_WIDE;
         };
     }
@@ -329,13 +351,13 @@ public class MarketEventScheduler {
         event.setScope(template.getScope());
         event.setSelectedCategoryId(
             template.getScope() == MarketEventScope.CATEGORY
-                ? firstMetadataValue(template, "categoryIds")
+                ? targetMetadataCodec.firstCategoryId(template)
                 : null
         );
         event.setSelectedItemIds(
             template.getScope() == MarketEventScope.ITEM ||
                 template.getScope() == MarketEventScope.ITEM_SET
-                ? firstMetadataValue(template, "itemIds")
+                ? targetMetadataCodec.firstItemId(template)
                 : null
         );
         event.setEffectBasisPoints(effectBasisPoints);
@@ -360,23 +382,6 @@ public class MarketEventScheduler {
             return minimum;
         }
         return minimum + random.nextLong((maximum - minimum) + 1L);
-    }
-
-    private String firstMetadataValue(
-        MarketEventTemplate template,
-        String key
-    ) {
-        String metadata = Optional
-            .ofNullable(template.getEligibleTargetMetadata())
-            .orElse("");
-        String marker = "\"" + key + "\":[\"";
-        int start = metadata.indexOf(marker);
-        if (start < 0) {
-            return null;
-        }
-        int valueStart = start + marker.length();
-        int valueEnd = metadata.indexOf('"', valueStart);
-        return valueEnd < 0 ? null : metadata.substring(valueStart, valueEnd);
     }
 
     record SchedulerDecision(
