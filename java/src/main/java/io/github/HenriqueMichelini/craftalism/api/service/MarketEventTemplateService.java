@@ -30,123 +30,92 @@ public class MarketEventTemplateService {
 
     List<MarketEventTemplate> initialTemplates(Instant now) {
         return List.of(
-            template(
-                "farming_bumper_crop",
-                MarketEventRarity.MEDIUM,
-                MarketEventScope.CATEGORY,
-                80,
-                true,
-                false,
-                1_800L,
-                3_600L,
-                9_200,
-                9_700,
-                "DOWN",
-                7_200L,
-                "Bumper Crop",
-                "Farms are overflowing, softening prices for a while.",
-                "Farming goods",
-                "{\"categoryIds\":[\"farming\"]}",
-                now
-            ),
-            template(
-                "mining_tool_shortage",
-                MarketEventRarity.MEDIUM,
-                MarketEventScope.CATEGORY,
-                70,
-                true,
-                false,
-                1_800L,
-                3_600L,
-                10_300,
-                10_800,
-                "UP",
-                7_200L,
-                "Tool Shortage",
-                "Mining supplies are tight, lifting mineral prices.",
-                "Mining goods",
-                "{\"categoryIds\":[\"minerals\"]}",
-                now
-            ),
-            template(
-                "rare_customs_hold",
-                MarketEventRarity.RARE,
-                MarketEventScope.ITEM,
-                0,
-                false,
-                true,
-                900L,
-                1_800L,
-                10_000,
-                10_000,
-                "BLOCK",
-                21_600L,
-                "Customs Hold",
-                "A specific good is temporarily held from trade.",
-                "One item",
-                "{\"manualOnly\":true}",
-                now
-            ),
-            template(
-                "extra_rare_market_alarm",
-                MarketEventRarity.EXTRA_RARE,
-                MarketEventScope.MARKET_WIDE,
-                0,
-                false,
-                false,
-                600L,
-                1_200L,
-                11_000,
-                11_500,
-                "UP",
-                86_400L,
-                "Market Alarm",
-                "Market reviews are slowing supply, lifting prices across the board.",
-                "World market",
-                "{\"manualOnly\":true,\"automaticDisabled\":true}",
-                now
-            )
+            new MarketEventTemplateBuilder()
+                .templateId("farming_bumper_crop")
+                .rarity(MarketEventRarity.MEDIUM)
+                .scope(MarketEventScope.CATEGORY)
+                .automaticWeight(80)
+                .automaticEnabled(true)
+                .blockingAllowed(false)
+                .minDurationSeconds(1_800L)
+                .maxDurationSeconds(3_600L)
+                .minEffectBasisPoints(9_200)
+                .maxEffectBasisPoints(9_700)
+                .effectDirection("DOWN")
+                .cooldownSeconds(7_200L)
+                .playerFacingName("Bumper Crop")
+                .playerFacingDescription(
+                    "Farms are overflowing, softening prices for a while."
+                )
+                .broadScopeHint("Farming goods")
+                .eligibleTargetMetadata("{\"categoryIds\":[\"farming\"]}")
+                .timestamps(now)
+                .build(),
+            new MarketEventTemplateBuilder()
+                .templateId("mining_tool_shortage")
+                .rarity(MarketEventRarity.MEDIUM)
+                .scope(MarketEventScope.CATEGORY)
+                .automaticWeight(70)
+                .automaticEnabled(true)
+                .blockingAllowed(false)
+                .minDurationSeconds(1_800L)
+                .maxDurationSeconds(3_600L)
+                .minEffectBasisPoints(10_300)
+                .maxEffectBasisPoints(10_800)
+                .effectDirection("UP")
+                .cooldownSeconds(7_200L)
+                .playerFacingName("Tool Shortage")
+                .playerFacingDescription(
+                    "Mining supplies are tight, lifting mineral prices."
+                )
+                .broadScopeHint("Mining goods")
+                .eligibleTargetMetadata("{\"categoryIds\":[\"minerals\"]}")
+                .timestamps(now)
+                .build(),
+            new MarketEventTemplateBuilder()
+                .templateId("rare_customs_hold")
+                .rarity(MarketEventRarity.RARE)
+                .scope(MarketEventScope.ITEM)
+                .automaticWeight(0)
+                .automaticEnabled(false)
+                .blockingAllowed(true)
+                .minDurationSeconds(900L)
+                .maxDurationSeconds(1_800L)
+                .minEffectBasisPoints(10_000)
+                .maxEffectBasisPoints(10_000)
+                .effectDirection("BLOCK")
+                .cooldownSeconds(21_600L)
+                .playerFacingName("Customs Hold")
+                .playerFacingDescription(
+                    "A specific good is temporarily held from trade."
+                )
+                .broadScopeHint("One item")
+                .eligibleTargetMetadata("{\"manualOnly\":true}")
+                .timestamps(now)
+                .build(),
+            new MarketEventTemplateBuilder()
+                .templateId("extra_rare_market_alarm")
+                .rarity(MarketEventRarity.EXTRA_RARE)
+                .scope(MarketEventScope.MARKET_WIDE)
+                .automaticWeight(0)
+                .automaticEnabled(false)
+                .blockingAllowed(false)
+                .minDurationSeconds(600L)
+                .maxDurationSeconds(1_200L)
+                .minEffectBasisPoints(11_000)
+                .maxEffectBasisPoints(11_500)
+                .effectDirection("UP")
+                .cooldownSeconds(86_400L)
+                .playerFacingName("Market Alarm")
+                .playerFacingDescription(
+                    "Market reviews are slowing supply, lifting prices across the board."
+                )
+                .broadScopeHint("World market")
+                .eligibleTargetMetadata(
+                    "{\"manualOnly\":true,\"automaticDisabled\":true}"
+                )
+                .timestamps(now)
+                .build()
         );
-    }
-
-    private MarketEventTemplate template(
-        String templateId,
-        MarketEventRarity rarity,
-        MarketEventScope scope,
-        int automaticWeight,
-        boolean automaticEnabled,
-        boolean blockingAllowed,
-        long minDurationSeconds,
-        long maxDurationSeconds,
-        int minEffectBasisPoints,
-        int maxEffectBasisPoints,
-        String effectDirection,
-        long cooldownSeconds,
-        String playerFacingName,
-        String playerFacingDescription,
-        String broadScopeHint,
-        String eligibleTargetMetadata,
-        Instant now
-    ) {
-        MarketEventTemplate template = new MarketEventTemplate();
-        template.setTemplateId(templateId);
-        template.setRarity(rarity);
-        template.setScope(scope);
-        template.setAutomaticWeight(automaticWeight);
-        template.setAutomaticEnabled(automaticEnabled);
-        template.setBlockingAllowed(blockingAllowed);
-        template.setMinDurationSeconds(minDurationSeconds);
-        template.setMaxDurationSeconds(maxDurationSeconds);
-        template.setMinEffectBasisPoints(minEffectBasisPoints);
-        template.setMaxEffectBasisPoints(maxEffectBasisPoints);
-        template.setEffectDirection(effectDirection);
-        template.setCooldownSeconds(cooldownSeconds);
-        template.setPlayerFacingName(playerFacingName);
-        template.setPlayerFacingDescription(playerFacingDescription);
-        template.setBroadScopeHint(broadScopeHint);
-        template.setEligibleTargetMetadata(eligibleTargetMetadata);
-        template.setCreatedAt(now);
-        template.setUpdatedAt(now);
-        return template;
     }
 }
