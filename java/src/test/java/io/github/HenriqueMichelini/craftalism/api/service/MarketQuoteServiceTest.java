@@ -65,8 +65,7 @@ class MarketQuoteServiceTest {
             quoteStore,
             tradePlanner,
             new MarketPlayerResolver("minecraft-server"),
-            new MarketRateLimiter(0, Duration.ofSeconds(60L), fixedClock()),
-            true,
+            requestPolicy(marketSnapshotService),
             60L
         );
     }
@@ -139,8 +138,7 @@ class MarketQuoteServiceTest {
             quoteStore,
             eventPlanner,
             new MarketPlayerResolver("minecraft-server"),
-            new MarketRateLimiter(0, Duration.ofSeconds(60L), fixedClock()),
-            true,
+            requestPolicy(eventSnapshotService),
             60L
         );
         MarketItem item = marketItem(100L);
@@ -275,6 +273,17 @@ class MarketQuoteServiceTest {
         return Clock.fixed(
             Instant.parse("2026-04-12T18:30:00Z"),
             ZoneOffset.UTC
+        );
+    }
+
+    private MarketTradeRequestPolicy requestPolicy(
+        MarketSnapshotService snapshotService
+    ) {
+        return new MarketTradeRequestPolicy(
+            snapshotService,
+            new MarketRateLimiter(0, Duration.ofSeconds(60L), fixedClock()),
+            null,
+            true
         );
     }
 

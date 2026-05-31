@@ -19,9 +19,7 @@ final class MarketExecuteService {
     private final MarketQuoteStore quoteStore;
     private final MarketTradeExecutor tradeExecutor;
     private final MarketPlayerResolver playerResolver;
-    private final MarketRateLimiter executeRateLimiter;
-    private final MarketEventBlockingService eventBlockingService;
-    private final boolean marketEnabled;
+    private final MarketTradeRequestPolicy requestPolicy;
 
     MarketExecuteService(
         MarketItemRepository marketItemRepository,
@@ -29,39 +27,14 @@ final class MarketExecuteService {
         MarketQuoteStore quoteStore,
         MarketTradeExecutor tradeExecutor,
         MarketPlayerResolver playerResolver,
-        MarketRateLimiter executeRateLimiter,
-        boolean marketEnabled
-    ) {
-        this(
-            marketItemRepository,
-            marketSnapshotService,
-            quoteStore,
-            tradeExecutor,
-            playerResolver,
-            executeRateLimiter,
-            null,
-            marketEnabled
-        );
-    }
-
-    MarketExecuteService(
-        MarketItemRepository marketItemRepository,
-        MarketSnapshotService marketSnapshotService,
-        MarketQuoteStore quoteStore,
-        MarketTradeExecutor tradeExecutor,
-        MarketPlayerResolver playerResolver,
-        MarketRateLimiter executeRateLimiter,
-        MarketEventBlockingService eventBlockingService,
-        boolean marketEnabled
+        MarketTradeRequestPolicy requestPolicy
     ) {
         this.marketItemRepository = marketItemRepository;
         this.marketSnapshotService = marketSnapshotService;
         this.quoteStore = quoteStore;
         this.tradeExecutor = tradeExecutor;
         this.playerResolver = playerResolver;
-        this.executeRateLimiter = executeRateLimiter;
-        this.eventBlockingService = eventBlockingService;
-        this.marketEnabled = marketEnabled;
+        this.requestPolicy = requestPolicy;
     }
 
     MarketExecuteSuccessResponseDTO execute(
@@ -69,10 +42,10 @@ final class MarketExecuteService {
         MarketExecuteRequestDTO request,
         String playerUuidHeader
     ) {
-        ensureMarketOpen();
+        requestPolicy.ensureMarketOpen();
 
         String initialSnapshotVersion = currentSnapshotVersion();
-        validateQuantity(request.quantity(), initialSnapshotVersion);
+        requestPolicy.validateQuantity(request.quantity(), initialSnapshotVersion);
 
         UUID playerUuid = playerResolver.resolvePlayerUuid(
             authentication,
@@ -80,7 +53,7 @@ final class MarketExecuteService {
             playerUuidHeader,
             this::currentSnapshotVersion
         );
-        enforceRateLimit(playerUuid, initialSnapshotVersion);
+        requestPolicy.enforceRateLimit(playerUuid, initialSnapshotVersion);
         MarketQuoteStore.StoredQuote storedQuote = quoteStore
             .get(request.quoteToken())
             .orElseThrow(() ->
@@ -165,7 +138,7 @@ final class MarketExecuteService {
                 )
             );
 
-        validateItemAvailability(item, currentSnapshotVersion());
+        requestPolicy.validateItemAvailability(item, currentSnapshotVersion());
         MarketTradeExecutor.AppliedTrade appliedTrade =
             tradeExecutor.applyTrade(
                 playerUuid,
@@ -188,67 +161,6 @@ final class MarketExecuteService {
         );
     }
 
-    private void validateItemAvailability(
-        MarketItem item,
-        String snapshotVersion
-    ) {
-        if (isEffectivelyBlocked(item)) {
-            throw rejection(
-                MarketRejectionCode.ITEM_BLOCKED,
-                "Item is blocked from trading.",
-                HttpStatus.CONFLICT,
-                snapshotVersion
-            );
-        }
-        if (!item.isOperating()) {
-            throw rejection(
-                MarketRejectionCode.ITEM_NOT_OPERATING,
-                "Item is not currently operating.",
-                HttpStatus.CONFLICT,
-                snapshotVersion
-            );
-        }
-    }
-
-    private boolean isEffectivelyBlocked(MarketItem item) {
-        return eventBlockingService == null
-            ? item.isBlocked()
-            : eventBlockingService.isEffectivelyBlocked(item);
-    }
-
-    private void validateQuantity(Long quantity, String snapshotVersion) {
-        if (quantity != null && quantity <= 0L) {
-            throw rejection(
-                MarketRejectionCode.INVALID_QUANTITY,
-                "Quantity must be positive.",
-                HttpStatus.UNPROCESSABLE_ENTITY,
-                snapshotVersion
-            );
-        }
-    }
-
-    private void ensureMarketOpen() {
-        if (!marketEnabled) {
-            throw rejection(
-                MarketRejectionCode.MARKET_CLOSED,
-                "Market is currently closed.",
-                HttpStatus.SERVICE_UNAVAILABLE,
-                currentSnapshotVersion()
-            );
-        }
-    }
-
-    private void enforceRateLimit(UUID playerUuid, String snapshotVersion) {
-        if (!executeRateLimiter.tryAcquire(playerUuid)) {
-            throw rejection(
-                MarketRejectionCode.RATE_LIMITED,
-                "Market request rate limit exceeded.",
-                HttpStatus.TOO_MANY_REQUESTS,
-                snapshotVersion
-            );
-        }
-    }
-
     private String currentSnapshotVersion() {
         return marketSnapshotService.currentSnapshotVersion();
     }
@@ -259,11 +171,6 @@ final class MarketExecuteService {
         HttpStatus status,
         String snapshotVersion
     ) {
-        return new MarketRejectionException(
-            code,
-            message,
-            status,
-            snapshotVersion
-        );
+        return requestPolicy.rejection(code, message, status, snapshotVersion);
     }
 }

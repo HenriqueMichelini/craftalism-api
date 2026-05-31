@@ -18,9 +18,7 @@ final class MarketQuoteService {
     private final MarketQuoteStore quoteStore;
     private final MarketTradePlanner tradePlanner;
     private final MarketPlayerResolver playerResolver;
-    private final MarketRateLimiter quoteRateLimiter;
-    private final MarketEventBlockingService eventBlockingService;
-    private final boolean marketEnabled;
+    private final MarketTradeRequestPolicy requestPolicy;
     private final long quoteTtlSeconds;
 
     MarketQuoteService(
@@ -28,39 +26,14 @@ final class MarketQuoteService {
         MarketQuoteStore quoteStore,
         MarketTradePlanner tradePlanner,
         MarketPlayerResolver playerResolver,
-        MarketRateLimiter quoteRateLimiter,
-        boolean marketEnabled,
-        long quoteTtlSeconds
-    ) {
-        this(
-            marketSnapshotService,
-            quoteStore,
-            tradePlanner,
-            playerResolver,
-            quoteRateLimiter,
-            null,
-            marketEnabled,
-            quoteTtlSeconds
-        );
-    }
-
-    MarketQuoteService(
-        MarketSnapshotService marketSnapshotService,
-        MarketQuoteStore quoteStore,
-        MarketTradePlanner tradePlanner,
-        MarketPlayerResolver playerResolver,
-        MarketRateLimiter quoteRateLimiter,
-        MarketEventBlockingService eventBlockingService,
-        boolean marketEnabled,
+        MarketTradeRequestPolicy requestPolicy,
         long quoteTtlSeconds
     ) {
         this.marketSnapshotService = marketSnapshotService;
         this.quoteStore = quoteStore;
         this.tradePlanner = tradePlanner;
         this.playerResolver = playerResolver;
-        this.quoteRateLimiter = quoteRateLimiter;
-        this.eventBlockingService = eventBlockingService;
-        this.marketEnabled = marketEnabled;
+        this.requestPolicy = requestPolicy;
         this.quoteTtlSeconds = quoteTtlSeconds;
     }
 
@@ -69,12 +42,12 @@ final class MarketQuoteService {
         MarketQuoteRequestDTO request,
         String playerUuidHeader
     ) {
-        ensureMarketOpen();
+        requestPolicy.ensureMarketOpen();
 
         MarketSnapshotService.CurrentSnapshot currentSnapshot =
             marketSnapshotService.currentSnapshot();
         String currentSnapshotVersion = currentSnapshot.snapshotVersion();
-        validateQuantity(request.quantity(), currentSnapshotVersion);
+        requestPolicy.validateQuantity(request.quantity(), currentSnapshotVersion);
 
         UUID playerUuid = playerResolver.resolvePlayerUuid(
             authentication,
@@ -82,7 +55,7 @@ final class MarketQuoteService {
             playerUuidHeader,
             marketSnapshotService::currentSnapshotVersion
         );
-        enforceRateLimit(playerUuid, currentSnapshotVersion);
+        requestPolicy.enforceRateLimit(playerUuid, currentSnapshotVersion);
         if (!currentSnapshotVersion.equals(request.snapshotVersion())) {
             throw rejection(
                 MarketRejectionCode.STALE_QUOTE,
@@ -106,7 +79,7 @@ final class MarketQuoteService {
                 )
             );
 
-        validateItemAvailability(item, currentSnapshotVersion);
+        requestPolicy.validateItemAvailability(item, currentSnapshotVersion);
         MarketTradePlanner.TradePlan plan =
             request.side() == MarketSide.BUY
                 ? requireFullBuyPlan(
@@ -153,7 +126,7 @@ final class MarketQuoteService {
             quoteToken,
             currentSnapshotVersion,
             expiresAt,
-            isEffectivelyBlocked(item),
+            requestPolicy.isEffectivelyBlocked(item),
             item.isOperating()
         );
     }
@@ -198,81 +171,12 @@ final class MarketQuoteService {
         return plan;
     }
 
-    private void validateItemAvailability(
-        MarketItem item,
-        String snapshotVersion
-    ) {
-        if (isEffectivelyBlocked(item)) {
-            throw rejection(
-                MarketRejectionCode.ITEM_BLOCKED,
-                "Item is blocked from trading.",
-                HttpStatus.CONFLICT,
-                snapshotVersion
-            );
-        }
-        if (!item.isOperating()) {
-            throw rejection(
-                MarketRejectionCode.ITEM_NOT_OPERATING,
-                "Item is not currently operating.",
-                HttpStatus.CONFLICT,
-                snapshotVersion
-            );
-        }
-    }
-
-    private boolean isEffectivelyBlocked(MarketItem item) {
-        return eventBlockingService == null
-            ? item.isBlocked()
-            : eventBlockingService.isEffectivelyBlocked(item);
-    }
-
-    private void validateQuantity(Long quantity, String snapshotVersion) {
-        if (quantity != null && quantity <= 0L) {
-            throw rejection(
-                MarketRejectionCode.INVALID_QUANTITY,
-                "Quantity must be positive.",
-                HttpStatus.UNPROCESSABLE_ENTITY,
-                snapshotVersion
-            );
-        }
-    }
-
-    private void ensureMarketOpen() {
-        if (!marketEnabled) {
-            throw rejection(
-                MarketRejectionCode.MARKET_CLOSED,
-                "Market is currently closed.",
-                HttpStatus.SERVICE_UNAVAILABLE,
-                marketSnapshotService.currentSnapshotVersion()
-            );
-        }
-    }
-
-    private void enforceRateLimit(
-        UUID playerUuid,
-        String snapshotVersion
-    ) {
-        if (!quoteRateLimiter.tryAcquire(playerUuid)) {
-            throw rejection(
-                MarketRejectionCode.RATE_LIMITED,
-                "Market request rate limit exceeded.",
-                HttpStatus.TOO_MANY_REQUESTS,
-                snapshotVersion
-            );
-        }
-    }
-
     private MarketRejectionException rejection(
         MarketRejectionCode code,
         String message,
         HttpStatus status,
         String snapshotVersion
     ) {
-        return new MarketRejectionException(
-            code,
-            message,
-            status,
-            snapshotVersion
-        );
+        return requestPolicy.rejection(code, message, status, snapshotVersion);
     }
 }

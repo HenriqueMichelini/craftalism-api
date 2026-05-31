@@ -16,6 +16,7 @@ import io.github.HenriqueMichelini.craftalism.api.dto.MarketQuoteResponseDTO;
 import io.github.HenriqueMichelini.craftalism.api.dto.MarketSide;
 import io.github.HenriqueMichelini.craftalism.api.exceptions.MarketRejectionCode;
 import io.github.HenriqueMichelini.craftalism.api.exceptions.MarketRejectionException;
+import io.github.HenriqueMichelini.craftalism.api.config.MarketSettings;
 import io.github.HenriqueMichelini.craftalism.api.model.Balance;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketItem;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketQuote;
@@ -68,21 +69,35 @@ class MarketServiceTest {
 
     @BeforeEach
     void setUp() {
-        marketService = new MarketService(
+        marketService = marketService(
+            0,
+            0
+        );
+    }
+
+    private MarketService marketService(
+        int quoteRateLimitMaxRequests,
+        int executeRateLimitMaxRequests
+    ) {
+        return new MarketServiceConfiguration(fixedClock()).marketService(
             marketItemRepository,
             marketCategoryRepository,
             balanceRepository,
             quoteStore,
             marketQuoteRepository,
             marketTradeHistoryRepository,
+            null,
+            null,
+            null,
             new DefaultMarketCatalog(),
-            true,
-            60L,
-            "minecraft-server",
-            0,
-            0,
-            60L,
-            fixedClock()
+            new MarketSettings(
+                true,
+                60L,
+                "minecraft-server",
+                quoteRateLimitMaxRequests,
+                executeRateLimitMaxRequests,
+                60L
+            )
         );
     }
 
@@ -721,21 +736,9 @@ class MarketServiceTest {
         int quoteRateLimitMaxRequests,
         int executeRateLimitMaxRequests
     ) {
-        return new MarketService(
-            marketItemRepository,
-            marketCategoryRepository,
-            balanceRepository,
-            quoteStore,
-            marketQuoteRepository,
-            marketTradeHistoryRepository,
-            new DefaultMarketCatalog(),
-            true,
-            60L,
-            "minecraft-server",
+        return marketService(
             quoteRateLimitMaxRequests,
-            executeRateLimitMaxRequests,
-            60L,
-            fixedClock()
+            executeRateLimitMaxRequests
         );
     }
 
