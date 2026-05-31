@@ -6,7 +6,6 @@ import io.github.HenriqueMichelini.craftalism.api.exceptions.MarketItemAlreadyEx
 import io.github.HenriqueMichelini.craftalism.api.exceptions.MarketItemInUseException;
 import io.github.HenriqueMichelini.craftalism.api.exceptions.MarketItemManagedByCatalogException;
 import io.github.HenriqueMichelini.craftalism.api.exceptions.MarketItemNotFoundException;
-import io.github.HenriqueMichelini.craftalism.api.exceptions.MarketItemValidationException;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketCategory;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketItem;
 import io.github.HenriqueMichelini.craftalism.api.repository.MarketCategoryRepository;
@@ -43,6 +42,8 @@ public class DashboardMarketItemService {
     private final MarketQuoteRepository marketQuoteRepository;
     private final MarketTradeHistoryRepository marketTradeHistoryRepository;
     private final Set<String> defaultCatalogItemIds;
+    private final MarketItemConfigurationValidator configurationValidator =
+        new MarketItemConfigurationValidator();
     private final MarketTradePlanner tradePlanner = new MarketTradePlanner();
 
     public DashboardMarketItemService(
@@ -196,7 +197,7 @@ public class DashboardMarketItemService {
     }
 
     private void finishMutation(MarketItem item) {
-        validateMarketPressureConfig(item);
+        configurationValidator.validate(item);
         Instant now = Instant.now();
         item.setLastUpdatedAt(now);
         if (item.getDriftMultiplierBasisPoints() <= 0L) {
@@ -206,60 +207,6 @@ public class DashboardMarketItemService {
             item.setDriftEvaluatedAt(now);
         }
         tradePlanner.recomputeDerivedProjections(item);
-    }
-
-    private void validateMarketPressureConfig(MarketItem item) {
-        if (item.getMinUnitPrice() > item.getBaseUnitPrice()) {
-            throw new MarketItemValidationException(
-                "Minimum unit price must be less than or equal to base unit price"
-            );
-        }
-        if (item.getMaxUnitPrice() < item.getBaseUnitPrice()) {
-            throw new MarketItemValidationException(
-                "Maximum unit price must be greater than or equal to base unit price"
-            );
-        }
-        if (item.getMinUnitPrice() >= item.getMaxUnitPrice()) {
-            throw new MarketItemValidationException(
-                "Minimum and maximum unit prices must allow a buy/sell estimate spread"
-            );
-        }
-        if (item.getSellPricePercentage() == null) {
-            throw new MarketItemValidationException(
-                "Sell price percentage must be provided"
-            );
-        }
-        if (
-            item.getSellPricePercentage().signum() <= 0 ||
-            item.getSellPricePercentage().compareTo(BigDecimal.ONE) >= 0
-        ) {
-            throw new MarketItemValidationException(
-                "Sell price percentage must be greater than 0 and less than 1"
-            );
-        }
-        if (
-            item.getMinNetPosition() != null && item.getMinNetPosition() > 0L
-        ) {
-            throw new MarketItemValidationException(
-                "Minimum net position must be zero or negative"
-            );
-        }
-        if (
-            item.getMaxNetPosition() != null && item.getMaxNetPosition() < 0L
-        ) {
-            throw new MarketItemValidationException(
-                "Maximum net position must be zero or positive"
-            );
-        }
-        if (
-            item.getMinNetPosition() != null &&
-            item.getMaxNetPosition() != null &&
-            item.getMinNetPosition() > item.getMaxNetPosition()
-        ) {
-            throw new MarketItemValidationException(
-                "Minimum net position must be less than or equal to maximum net position"
-            );
-        }
     }
 
     private static long valueOrDefault(Long value, long defaultValue) {
