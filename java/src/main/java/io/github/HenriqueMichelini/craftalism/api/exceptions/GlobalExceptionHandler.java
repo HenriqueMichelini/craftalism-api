@@ -94,6 +94,14 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         return validationProblem(ex.getMessage(), request);
     }
 
+    @ExceptionHandler(MarketEventTemplateValidationException.class)
+    public ProblemDetail handleMarketEventTemplateValidation(
+        MarketEventTemplateValidationException ex,
+        HttpServletRequest request
+    ) {
+        return validationProblem(ex.getMessage(), request);
+    }
+
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
     public ProblemDetail handleTypeMismatch(
         MethodArgumentTypeMismatchException ex,

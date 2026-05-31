@@ -4,6 +4,7 @@ import io.github.HenriqueMichelini.craftalism.api.dto.MarketEventAdminCancelRequ
 import io.github.HenriqueMichelini.craftalism.api.dto.MarketEventAdminCreateRequestDTO;
 import io.github.HenriqueMichelini.craftalism.api.dto.MarketEventAdminResponseDTO;
 import io.github.HenriqueMichelini.craftalism.api.dto.MarketEventAdminUpdateRequestDTO;
+import io.github.HenriqueMichelini.craftalism.api.exceptions.MarketEventTemplateValidationException;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketEventEndReason;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketEventInstance;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketEventScope;
@@ -55,6 +56,14 @@ public class MarketEventAdminService {
         String actor
     ) {
         MarketEventTemplate template = template(request.templateId());
+        return startEvent(request, actor, template);
+    }
+
+    private MarketEventAdminResponseDTO startEvent(
+        MarketEventAdminCreateRequestDTO request,
+        String actor,
+        MarketEventTemplate template
+    ) {
         Instant now = Instant.now();
         MarketEventInstance event = eventFromRequest(request, template, actor, now);
         return toResponse(lifecycleService.start(event));
@@ -65,6 +74,7 @@ public class MarketEventAdminService {
         MarketEventAdminCreateRequestDTO request,
         String actor
     ) {
+        MarketEventTemplate template = template(request.templateId());
         Instant now = Instant.now();
         lifecycleService
             .effectiveActiveEvent(now)
@@ -76,7 +86,7 @@ public class MarketEventAdminService {
                     now
                 )
             );
-        return startEvent(request, actor);
+        return startEvent(request, actor, template);
     }
 
     @Transactional
@@ -176,7 +186,7 @@ public class MarketEventAdminService {
         return templateRepository
             .findById(templateId)
             .orElseThrow(() ->
-                new IllegalArgumentException(
+                new MarketEventTemplateValidationException(
                     "Market event template does not exist."
                 )
             );

@@ -13,6 +13,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import io.github.HenriqueMichelini.craftalism.api.model.MarketEventRarity;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketEventScope;
+import io.github.HenriqueMichelini.craftalism.api.model.MarketEventStatus;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketEventTemplate;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketItem;
 import io.github.HenriqueMichelini.craftalism.api.repository.MarketEventInstanceRepository;
@@ -145,6 +146,100 @@ class DashboardMarketEventAdminApiIntegrationTest {
             )
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.selectedItemIds").value("carrot"));
+    }
+
+    @Test
+    void unknownTemplateReturnsValidationProblemWithoutPersistingEvent()
+        throws Exception {
+        mockMvc
+            .perform(
+                post("/api/dashboard/market/events")
+                    .with(adminJwt())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(
+                        """
+                        {
+                          "templateId": "does_not_exist",
+                          "scope": "ITEM",
+                          "selectedItemIds": "wheat",
+                          "durationSeconds": 900,
+                          "reason": "invalid template"
+                        }
+                        """
+                    )
+            )
+            .andExpect(status().isBadRequest())
+            .andExpect(
+                jsonPath("$.type").value(
+                    "https://api.craftalism.com/errors/validation"
+                )
+            )
+            .andExpect(
+                jsonPath("$.detail").value(
+                    "Market event template does not exist."
+                )
+            )
+            .andExpect(jsonPath("$.path").value("/api/dashboard/market/events"))
+            .andExpect(jsonPath("$.timestamp").exists());
+
+        assertEquals(0L, eventRepository.count());
+    }
+
+    @Test
+    void unknownSupersedeTemplateDoesNotEndActiveEvent() throws Exception {
+        MvcResult createResult =
+            mockMvc
+                .perform(
+                    post("/api/dashboard/market/events")
+                        .with(adminJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                            """
+                            {
+                              "templateId": "rare_customs_hold",
+                              "scope": "ITEM",
+                              "selectedItemIds": "wheat",
+                              "durationSeconds": 900,
+                              "reason": "active event"
+                            }
+                            """
+                        )
+                )
+                .andExpect(status().isCreated())
+                .andReturn();
+        long eventId = Long.parseLong(
+            jsonNumber(createResult.getResponse().getContentAsString(), "id")
+        );
+
+        mockMvc
+            .perform(
+                post("/api/dashboard/market/events/supersede")
+                    .with(adminJwt())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(
+                        """
+                        {
+                          "templateId": "does_not_exist",
+                          "scope": "ITEM",
+                          "selectedItemIds": "carrot",
+                          "durationSeconds": 900,
+                          "reason": "invalid replacement"
+                        }
+                        """
+                    )
+            )
+            .andExpect(status().isBadRequest())
+            .andExpect(
+                jsonPath("$.type").value(
+                    "https://api.craftalism.com/errors/validation"
+                )
+            );
+
+        assertEquals(1L, eventRepository.count());
+        assertEquals(
+            MarketEventStatus.ACTIVE,
+            eventRepository.findById(eventId).orElseThrow().getStatus()
+        );
     }
 
     @Test
