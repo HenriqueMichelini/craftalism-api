@@ -82,7 +82,7 @@ Pageable requests use Spring Data pageable query parameters:
 - `size`: page size
 - `sort`: repeated `property,direction` values
 
-List responses use the repository-standard Spring `Page<MarketTradeHistoryDTO>` JSON shape. The default ordering is newest first by `executedAt,DESC`, then `id,DESC` for deterministic ordering when multiple trades share the same execution timestamp.
+List responses use the API-owned `PageResponseDTO<MarketTradeHistoryDTO>` JSON envelope. It preserves the existing `content`, pagination metadata, nested pageable metadata, sort metadata, and empty-page behavior without exposing Spring Data page implementations to HTTP serialization. The default ordering is newest first by `executedAt,DESC`, then `id,DESC` for deterministic ordering when multiple trades share the same execution timestamp.
 
 ## Security and Permission Rules
 

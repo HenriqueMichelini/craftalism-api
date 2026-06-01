@@ -5,6 +5,7 @@ import static org.mockito.Mockito.*;
 
 import io.github.HenriqueMichelini.craftalism.api.dto.TransactionRequestDTO;
 import io.github.HenriqueMichelini.craftalism.api.dto.TransactionResponseDTO;
+import io.github.HenriqueMichelini.craftalism.api.dto.PageResponseDTO;
 import io.github.HenriqueMichelini.craftalism.api.mapper.TransactionMapper;
 import io.github.HenriqueMichelini.craftalism.api.model.Transaction;
 import io.github.HenriqueMichelini.craftalism.api.service.TransactionService;
@@ -61,7 +62,7 @@ public class TransactionControllerTest {
 
         when(service.findTransactions(any(), eq(pageable))).thenReturn(page);
 
-        ResponseEntity<Page<TransactionResponseDTO>> resp =
+        ResponseEntity<PageResponseDTO<TransactionResponseDTO>> resp =
             controller.getAllTransactions(
                 "550e8400",
                 "contains",
@@ -75,7 +76,9 @@ public class TransactionControllerTest {
             );
 
         assertEquals(HttpStatus.OK, resp.getStatusCode());
-        assertSame(page, resp.getBody());
+        assertEquals(page.getContent(), resp.getBody().content());
+        assertEquals(page.getTotalElements(), resp.getBody().totalElements());
+        assertEquals(page.getTotalPages(), resp.getBody().totalPages());
         verify(service).findTransactions(
             argThat(filter ->
                 filter.fromPlayerUuid().equals("550e8400") &&

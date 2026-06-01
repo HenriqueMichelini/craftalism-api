@@ -9,6 +9,7 @@ import io.github.HenriqueMichelini.craftalism.api.dto.MarketSide;
 import io.github.HenriqueMichelini.craftalism.api.dto.MarketSnapshotResponseDTO;
 import io.github.HenriqueMichelini.craftalism.api.dto.MarketTradeHistoryDTO;
 import io.github.HenriqueMichelini.craftalism.api.dto.MarketTradeHistoryFilterDTO;
+import io.github.HenriqueMichelini.craftalism.api.dto.PageResponseDTO;
 import io.github.HenriqueMichelini.craftalism.api.service.MarketService;
 import io.github.HenriqueMichelini.craftalism.api.service.MarketTradeHistoryReadService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -20,7 +21,6 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.time.Instant;
-import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
@@ -77,7 +77,7 @@ public class MarketController {
         description = "Returns committed successful market executions."
     )
     @GetMapping("/trades")
-    public ResponseEntity<Page<MarketTradeHistoryDTO>> getTrades(
+    public ResponseEntity<PageResponseDTO<MarketTradeHistoryDTO>> getTrades(
         @RequestParam(required = false) String playerUuid,
         @RequestParam(required = false) String playerUuidMatch,
         @RequestParam(required = false) String itemId,
@@ -105,7 +105,9 @@ public class MarketController {
             executedTo
         );
         return ResponseEntity.ok(
-            tradeHistoryReadService.findTrades(filter, pageable)
+            PageResponseDTO.from(
+                tradeHistoryReadService.findTrades(filter, pageable)
+            )
         );
     }
 

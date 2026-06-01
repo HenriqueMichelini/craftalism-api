@@ -68,6 +68,9 @@ class SecurityFilterChainTest {
 
     @Test
     void noToken_canGetMarketTradeHistory() throws Exception {
+        when(marketTradeHistoryReadService.findTrades(any(), any())).thenReturn(
+            Page.empty()
+        );
         mockMvc
             .perform(get("/api/market/trades"))
             .andExpect(status().isOk());
@@ -84,6 +87,9 @@ class SecurityFilterChainTest {
     @Test
     @WithMockJwt(scopes = { "api:read" })
     void readScope_canGetMarketTradeHistory() throws Exception {
+        when(marketTradeHistoryReadService.findTrades(any(), any())).thenReturn(
+            Page.empty()
+        );
         mockMvc.perform(get("/api/market/trades")).andExpect(status().isOk());
     }
 

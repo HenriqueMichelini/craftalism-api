@@ -277,7 +277,27 @@ class MarketContractIntegrationTest {
     void tradeHistory_isPublicRead() throws Exception {
         mockMvc
             .perform(get("/api/market/trades"))
-            .andExpect(status().isOk());
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.content.length()").value(0))
+            .andExpect(jsonPath("$.pageable.pageNumber").value(0))
+            .andExpect(jsonPath("$.pageable.pageSize").value(20))
+            .andExpect(jsonPath("$.pageable.sort.empty").value(false))
+            .andExpect(jsonPath("$.pageable.sort.sorted").value(true))
+            .andExpect(jsonPath("$.pageable.sort.unsorted").value(false))
+            .andExpect(jsonPath("$.pageable.offset").value(0))
+            .andExpect(jsonPath("$.pageable.paged").value(true))
+            .andExpect(jsonPath("$.pageable.unpaged").value(false))
+            .andExpect(jsonPath("$.totalPages").value(0))
+            .andExpect(jsonPath("$.totalElements").value(0))
+            .andExpect(jsonPath("$.last").value(true))
+            .andExpect(jsonPath("$.size").value(20))
+            .andExpect(jsonPath("$.number").value(0))
+            .andExpect(jsonPath("$.sort.empty").value(false))
+            .andExpect(jsonPath("$.sort.sorted").value(true))
+            .andExpect(jsonPath("$.sort.unsorted").value(false))
+            .andExpect(jsonPath("$.numberOfElements").value(0))
+            .andExpect(jsonPath("$.first").value(true))
+            .andExpect(jsonPath("$.empty").value(true));
     }
 
     @Test
@@ -316,7 +336,11 @@ class MarketContractIntegrationTest {
             .andExpect(jsonPath("$.content[0].unitPrice").value("5"))
             .andExpect(jsonPath("$.content[0].totalPrice").value("50"))
             .andExpect(jsonPath("$.content[0].currency").value("coins"))
-            .andExpect(jsonPath("$.content[0].snapshotVersion").value("market:snapshot"));
+            .andExpect(jsonPath("$.content[0].snapshotVersion").value("market:snapshot"))
+            .andExpect(jsonPath("$.totalPages").value(1))
+            .andExpect(jsonPath("$.totalElements").value(1))
+            .andExpect(jsonPath("$.numberOfElements").value(1))
+            .andExpect(jsonPath("$.empty").value(false));
 
         mockMvc
             .perform(get("/api/market/trades/{id}", first.getId()))

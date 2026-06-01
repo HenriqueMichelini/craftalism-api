@@ -34,7 +34,7 @@ repository.
 - Spring Data `page`, `size`, and repeated `sort=property,direction`
 
 `GET /api/transactions` returns a paged, filterable
-`Page<TransactionResponseDTO>` for dashboard table reads. Separate transaction
+API-owned `PageResponseDTO<TransactionResponseDTO>` for dashboard table reads. Separate transaction
 detail and sender/receiver lookup routes remain available.
 
 ## Query Parameter Format
@@ -93,7 +93,7 @@ Sorting:
 
 Response shape:
 
-- `Page<TransactionResponseDTO>` JSON shape for `GET /api/transactions`
+- API-owned `PageResponseDTO<TransactionResponseDTO>` JSON envelope for `GET /api/transactions`
 - Empty filtered and unfiltered results return HTTP `200` with an empty `content` array and page metadata.
 
 Valid examples:
@@ -148,7 +148,7 @@ Sorting:
 
 Response shape:
 
-- `Page<MarketTradeHistoryDTO>` JSON shape for `GET /api/market/trades`
+- API-owned `PageResponseDTO<MarketTradeHistoryDTO>` JSON envelope for `GET /api/market/trades`
 - Empty filtered and unfiltered results return HTTP `200` with an empty `content` array and page metadata.
 
 Valid examples:
@@ -205,8 +205,8 @@ Adding filters must not weaken write-scope requirements for protected write rout
 
 - Existing transaction detail and sender/receiver lookup routes remain available.
 - Existing unfiltered list requests remain supported.
-- `GET /api/market/trades` keeps its current canonical filter names and `Page<MarketTradeHistoryDTO>` response shape.
-- `GET /api/transactions` now returns the repository-standard `Page<TransactionResponseDTO>` JSON shape for list reads.
+- `GET /api/market/trades` keeps its current canonical filter names and existing pageable JSON envelope, now represented explicitly by API-owned `PageResponseDTO<MarketTradeHistoryDTO>`.
+- `GET /api/transactions` keeps its existing pageable JSON envelope for list reads, now represented explicitly by API-owned `PageResponseDTO<TransactionResponseDTO>`.
 
 ## Testing Strategy
 
@@ -241,16 +241,16 @@ shared-contract repository should promote this API evidence for
 `craftalism-dashboard` consumption, including:
 
 - `GET /api/transactions` filter query parameters, validation behavior,
-  pagination, sorting, and `Page<TransactionResponseDTO>` response shape.
+  pagination, sorting, and API-owned `PageResponseDTO<TransactionResponseDTO>` response envelope.
 - `GET /api/market/trades` filter query parameters, validation behavior,
-  pagination, sorting, and `Page<MarketTradeHistoryDTO>` response shape.
+  pagination, sorting, and API-owned `PageResponseDTO<MarketTradeHistoryDTO>` response envelope.
 - The rule that API filters apply before pagination and sorting.
 - Canonical API `side` values `BUY` and `SELL`; dashboard-owned `type`
   terminology remains a dashboard mapping, not an API alias.
 
 ## Assumptions
 
-- Spring Data `Page<T>` is the repository-standard response shape for pageable table endpoints.
+- API-owned `PageResponseDTO<T>` is the stable HTTP response envelope for pageable table endpoints; services may continue returning Spring Data `Page<T>` internally.
 - `contains` on UUID fields is acceptable for dashboard operator search, implemented against the canonical UUID string form.
 - API canonical naming remains backend-oriented while dashboard maps display terminology locally.
 - Monetary values used in market trade history remain string-encoded integer values in responses.

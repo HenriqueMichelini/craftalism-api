@@ -14,6 +14,7 @@ import io.github.HenriqueMichelini.craftalism.api.dto.MarketSide;
 import io.github.HenriqueMichelini.craftalism.api.dto.MarketSnapshotResponseDTO;
 import io.github.HenriqueMichelini.craftalism.api.dto.MarketTradeHistoryDTO;
 import io.github.HenriqueMichelini.craftalism.api.dto.MarketTradeHistoryFilterDTO;
+import io.github.HenriqueMichelini.craftalism.api.dto.PageResponseDTO;
 import io.github.HenriqueMichelini.craftalism.api.service.MarketService;
 import io.github.HenriqueMichelini.craftalism.api.service.MarketTradeHistoryReadService;
 import java.time.Instant;
@@ -106,7 +107,7 @@ class MarketControllerTest {
             )
         ).thenReturn(response);
 
-        ResponseEntity<Page<MarketTradeHistoryDTO>> result = controller.getTrades(
+        ResponseEntity<PageResponseDTO<MarketTradeHistoryDTO>> result = controller.getTrades(
             playerUuid,
             "exact",
             "wheat",
@@ -120,7 +121,9 @@ class MarketControllerTest {
         );
 
         assertEquals(HttpStatus.OK, result.getStatusCode());
-        assertSame(response, result.getBody());
+        assertEquals(response.getContent(), result.getBody().content());
+        assertEquals(response.getTotalElements(), result.getBody().totalElements());
+        assertEquals(response.getTotalPages(), result.getBody().totalPages());
         verify(tradeHistoryReadService).findTrades(
             new MarketTradeHistoryFilterDTO(
                 playerUuid,

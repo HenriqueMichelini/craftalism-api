@@ -1,6 +1,7 @@
 package io.github.HenriqueMichelini.craftalism.api.controller;
 
 import io.github.HenriqueMichelini.craftalism.api.dto.TransactionFilterDTO;
+import io.github.HenriqueMichelini.craftalism.api.dto.PageResponseDTO;
 import io.github.HenriqueMichelini.craftalism.api.dto.TransactionRequestDTO;
 import io.github.HenriqueMichelini.craftalism.api.dto.TransactionResponseDTO;
 import io.github.HenriqueMichelini.craftalism.api.mapper.TransactionMapper;
@@ -20,7 +21,6 @@ import java.time.Instant;
 import java.net.URI;
 import java.util.List;
 import java.util.UUID;
-import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
@@ -68,7 +68,7 @@ public class TransactionController {
         }
     )
     @GetMapping
-    public ResponseEntity<Page<TransactionResponseDTO>> getAllTransactions(
+    public ResponseEntity<PageResponseDTO<TransactionResponseDTO>> getAllTransactions(
         @RequestParam(required = false) String fromPlayerUuid,
         @RequestParam(required = false) String fromPlayerUuidMatch,
         @RequestParam(required = false) String toPlayerUuid,
@@ -89,7 +89,9 @@ public class TransactionController {
             createdFrom,
             createdTo
         );
-        return ResponseEntity.ok(service.findTransactions(filter, pageable));
+        return ResponseEntity.ok(
+            PageResponseDTO.from(service.findTransactions(filter, pageable))
+        );
     }
 
     @Operation(
