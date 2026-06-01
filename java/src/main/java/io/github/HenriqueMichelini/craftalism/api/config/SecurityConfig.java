@@ -34,6 +34,8 @@ public class SecurityConfig {
                     .permitAll()
                     .requestMatchers("/api/dashboard/market/events/**")
                     .hasAuthority("SCOPE_market:admin")
+                    .requestMatchers("/api/dashboard/market/event-templates/**")
+                    .hasAuthority("SCOPE_market:admin")
                     .requestMatchers("/api/dashboard/market/drift/**")
                     .hasAuthority("SCOPE_market:admin")
                     // Dashboard is currently a static SPA with no OAuth2 login

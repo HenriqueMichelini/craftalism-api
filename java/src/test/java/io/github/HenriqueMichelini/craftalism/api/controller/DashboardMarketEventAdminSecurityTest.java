@@ -18,6 +18,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 @WebMvcTest({
     DashboardMarketEventAdminController.class,
+    DashboardMarketEventTemplateController.class,
     DashboardMarketDriftAdminController.class,
 })
 @Import(SecurityConfig.class)
@@ -31,6 +32,9 @@ class DashboardMarketEventAdminSecurityTest {
 
     @MockitoBean
     private MarketDriftAdminService marketDriftAdminService;
+
+    @MockitoBean
+    private io.github.HenriqueMichelini.craftalism.api.service.MarketEventTemplateService marketEventTemplateService;
 
     @Test
     void apiWriteScopeCannotAccessEventAdminMutationRoute() throws Exception {
@@ -67,6 +71,23 @@ class DashboardMarketEventAdminSecurityTest {
                     .with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_market:admin")))
             )
             .andExpect(status().isOk());
+    }
+
+    @Test
+    void apiWriteScopeCannotAccessEventTemplateMutationRoute() throws Exception {
+        mockMvc
+            .perform(
+                post("/api/dashboard/market/event-templates")
+                    .with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_api:write")))
+            )
+            .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void internalEventTemplateReadRouteIsNotPublic() throws Exception {
+        mockMvc
+            .perform(get("/api/dashboard/market/event-templates"))
+            .andExpect(status().isUnauthorized());
     }
 
     @Test

@@ -1,5 +1,6 @@
 package io.github.HenriqueMichelini.craftalism.api.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -31,7 +32,8 @@ class MarketEventTemplateTest {
         when(templateRepository.count()).thenReturn(0L);
 
         new MarketEventTemplateService(
-            templateRepository
+            templateRepository,
+            new ObjectMapper()
         ).seedInitialTemplatesIfEmpty();
 
         @SuppressWarnings("unchecked")
@@ -59,7 +61,8 @@ class MarketEventTemplateTest {
         when(templateRepository.count()).thenReturn(1L);
 
         new MarketEventTemplateService(
-            templateRepository
+            templateRepository,
+            new ObjectMapper()
         ).seedInitialTemplatesIfEmpty();
 
         verify(templateRepository, never()).saveAll(any());
@@ -68,7 +71,8 @@ class MarketEventTemplateTest {
     @Test
     void initialTemplatesIncludeAutomaticMediumAndManualOnlyRareTemplates() {
         MarketEventTemplateService service = new MarketEventTemplateService(
-            null
+            null,
+            new ObjectMapper()
         );
 
         List<MarketEventTemplate> templates = service.initialTemplates(
