@@ -1,0 +1,253 @@
+package io.github.HenriqueMichelini.craftalism.api.market.application.admin;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+import io.github.HenriqueMichelini.craftalism.api.market.domain.event.DefaultMarketEventTemplateCatalog;
+import io.github.HenriqueMichelini.craftalism.api.model.MarketEventRarity;
+import io.github.HenriqueMichelini.craftalism.api.model.MarketEventScope;
+import io.github.HenriqueMichelini.craftalism.api.model.MarketEventTemplate;
+import io.github.HenriqueMichelini.craftalism.api.repository.MarketEventTemplateRepository;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+@ExtendWith(MockitoExtension.class)
+class MarketEventTemplateTest {
+
+    @Mock
+    private MarketEventTemplateRepository templateRepository;
+
+    @Test
+    void seedInitialTemplatesIfEmptySeedsAuthoredTemplates() {
+        when(templateRepository.count()).thenReturn(0L);
+
+        new MarketEventTemplateService(
+            templateRepository,
+            new ObjectMapper(),
+            new DefaultMarketEventTemplateCatalog()
+        ).seedInitialTemplatesIfEmpty();
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Iterable<MarketEventTemplate>> templatesCaptor =
+            ArgumentCaptor.forClass(Iterable.class);
+        verify(templateRepository).saveAll(templatesCaptor.capture());
+
+        List<String> templateIds = new ArrayList<>();
+        templatesCaptor
+            .getValue()
+            .forEach(template -> templateIds.add(template.getTemplateId()));
+        assertEquals(
+            List.of(
+                "farming_bumper_crop",
+                "mining_tool_shortage",
+                "rare_customs_hold",
+                "extra_rare_market_alarm"
+            ),
+            templateIds
+        );
+    }
+
+    @Test
+    void seedInitialTemplatesIfEmptyLeavesPopulatedRepositoryUnchanged() {
+        when(templateRepository.count()).thenReturn(1L);
+
+        new MarketEventTemplateService(
+            templateRepository,
+            new ObjectMapper(),
+            new DefaultMarketEventTemplateCatalog()
+        ).seedInitialTemplatesIfEmpty();
+
+        verify(templateRepository, never()).saveAll(any());
+    }
+
+    @Test
+    void initialTemplatesIncludeAutomaticMediumAndManualOnlyRareTemplates() {
+        List<MarketEventTemplate> templates =
+            new DefaultMarketEventTemplateCatalog().templates(
+            Instant.parse("2026-01-01T00:00:00Z")
+        );
+
+        assertTrue(
+            templates
+                .stream()
+                .anyMatch(template ->
+                    template.getRarity() == MarketEventRarity.MEDIUM &&
+                    template.isAutomaticEnabled() &&
+                    template.getAutomaticWeight() > 0
+                )
+        );
+        assertTrue(
+            templates
+                .stream()
+                .anyMatch(template ->
+                    template.getRarity() == MarketEventRarity.RARE &&
+                    template.isBlockingAllowed() &&
+                    !template.isAutomaticEnabled()
+                )
+        );
+        assertFalse(
+            templates
+                .stream()
+                .filter(template ->
+                    template.getRarity() == MarketEventRarity.EXTRA_RARE
+                )
+                .anyMatch(MarketEventTemplate::isAutomaticEnabled)
+        );
+        assertFalse(
+            templates.stream().anyMatch(this::isNeutralNoEffectTemplate)
+        );
+    }
+
+    @Test
+    void defaultCatalogPreservesEveryAuthoredTemplateFieldAndOrder() {
+        Instant now = Instant.parse("2026-01-01T00:00:00Z");
+
+        List<MarketEventTemplate> templates =
+            new DefaultMarketEventTemplateCatalog().templates(now);
+
+        assertTemplate(
+            templates.get(0),
+            "farming_bumper_crop",
+            MarketEventRarity.MEDIUM,
+            MarketEventScope.CATEGORY,
+            80,
+            true,
+            false,
+            1_800L,
+            3_600L,
+            9_200,
+            9_700,
+            "DOWN",
+            7_200L,
+            "Bumper Crop",
+            "Farms are overflowing, softening prices for a while.",
+            "Farming goods",
+            "{\"categoryIds\":[\"farming\"]}",
+            now
+        );
+        assertTemplate(
+            templates.get(1),
+            "mining_tool_shortage",
+            MarketEventRarity.MEDIUM,
+            MarketEventScope.CATEGORY,
+            70,
+            true,
+            false,
+            1_800L,
+            3_600L,
+            10_300,
+            10_800,
+            "UP",
+            7_200L,
+            "Tool Shortage",
+            "Mining supplies are tight, lifting mineral prices.",
+            "Mining goods",
+            "{\"categoryIds\":[\"minerals\"]}",
+            now
+        );
+        assertTemplate(
+            templates.get(2),
+            "rare_customs_hold",
+            MarketEventRarity.RARE,
+            MarketEventScope.ITEM,
+            0,
+            false,
+            true,
+            900L,
+            1_800L,
+            10_000,
+            10_000,
+            "BLOCK",
+            21_600L,
+            "Customs Hold",
+            "A specific good is temporarily held from trade.",
+            "One item",
+            "{\"manualOnly\":true}",
+            now
+        );
+        assertTemplate(
+            templates.get(3),
+            "extra_rare_market_alarm",
+            MarketEventRarity.EXTRA_RARE,
+            MarketEventScope.MARKET_WIDE,
+            0,
+            false,
+            false,
+            600L,
+            1_200L,
+            11_000,
+            11_500,
+            "UP",
+            86_400L,
+            "Market Alarm",
+            "Market reviews are slowing supply, lifting prices across the board.",
+            "World market",
+            "{\"manualOnly\":true,\"automaticDisabled\":true}",
+            now
+        );
+        assertEquals(4, templates.size());
+    }
+
+    private void assertTemplate(
+        MarketEventTemplate template,
+        String templateId,
+        MarketEventRarity rarity,
+        MarketEventScope scope,
+        int automaticWeight,
+        boolean automaticEnabled,
+        boolean blockingAllowed,
+        long minDurationSeconds,
+        long maxDurationSeconds,
+        int minEffectBasisPoints,
+        int maxEffectBasisPoints,
+        String effectDirection,
+        long cooldownSeconds,
+        String playerFacingName,
+        String playerFacingDescription,
+        String broadScopeHint,
+        String eligibleTargetMetadata,
+        Instant timestamp
+    ) {
+        assertEquals(templateId, template.getTemplateId());
+        assertEquals(rarity, template.getRarity());
+        assertEquals(scope, template.getScope());
+        assertEquals(automaticWeight, template.getAutomaticWeight());
+        assertEquals(automaticEnabled, template.isAutomaticEnabled());
+        assertEquals(blockingAllowed, template.isBlockingAllowed());
+        assertEquals(minDurationSeconds, template.getMinDurationSeconds());
+        assertEquals(maxDurationSeconds, template.getMaxDurationSeconds());
+        assertEquals(minEffectBasisPoints, template.getMinEffectBasisPoints());
+        assertEquals(maxEffectBasisPoints, template.getMaxEffectBasisPoints());
+        assertEquals(effectDirection, template.getEffectDirection());
+        assertEquals(cooldownSeconds, template.getCooldownSeconds());
+        assertEquals(playerFacingName, template.getPlayerFacingName());
+        assertEquals(
+            playerFacingDescription,
+            template.getPlayerFacingDescription()
+        );
+        assertEquals(broadScopeHint, template.getBroadScopeHint());
+        assertEquals(eligibleTargetMetadata, template.getEligibleTargetMetadata());
+        assertEquals(timestamp, template.getCreatedAt());
+        assertEquals(timestamp, template.getUpdatedAt());
+    }
+
+    private boolean isNeutralNoEffectTemplate(MarketEventTemplate template) {
+        return (
+            !template.isBlockingAllowed() &&
+            template.getMinEffectBasisPoints() == 10_000 &&
+            template.getMaxEffectBasisPoints() == 10_000
+        );
+    }
+}

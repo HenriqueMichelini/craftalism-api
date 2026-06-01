@@ -8,7 +8,7 @@ import io.github.HenriqueMichelini.craftalism.api.dto.TransactionResponseDTO;
 import io.github.HenriqueMichelini.craftalism.api.dto.PageResponseDTO;
 import io.github.HenriqueMichelini.craftalism.api.mapper.TransactionMapper;
 import io.github.HenriqueMichelini.craftalism.api.model.Transaction;
-import io.github.HenriqueMichelini.craftalism.api.service.TransactionService;
+import io.github.HenriqueMichelini.craftalism.api.transaction.application.TransactionService;
 import java.net.URI;
 import java.time.Instant;
 import java.util.List;

@@ -8,7 +8,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import io.github.HenriqueMichelini.craftalism.api.controller.PlayerController;
 import io.github.HenriqueMichelini.craftalism.api.mapper.PlayerMapper;
-import io.github.HenriqueMichelini.craftalism.api.service.PlayerService;
+import io.github.HenriqueMichelini.craftalism.api.player.application.PlayerService;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;

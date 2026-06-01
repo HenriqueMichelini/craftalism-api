@@ -1,7 +1,7 @@
 package io.github.HenriqueMichelini.craftalism.api.controller;
 
 import io.github.HenriqueMichelini.craftalism.api.dto.MarketDriftResetResponseDTO;
-import io.github.HenriqueMichelini.craftalism.api.service.MarketDriftAdminService;
+import io.github.HenriqueMichelini.craftalism.api.market.application.admin.MarketDriftAdminService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;

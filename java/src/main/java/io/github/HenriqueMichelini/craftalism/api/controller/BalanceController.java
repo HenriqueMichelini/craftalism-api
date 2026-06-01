@@ -8,8 +8,8 @@ import io.github.HenriqueMichelini.craftalism.api.dto.BalanceTransferResponseDTO
 import io.github.HenriqueMichelini.craftalism.api.dto.BalanceUpdateRequestDTO;
 import io.github.HenriqueMichelini.craftalism.api.mapper.BalanceMapper;
 import io.github.HenriqueMichelini.craftalism.api.model.Balance;
-import io.github.HenriqueMichelini.craftalism.api.service.BalanceService;
-import io.github.HenriqueMichelini.craftalism.api.service.TransferService;
+import io.github.HenriqueMichelini.craftalism.api.transfer.application.TransferService;
+import io.github.HenriqueMichelini.craftalism.api.wallet.application.BalanceService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.enums.ParameterIn;

@@ -28,7 +28,7 @@ import io.github.HenriqueMichelini.craftalism.api.repository.MarketQuoteReposito
 import io.github.HenriqueMichelini.craftalism.api.repository.MarketTradeHistoryRepository;
 import io.github.HenriqueMichelini.craftalism.api.repository.PlayerRepository;
 import io.github.HenriqueMichelini.craftalism.api.security.WithMockJwt;
-import io.github.HenriqueMichelini.craftalism.api.service.MarketQuoteStore;
+import io.github.HenriqueMichelini.craftalism.api.market.infrastructure.store.MarketQuoteStore;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;

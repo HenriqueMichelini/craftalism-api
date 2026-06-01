@@ -13,7 +13,7 @@ import io.github.HenriqueMichelini.craftalism.api.repository.BalanceRepository;
 import io.github.HenriqueMichelini.craftalism.api.repository.PlayerRepository;
 import io.github.HenriqueMichelini.craftalism.api.repository.TransactionRepository;
 import io.github.HenriqueMichelini.craftalism.api.repository.TransferIncidentRepository;
-import io.github.HenriqueMichelini.craftalism.api.service.TransferIncidentService;
+import io.github.HenriqueMichelini.craftalism.api.transfer.application.TransferIncidentService;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

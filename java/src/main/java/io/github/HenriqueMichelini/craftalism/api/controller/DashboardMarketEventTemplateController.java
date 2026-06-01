@@ -2,7 +2,7 @@ package io.github.HenriqueMichelini.craftalism.api.controller;
 
 import io.github.HenriqueMichelini.craftalism.api.dto.MarketEventTemplateCreateRequestDTO;
 import io.github.HenriqueMichelini.craftalism.api.dto.MarketEventTemplateResponseDTO;
-import io.github.HenriqueMichelini.craftalism.api.service.MarketEventTemplateService;
+import io.github.HenriqueMichelini.craftalism.api.market.application.admin.MarketEventTemplateService;
 import jakarta.validation.Valid;
 import java.net.URI;
 import java.util.List;

@@ -2,7 +2,7 @@ package io.github.HenriqueMichelini.craftalism.api.controller;
 
 import io.github.HenriqueMichelini.craftalism.api.dto.TransferIncidentResponseDTO;
 import io.github.HenriqueMichelini.craftalism.api.model.TransferIncident;
-import io.github.HenriqueMichelini.craftalism.api.service.TransferIncidentService;
+import io.github.HenriqueMichelini.craftalism.api.transfer.application.TransferIncidentService;
 import java.util.List;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;

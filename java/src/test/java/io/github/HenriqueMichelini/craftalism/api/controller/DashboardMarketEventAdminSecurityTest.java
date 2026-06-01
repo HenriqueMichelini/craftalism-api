@@ -6,8 +6,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import io.github.HenriqueMichelini.craftalism.api.config.SecurityConfig;
-import io.github.HenriqueMichelini.craftalism.api.service.MarketDriftAdminService;
-import io.github.HenriqueMichelini.craftalism.api.service.MarketEventAdminService;
+import io.github.HenriqueMichelini.craftalism.api.market.application.admin.MarketDriftAdminService;
+import io.github.HenriqueMichelini.craftalism.api.market.application.admin.MarketEventAdminService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -34,7 +34,7 @@ class DashboardMarketEventAdminSecurityTest {
     private MarketDriftAdminService marketDriftAdminService;
 
     @MockitoBean
-    private io.github.HenriqueMichelini.craftalism.api.service.MarketEventTemplateService marketEventTemplateService;
+    private io.github.HenriqueMichelini.craftalism.api.market.application.admin.MarketEventTemplateService marketEventTemplateService;
 
     @Test
     void apiWriteScopeCannotAccessEventAdminMutationRoute() throws Exception {

@@ -4,7 +4,7 @@ import io.github.HenriqueMichelini.craftalism.api.dto.MarketEventAdminCancelRequ
 import io.github.HenriqueMichelini.craftalism.api.dto.MarketEventAdminCreateRequestDTO;
 import io.github.HenriqueMichelini.craftalism.api.dto.MarketEventAdminResponseDTO;
 import io.github.HenriqueMichelini.craftalism.api.dto.MarketEventAdminUpdateRequestDTO;
-import io.github.HenriqueMichelini.craftalism.api.service.MarketEventAdminService;
+import io.github.HenriqueMichelini.craftalism.api.market.application.admin.MarketEventAdminService;
 import jakarta.validation.Valid;
 import java.net.URI;
 import java.util.List;

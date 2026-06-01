@@ -5,7 +5,7 @@ import io.github.HenriqueMichelini.craftalism.api.dto.MarketItemResponseDTO;
 import io.github.HenriqueMichelini.craftalism.api.dto.MarketItemUpdateRequestDTO;
 import io.github.HenriqueMichelini.craftalism.api.mapper.MarketItemMapper;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketItem;
-import io.github.HenriqueMichelini.craftalism.api.service.DashboardMarketItemService;
+import io.github.HenriqueMichelini.craftalism.api.market.application.admin.DashboardMarketItemService;
 import jakarta.validation.Valid;
 import java.net.URI;
 import java.util.List;

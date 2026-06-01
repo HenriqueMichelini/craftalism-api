@@ -9,8 +9,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import io.github.HenriqueMichelini.craftalism.api.controller.MarketController;
 import io.github.HenriqueMichelini.craftalism.api.dto.MarketQuoteRequestDTO;
-import io.github.HenriqueMichelini.craftalism.api.service.MarketService;
-import io.github.HenriqueMichelini.craftalism.api.service.MarketTradeHistoryReadService;
+import io.github.HenriqueMichelini.craftalism.api.market.application.MarketService;
+import io.github.HenriqueMichelini.craftalism.api.market.application.query.MarketTradeHistoryReadService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

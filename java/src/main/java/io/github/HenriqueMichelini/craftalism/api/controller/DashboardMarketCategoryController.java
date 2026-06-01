@@ -5,7 +5,7 @@ import io.github.HenriqueMichelini.craftalism.api.dto.MarketCategoryResponseDTO;
 import io.github.HenriqueMichelini.craftalism.api.dto.MarketCategoryUpdateRequestDTO;
 import io.github.HenriqueMichelini.craftalism.api.mapper.MarketCategoryMapper;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketCategory;
-import io.github.HenriqueMichelini.craftalism.api.service.DashboardMarketCategoryService;
+import io.github.HenriqueMichelini.craftalism.api.market.application.admin.DashboardMarketCategoryService;
 import jakarta.validation.Valid;
 import java.net.URI;
 import java.util.List;

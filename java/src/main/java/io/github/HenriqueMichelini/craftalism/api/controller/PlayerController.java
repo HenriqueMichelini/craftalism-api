@@ -5,7 +5,7 @@ import io.github.HenriqueMichelini.craftalism.api.dto.PlayerResponseDTO;
 import io.github.HenriqueMichelini.craftalism.api.dto.PlayerUpdateRequestDTO;
 import io.github.HenriqueMichelini.craftalism.api.mapper.PlayerMapper;
 import io.github.HenriqueMichelini.craftalism.api.model.Player;
-import io.github.HenriqueMichelini.craftalism.api.service.PlayerService;
+import io.github.HenriqueMichelini.craftalism.api.player.application.PlayerService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.ArraySchema;
