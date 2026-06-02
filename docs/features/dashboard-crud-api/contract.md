@@ -22,7 +22,7 @@ Define repo-local backend write contracts used by dashboard resource modals.
 - Market item `lastUpdatedAt` is API-owned and set by the server on create/update.
 - Market item `buyUnitEstimate`, `sellUnitEstimate`, `currentStock`, `variationPercent`, and `marketMomentum` are derived pressure-ladder projections. Dashboard admin responses expose them, but create/update requests must not accept them as editable inputs.
 - Market item create/update requests edit authoritative pricing, regeneration, pressure, and state controls only.
-- Market item deletes are allowed only for non-default items that are not referenced by quotes or trade history.
+- Market item deletes are allowed only for non-default items that are not referenced by active quotes. Resolved quotes and trade history remain intact after deletion.
 
 ## External Interfaces
 
@@ -65,7 +65,7 @@ Define repo-local backend write contracts used by dashboard resource modals.
 - Invalid balance amounts rejected by service invariants return `422` with business-rule type.
 - Player deletion that would violate existing references returns `409` with business-rule type.
 - Duplicate market item IDs return `409` with business-rule type.
-- Market item delete attempts for default catalog items or referenced items return `409` with business-rule type.
+- Market item delete attempts for default catalog items or items referenced by active quotes return `409` with business-rule type.
 - Market item pressure constraint failures return `400` with validation type.
 
 ## Mutation Response Rules

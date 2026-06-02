@@ -103,6 +103,21 @@ class DashboardMarketCategoryCrudApiIntegrationTest {
             );
     }
 
+    @Test
+    void marketCategoryCrud_deleteFinalCustomItem_allowsCategoryDelete()
+        throws Exception {
+        marketCategoryRepository.save(marketCategory("custom", "Custom", 0));
+        marketItemRepository.save(marketItem("custom_item"));
+
+        mockMvc
+            .perform(delete("/api/dashboard/market/items/custom_item"))
+            .andExpect(status().isNoContent());
+
+        mockMvc
+            .perform(delete(BASE_PATH + "/custom"))
+            .andExpect(status().isNoContent());
+    }
+
     private static MarketCategory marketCategory(
         String categoryId,
         String displayName,

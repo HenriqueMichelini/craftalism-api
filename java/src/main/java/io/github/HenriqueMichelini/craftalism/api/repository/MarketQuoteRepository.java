@@ -13,7 +13,7 @@ import org.springframework.stereotype.Repository;
 public interface MarketQuoteRepository extends JpaRepository<MarketQuote, String> {
     long countByStatus(MarketQuote.Status status);
 
-    boolean existsByItemId(String itemId);
+    boolean existsByItemIdAndStatus(String itemId, MarketQuote.Status status);
 
     Optional<MarketQuote> findByQuoteToken(String quoteToken);
 

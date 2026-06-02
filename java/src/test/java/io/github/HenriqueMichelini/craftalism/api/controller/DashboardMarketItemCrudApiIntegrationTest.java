@@ -3,6 +3,7 @@ package io.github.HenriqueMichelini.craftalism.api.controller;
 import static org.hamcrest.Matchers.not;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -15,6 +16,7 @@ import io.github.HenriqueMichelini.craftalism.api.dto.MarketSide;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketCategory;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketItem;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketQuote;
+import io.github.HenriqueMichelini.craftalism.api.model.MarketTradeHistory;
 import io.github.HenriqueMichelini.craftalism.api.repository.MarketCategoryRepository;
 import io.github.HenriqueMichelini.craftalism.api.repository.MarketItemRepository;
 import io.github.HenriqueMichelini.craftalism.api.repository.MarketQuoteRepository;
@@ -273,7 +275,7 @@ class DashboardMarketItemCrudApiIntegrationTest {
     }
 
     @Test
-    void marketItemCrud_referencedItemDelete_returns409ProblemDetail()
+    void marketItemCrud_activeQuoteReferencedItemDelete_returns409ProblemDetail()
         throws Exception {
         marketItemRepository.save(marketItem("custom_item", "Custom Item"));
         marketQuoteRepository.save(quote("custom_item"));
@@ -286,6 +288,37 @@ class DashboardMarketItemCrudApiIntegrationTest {
                     "Market item is referenced and cannot be deleted: custom_item"
                 )
             );
+    }
+
+    @Test
+    void marketItemCrud_resolvedQuoteReferencedItemDelete_preservesQuote()
+        throws Exception {
+        marketItemRepository.save(marketItem("custom_item", "Custom Item"));
+        MarketQuote quote = quote("custom_item");
+        quote.setStatus(MarketQuote.Status.CONSUMED);
+        quote.setResolvedAt(Instant.parse("2026-01-01T00:05:00Z"));
+        marketQuoteRepository.save(quote);
+
+        mockMvc
+            .perform(delete(BASE_PATH + "/custom_item"))
+            .andExpect(status().isNoContent());
+
+        assertTrue(marketQuoteRepository.existsById(quote.getQuoteToken()));
+    }
+
+    @Test
+    void marketItemCrud_tradeHistoryReferencedItemDelete_preservesHistory()
+        throws Exception {
+        marketItemRepository.save(marketItem("custom_item", "Custom Item"));
+        MarketTradeHistory history = marketTradeHistoryRepository.save(
+            tradeHistory("custom_item")
+        );
+
+        mockMvc
+            .perform(delete(BASE_PATH + "/custom_item"))
+            .andExpect(status().isNoContent());
+
+        assertTrue(marketTradeHistoryRepository.existsById(history.getId()));
     }
 
     @Test
@@ -394,6 +427,20 @@ class DashboardMarketItemCrudApiIntegrationTest {
         quote.setCreatedAt(Instant.parse("2026-01-01T00:00:00Z"));
         quote.setStatus(MarketQuote.Status.ACTIVE);
         return quote;
+    }
+
+    private static MarketTradeHistory tradeHistory(String itemId) {
+        MarketTradeHistory history = new MarketTradeHistory();
+        history.setPlayerUuid(UUID.randomUUID());
+        history.setItemId(itemId);
+        history.setSide(MarketSide.BUY);
+        history.setQuantity(1L);
+        history.setUnitPrice(100L);
+        history.setTotalPrice(100L);
+        history.setCurrency("coins");
+        history.setSnapshotVersion("snapshot");
+        history.setExecutedAt(Instant.parse("2026-01-01T00:05:00Z"));
+        return history;
     }
 
     private static String createPayload(String itemId) {

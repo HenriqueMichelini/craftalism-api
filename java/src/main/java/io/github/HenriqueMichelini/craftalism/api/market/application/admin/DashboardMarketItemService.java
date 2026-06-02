@@ -13,10 +13,10 @@ import io.github.HenriqueMichelini.craftalism.api.market.domain.catalog.MarketSe
 import io.github.HenriqueMichelini.craftalism.api.market.domain.trade.MarketTradePlanner;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketCategory;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketItem;
+import io.github.HenriqueMichelini.craftalism.api.model.MarketQuote;
 import io.github.HenriqueMichelini.craftalism.api.repository.MarketCategoryRepository;
 import io.github.HenriqueMichelini.craftalism.api.repository.MarketItemRepository;
 import io.github.HenriqueMichelini.craftalism.api.repository.MarketQuoteRepository;
-import io.github.HenriqueMichelini.craftalism.api.repository.MarketTradeHistoryRepository;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
@@ -45,7 +45,6 @@ public class DashboardMarketItemService {
     private final MarketItemRepository marketItemRepository;
     private final MarketCategoryRepository marketCategoryRepository;
     private final MarketQuoteRepository marketQuoteRepository;
-    private final MarketTradeHistoryRepository marketTradeHistoryRepository;
     private final MarketSnapshotStateLoader marketSnapshotStateLoader;
     private final Set<String> defaultCatalogItemIds;
     private final MarketItemConfigurationValidator configurationValidator =
@@ -56,14 +55,12 @@ public class DashboardMarketItemService {
         MarketItemRepository marketItemRepository,
         MarketCategoryRepository marketCategoryRepository,
         MarketQuoteRepository marketQuoteRepository,
-        MarketTradeHistoryRepository marketTradeHistoryRepository,
         DefaultMarketCatalog defaultMarketCatalog,
         MarketSnapshotStateLoader marketSnapshotStateLoader
     ) {
         this.marketItemRepository = marketItemRepository;
         this.marketCategoryRepository = marketCategoryRepository;
         this.marketQuoteRepository = marketQuoteRepository;
-        this.marketTradeHistoryRepository = marketTradeHistoryRepository;
         this.marketSnapshotStateLoader = marketSnapshotStateLoader;
         this.defaultCatalogItemIds = defaultMarketCatalog
             .items()
@@ -111,8 +108,10 @@ public class DashboardMarketItemService {
             defaultCatalogItemIds.contains(item.getItemId())
         ) throw new MarketItemManagedByCatalogException(itemId);
         if (
-            marketQuoteRepository.existsByItemId(itemId) ||
-            marketTradeHistoryRepository.existsByItemId(itemId)
+            marketQuoteRepository.existsByItemIdAndStatus(
+                itemId,
+                MarketQuote.Status.ACTIVE
+            )
         ) throw new MarketItemInUseException(itemId);
 
         marketItemRepository.delete(item);

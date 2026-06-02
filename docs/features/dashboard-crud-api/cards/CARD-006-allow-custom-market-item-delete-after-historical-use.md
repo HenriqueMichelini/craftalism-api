@@ -2,7 +2,7 @@
 
 ## Status
 
-planned
+completed
 
 ## Objective
 
@@ -78,3 +78,11 @@ Fallback if the filtered command is unavailable:
 
 ## Completion Notes
 
+- Implemented `2026-06-02`.
+- Market item deletion now blocks only `ACTIVE` quote references while preserving resolved quotes and trade-history records.
+- Added integration coverage for active quote rejection, resolved quote preservation, trade-history preservation, and deleting a custom category after its final item is deleted.
+- Validated with:
+
+```bash
+./gradlew test --tests '*DashboardMarketItemCrudApiIntegrationTest' --tests '*DashboardMarketCategoryCrudApiIntegrationTest'
+```
