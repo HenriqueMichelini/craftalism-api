@@ -86,11 +86,7 @@ If conflicts exist, follow governance precedence.
 
 ## Commit Requirement
 
-After implementation, suggest commit message(s) that:
-
-- reflect only the implemented change
-- are specific and scoped
-- do not mix unrelated work
+After implementation, use commit-standard skill.
 
 ---
 

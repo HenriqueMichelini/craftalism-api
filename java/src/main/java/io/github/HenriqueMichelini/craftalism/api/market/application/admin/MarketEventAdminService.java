@@ -59,18 +59,29 @@ public class MarketEventAdminService {
         String actor
     ) {
         MarketEventTemplate template = template(request.templateId());
+        int effectBasisPoints = effectBasisPoints(
+            request.effectBasisPoints(),
+            template
+        );
         Instant now = Instant.now();
         reconcileExpiredEvents(now);
-        return startEvent(request, actor, template, now);
+        return startEvent(request, actor, template, effectBasisPoints, now);
     }
 
     private MarketEventAdminResponseDTO startEvent(
         MarketEventAdminCreateRequestDTO request,
         String actor,
         MarketEventTemplate template,
+        int effectBasisPoints,
         Instant now
     ) {
-        MarketEventInstance event = eventFromRequest(request, template, actor, now);
+        MarketEventInstance event = eventFromRequest(
+            request,
+            template,
+            effectBasisPoints,
+            actor,
+            now
+        );
         return toResponse(lifecycleService.start(event));
     }
 
@@ -80,6 +91,10 @@ public class MarketEventAdminService {
         String actor
     ) {
         MarketEventTemplate template = template(request.templateId());
+        int effectBasisPoints = effectBasisPoints(
+            request.effectBasisPoints(),
+            template
+        );
         Instant now = Instant.now();
         reconcileExpiredEvents(now);
         lifecycleService
@@ -92,7 +107,7 @@ public class MarketEventAdminService {
                     now
                 )
             );
-        return startEvent(request, actor, template, now);
+        return startEvent(request, actor, template, effectBasisPoints, now);
     }
 
     @Transactional
@@ -106,7 +121,12 @@ public class MarketEventAdminService {
         MarketEventInstance event = event(id);
         String before = auditValues(event);
         if (request.effectBasisPoints() != null) {
-            event.setEffectBasisPoints(request.effectBasisPoints());
+            event.setEffectBasisPoints(
+                effectBasisPoints(
+                    request.effectBasisPoints(),
+                    template(event.getTemplateId())
+                )
+            );
             event.setEffectVersion(event.getEffectVersion() + 1);
         }
         if (request.blocking() != null) {
@@ -157,6 +177,7 @@ public class MarketEventAdminService {
     private MarketEventInstance eventFromRequest(
         MarketEventAdminCreateRequestDTO request,
         MarketEventTemplate template,
+        int effectBasisPoints,
         String actor,
         Instant now
     ) {
@@ -173,11 +194,7 @@ public class MarketEventAdminService {
         event.setScope(scope);
         event.setSelectedCategoryId(request.selectedCategoryId());
         event.setSelectedItemIds(request.selectedItemIds());
-        event.setEffectBasisPoints(
-            request.effectBasisPoints() == null
-                ? template.getMinEffectBasisPoints()
-                : request.effectBasisPoints()
-        );
+        event.setEffectBasisPoints(effectBasisPoints);
         event.setEffectVersion(1);
         event.setBlocking(
             request.blocking() == null
@@ -194,6 +211,30 @@ public class MarketEventAdminService {
         event.setCreatedAt(now);
         event.setUpdatedAt(now);
         return event;
+    }
+
+    private int effectBasisPoints(
+        Integer requestedEffectBasisPoints,
+        MarketEventTemplate template
+    ) {
+        int effectBasisPoints = requestedEffectBasisPoints == null
+            ? template.getMinEffectBasisPoints()
+            : requestedEffectBasisPoints;
+        if (
+            effectBasisPoints < template.getMinEffectBasisPoints() ||
+            effectBasisPoints > template.getMaxEffectBasisPoints()
+        ) {
+            throw new MarketEventTemplateValidationException(
+                "Effect basis points must be between " +
+                template.getMinEffectBasisPoints() +
+                " and " +
+                template.getMaxEffectBasisPoints() +
+                " for template " +
+                template.getTemplateId() +
+                "."
+            );
+        }
+        return effectBasisPoints;
     }
 
     private MarketEventTemplate template(String templateId) {

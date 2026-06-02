@@ -1,9 +1,11 @@
 package io.github.HenriqueMichelini.craftalism.api.market.application.admin;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -11,6 +13,7 @@ import io.github.HenriqueMichelini.craftalism.api.dto.MarketEventAdminCancelRequ
 import io.github.HenriqueMichelini.craftalism.api.dto.MarketEventAdminCreateRequestDTO;
 import io.github.HenriqueMichelini.craftalism.api.dto.MarketEventAdminResponseDTO;
 import io.github.HenriqueMichelini.craftalism.api.dto.MarketEventAdminUpdateRequestDTO;
+import io.github.HenriqueMichelini.craftalism.api.exceptions.MarketEventTemplateValidationException;
 import io.github.HenriqueMichelini.craftalism.api.market.domain.event.MarketEventLifecycleService;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketEventEndReason;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketEventInstance;
@@ -72,6 +75,94 @@ class MarketEventAdminServiceTest {
         assertEquals("admin-user", response.actor());
         assertTrue(response.auditMetadata().contains("manual hold"));
         assertEquals("wheat", response.selectedItemIds());
+    }
+
+    @Test
+    void startEventRejectsEffectBelowTemplateRange() {
+        when(templateRepository.findById("farming_bumper_crop")).thenReturn(
+            Optional.of(downTemplate())
+        );
+
+        MarketEventTemplateValidationException exception = assertThrows(
+            MarketEventTemplateValidationException.class,
+            () ->
+                service()
+                    .startEvent(
+                        new MarketEventAdminCreateRequestDTO(
+                            "farming_bumper_crop",
+                            MarketEventScope.CATEGORY,
+                            "farming",
+                            null,
+                            1_000,
+                            false,
+                            900L,
+                            "too strong"
+                        ),
+                        "admin-user"
+                    )
+        );
+
+        assertEquals(
+            "Effect basis points must be between 9200 and 9700 for template farming_bumper_crop.",
+            exception.getMessage()
+        );
+        verify(lifecycleService, never()).start(any());
+    }
+
+    @Test
+    void startEventRejectsEffectAboveTemplateRange() {
+        when(templateRepository.findById("farming_bumper_crop")).thenReturn(
+            Optional.of(downTemplate())
+        );
+
+        assertThrows(
+            MarketEventTemplateValidationException.class,
+            () ->
+                service()
+                    .startEvent(
+                        new MarketEventAdminCreateRequestDTO(
+                            "farming_bumper_crop",
+                            MarketEventScope.CATEGORY,
+                            "farming",
+                            null,
+                            10_000,
+                            false,
+                            900L,
+                            "wrong direction"
+                        ),
+                        "admin-user"
+                    )
+        );
+        verify(lifecycleService, never()).start(any());
+    }
+
+    @Test
+    void startEventDefaultsOmittedEffectToTemplateMinimum() {
+        when(templateRepository.findById("farming_bumper_crop")).thenReturn(
+            Optional.of(downTemplate())
+        );
+        when(lifecycleService.start(any())).thenAnswer(invocation -> {
+            MarketEventInstance event = invocation.getArgument(0);
+            event.setId(12L);
+            event.setStatus(MarketEventStatus.ACTIVE);
+            return event;
+        });
+
+        MarketEventAdminResponseDTO response = service().startEvent(
+            new MarketEventAdminCreateRequestDTO(
+                "farming_bumper_crop",
+                MarketEventScope.CATEGORY,
+                "farming",
+                null,
+                null,
+                false,
+                900L,
+                "default effect"
+            ),
+            "admin-user"
+        );
+
+        assertEquals(9_200, response.effectBasisPoints());
     }
 
     @Test
@@ -141,9 +232,47 @@ class MarketEventAdminServiceTest {
     }
 
     @Test
+    void supersedeRejectsInvalidEffectBeforeEndingActiveEvent() {
+        MarketEventInstance active = activeEvent();
+        when(templateRepository.findById("farming_bumper_crop")).thenReturn(
+            Optional.of(downTemplate())
+        );
+
+        assertThrows(
+            MarketEventTemplateValidationException.class,
+            () ->
+                service()
+                    .supersedeActiveEvent(
+                        new MarketEventAdminCreateRequestDTO(
+                            "farming_bumper_crop",
+                            MarketEventScope.CATEGORY,
+                            "farming",
+                            null,
+                            1_000,
+                            false,
+                            900L,
+                            "invalid replacement"
+                        ),
+                        "admin-user"
+                    )
+        );
+
+        verify(lifecycleService, never()).end(
+            eq(active),
+            eq(MarketEventStatus.SUPERSEDED),
+            eq(MarketEventEndReason.SUPERSEDED),
+            any()
+        );
+        verify(lifecycleService, never()).start(any());
+    }
+
+    @Test
     void updateEventRecordsBeforeAndAfterAuditAndBumpsEffectVersion() {
         MarketEventInstance event = activeEvent();
         when(eventRepository.findById(10L)).thenReturn(Optional.of(event));
+        when(templateRepository.findById("rare_customs_hold")).thenReturn(
+            Optional.of(template())
+        );
         when(eventRepository.saveAndFlush(any())).thenAnswer(invocation ->
             invocation.getArgument(0)
         );
@@ -151,7 +280,7 @@ class MarketEventAdminServiceTest {
         MarketEventAdminResponseDTO response = service().updateEvent(
             10L,
             new MarketEventAdminUpdateRequestDTO(
-                9_500,
+                10_000,
                 false,
                 null,
                 Instant.parse("2026-04-12T19:30:00Z"),
@@ -160,10 +289,41 @@ class MarketEventAdminServiceTest {
             "admin-user"
         );
 
-        assertEquals(9_500, response.effectBasisPoints());
+        assertEquals(10_000, response.effectBasisPoints());
         assertEquals(2, response.effectVersion());
         assertTrue(response.auditMetadata().contains("before"));
         assertTrue(response.auditMetadata().contains("after"));
+    }
+
+    @Test
+    void updateEventRejectsInvalidEffectBeforeMutatingEvent() {
+        MarketEventInstance event = activeEvent();
+        when(eventRepository.findById(10L)).thenReturn(Optional.of(event));
+        when(templateRepository.findById("rare_customs_hold")).thenReturn(
+            Optional.of(template())
+        );
+
+        assertThrows(
+            MarketEventTemplateValidationException.class,
+            () ->
+                service()
+                    .updateEvent(
+                        10L,
+                        new MarketEventAdminUpdateRequestDTO(
+                            9_999,
+                            false,
+                            null,
+                            Instant.parse("2026-04-12T19:30:00Z"),
+                            "invalid effect"
+                        ),
+                        "admin-user"
+                    )
+        );
+
+        assertEquals(10_000, event.getEffectBasisPoints());
+        assertEquals(1, event.getEffectVersion());
+        assertTrue(event.isBlocking());
+        verify(eventRepository, never()).saveAndFlush(any());
     }
 
     @Test
@@ -202,6 +362,29 @@ class MarketEventAdminServiceTest {
         template.setPlayerFacingDescription("A specific good is temporarily held.");
         template.setBroadScopeHint("One item");
         template.setEligibleTargetMetadata("{\"manualOnly\":true}");
+        template.setCreatedAt(Instant.parse("2026-01-01T00:00:00Z"));
+        template.setUpdatedAt(Instant.parse("2026-01-01T00:00:00Z"));
+        return template;
+    }
+
+    private MarketEventTemplate downTemplate() {
+        MarketEventTemplate template = new MarketEventTemplate();
+        template.setTemplateId("farming_bumper_crop");
+        template.setRarity(MarketEventRarity.MEDIUM);
+        template.setScope(MarketEventScope.CATEGORY);
+        template.setAutomaticWeight(80);
+        template.setAutomaticEnabled(true);
+        template.setBlockingAllowed(false);
+        template.setMinDurationSeconds(1_800L);
+        template.setMaxDurationSeconds(3_600L);
+        template.setMinEffectBasisPoints(9_200);
+        template.setMaxEffectBasisPoints(9_700);
+        template.setEffectDirection("DOWN");
+        template.setCooldownSeconds(7_200L);
+        template.setPlayerFacingName("Bumper Crop");
+        template.setPlayerFacingDescription("Farms are overflowing.");
+        template.setBroadScopeHint("Farming goods");
+        template.setEligibleTargetMetadata("{\"categoryIds\":[\"farming\"]}");
         template.setCreatedAt(Instant.parse("2026-01-01T00:00:00Z"));
         template.setUpdatedAt(Instant.parse("2026-01-01T00:00:00Z"));
         return template;

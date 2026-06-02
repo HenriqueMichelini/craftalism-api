@@ -5,6 +5,7 @@ import static org.hamcrest.Matchers.not;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -105,7 +106,7 @@ class DashboardMarketEventAdminApiIntegrationTest {
                     .content(
                         """
                         {
-                          "effectBasisPoints": 9500,
+                          "effectBasisPoints": 10000,
                           "blocking": false,
                           "durationSeconds": 1200,
                           "reason": "soften"
@@ -114,7 +115,7 @@ class DashboardMarketEventAdminApiIntegrationTest {
                     )
             )
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.effectBasisPoints").value(9500))
+            .andExpect(jsonPath("$.effectBasisPoints").value(10000))
             .andExpect(jsonPath("$.effectVersion").value(2))
             .andExpect(jsonPath("$.auditMetadata", containsString("before")));
 
@@ -296,6 +297,142 @@ class DashboardMarketEventAdminApiIntegrationTest {
             .andExpect(jsonPath("$.timestamp").exists());
 
         assertEquals(0L, eventRepository.count());
+    }
+
+    @Test
+    void manualStartRejectsEffectOutsideTemplateRangeWithoutPersistingEvent()
+        throws Exception {
+        templateRepository.save(downTemplate());
+
+        mockMvc
+            .perform(
+                post("/api/dashboard/market/events")
+                    .with(adminJwt())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(
+                        """
+                        {
+                          "templateId": "farming_bumper_crop",
+                          "scope": "CATEGORY",
+                          "selectedCategoryId": "farming",
+                          "effectBasisPoints": 1000,
+                          "blocking": false,
+                          "durationSeconds": 900,
+                          "reason": "too strong"
+                        }
+                        """
+                    )
+            )
+            .andExpect(status().isBadRequest())
+            .andExpect(
+                jsonPath("$.type").value(
+                    "https://api.craftalism.com/errors/validation"
+                )
+            )
+            .andExpect(
+                jsonPath("$.detail").value(
+                    "Effect basis points must be between 9200 and 9700 for template farming_bumper_crop."
+                )
+            );
+
+        assertEquals(0L, eventRepository.count());
+
+        mockMvc
+            .perform(
+                post("/api/dashboard/market/events")
+                    .with(adminJwt())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(
+                        """
+                        {
+                          "templateId": "farming_bumper_crop",
+                          "scope": "CATEGORY",
+                          "selectedCategoryId": "farming",
+                          "effectBasisPoints": 10000,
+                          "blocking": false,
+                          "durationSeconds": 900,
+                          "reason": "wrong direction"
+                        }
+                        """
+                    )
+            )
+            .andExpect(status().isBadRequest());
+
+        assertEquals(0L, eventRepository.count());
+    }
+
+    @Test
+    void supersedeRejectsInvalidEffectWithoutEndingActiveEvent()
+        throws Exception {
+        templateRepository.save(downTemplate());
+        MarketEventInstance active = eventRepository.save(activeEvent());
+
+        mockMvc
+            .perform(
+                post("/api/dashboard/market/events/supersede")
+                    .with(adminJwt())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(
+                        """
+                        {
+                          "templateId": "farming_bumper_crop",
+                          "scope": "CATEGORY",
+                          "selectedCategoryId": "farming",
+                          "effectBasisPoints": 1000,
+                          "blocking": false,
+                          "durationSeconds": 900,
+                          "reason": "invalid replacement"
+                        }
+                        """
+                    )
+            )
+            .andExpect(status().isBadRequest())
+            .andExpect(
+                jsonPath("$.type").value(
+                    "https://api.craftalism.com/errors/validation"
+                )
+            );
+
+        assertEquals(1L, eventRepository.count());
+        assertEquals(
+            MarketEventStatus.ACTIVE,
+            eventRepository.findById(active.getId()).orElseThrow().getStatus()
+        );
+    }
+
+    @Test
+    void updateRejectsInvalidEffectWithoutMutatingEvent() throws Exception {
+        MarketEventInstance active = eventRepository.save(activeEvent());
+
+        mockMvc
+            .perform(
+                patch("/api/dashboard/market/events/{id}", active.getId())
+                    .with(adminJwt())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(
+                        """
+                        {
+                          "effectBasisPoints": 9999,
+                          "blocking": false,
+                          "durationSeconds": 1200,
+                          "reason": "invalid effect"
+                        }
+                        """
+                    )
+            )
+            .andExpect(status().isBadRequest())
+            .andExpect(
+                jsonPath("$.detail").value(
+                    "Effect basis points must be between 10000 and 10000 for template rare_customs_hold."
+                )
+            );
+
+        MarketEventInstance unchanged = eventRepository
+            .findById(active.getId())
+            .orElseThrow();
+        assertEquals(10_000, unchanged.getEffectBasisPoints());
+        assertEquals(1, unchanged.getEffectVersion());
+        assertTrue(unchanged.isBlocking());
     }
 
     @Test
@@ -553,6 +690,29 @@ class DashboardMarketEventAdminApiIntegrationTest {
         template.setPlayerFacingDescription("A specific good is temporarily held.");
         template.setBroadScopeHint("One item");
         template.setEligibleTargetMetadata("{\"manualOnly\":true}");
+        template.setCreatedAt(Instant.parse("2026-01-01T00:00:00Z"));
+        template.setUpdatedAt(Instant.parse("2026-01-01T00:00:00Z"));
+        return template;
+    }
+
+    private MarketEventTemplate downTemplate() {
+        MarketEventTemplate template = new MarketEventTemplate();
+        template.setTemplateId("farming_bumper_crop");
+        template.setRarity(MarketEventRarity.MEDIUM);
+        template.setScope(MarketEventScope.CATEGORY);
+        template.setAutomaticWeight(80);
+        template.setAutomaticEnabled(true);
+        template.setBlockingAllowed(false);
+        template.setMinDurationSeconds(1_800L);
+        template.setMaxDurationSeconds(3_600L);
+        template.setMinEffectBasisPoints(9_200);
+        template.setMaxEffectBasisPoints(9_700);
+        template.setEffectDirection("DOWN");
+        template.setCooldownSeconds(7_200L);
+        template.setPlayerFacingName("Bumper Crop");
+        template.setPlayerFacingDescription("Farms are overflowing.");
+        template.setBroadScopeHint("Farming goods");
+        template.setEligibleTargetMetadata("{\"categoryIds\":[\"farming\"]}");
         template.setCreatedAt(Instant.parse("2026-01-01T00:00:00Z"));
         template.setUpdatedAt(Instant.parse("2026-01-01T00:00:00Z"));
         return template;
