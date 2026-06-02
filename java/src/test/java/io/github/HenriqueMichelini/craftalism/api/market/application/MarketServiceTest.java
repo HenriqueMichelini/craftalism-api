@@ -18,6 +18,7 @@ import io.github.HenriqueMichelini.craftalism.api.exceptions.MarketRejectionCode
 import io.github.HenriqueMichelini.craftalism.api.exceptions.MarketRejectionException;
 import io.github.HenriqueMichelini.craftalism.api.config.MarketSettings;
 import io.github.HenriqueMichelini.craftalism.api.market.domain.catalog.DefaultMarketCatalog;
+import io.github.HenriqueMichelini.craftalism.api.market.domain.trade.MarketTradePlanner;
 import io.github.HenriqueMichelini.craftalism.api.market.infrastructure.configuration.MarketServiceConfiguration;
 import io.github.HenriqueMichelini.craftalism.api.market.infrastructure.store.MarketQuoteStore;
 import io.github.HenriqueMichelini.craftalism.api.model.Balance;
@@ -84,6 +85,7 @@ class MarketServiceTest {
     ) {
         MarketServiceConfiguration configuration =
             new MarketServiceConfiguration(fixedClock());
+        MarketTradePlanner tradePlanner = new MarketTradePlanner();
         return configuration.marketService(
             marketItemRepository,
             marketCategoryRepository,
@@ -91,7 +93,6 @@ class MarketServiceTest {
             quoteStore,
             marketQuoteRepository,
             marketTradeHistoryRepository,
-            null,
             null,
             null,
             new DefaultMarketCatalog(),
@@ -105,8 +106,9 @@ class MarketServiceTest {
             ),
             configuration.marketSnapshotStateLoader(
                 marketItemRepository,
-                null
-            )
+                tradePlanner
+            ),
+            tradePlanner
         );
     }
 

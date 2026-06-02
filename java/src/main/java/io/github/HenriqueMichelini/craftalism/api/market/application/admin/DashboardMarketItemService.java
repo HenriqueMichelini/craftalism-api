@@ -21,6 +21,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -46,22 +47,24 @@ public class DashboardMarketItemService {
     private final MarketCategoryRepository marketCategoryRepository;
     private final MarketQuoteRepository marketQuoteRepository;
     private final MarketSnapshotStateLoader marketSnapshotStateLoader;
+    private final MarketTradePlanner tradePlanner;
     private final Set<String> defaultCatalogItemIds;
     private final MarketItemConfigurationValidator configurationValidator =
         new MarketItemConfigurationValidator();
-    private final MarketTradePlanner tradePlanner = new MarketTradePlanner();
 
     public DashboardMarketItemService(
         MarketItemRepository marketItemRepository,
         MarketCategoryRepository marketCategoryRepository,
         MarketQuoteRepository marketQuoteRepository,
         DefaultMarketCatalog defaultMarketCatalog,
-        MarketSnapshotStateLoader marketSnapshotStateLoader
+        MarketSnapshotStateLoader marketSnapshotStateLoader,
+        MarketTradePlanner tradePlanner
     ) {
         this.marketItemRepository = marketItemRepository;
         this.marketCategoryRepository = marketCategoryRepository;
         this.marketQuoteRepository = marketQuoteRepository;
         this.marketSnapshotStateLoader = marketSnapshotStateLoader;
+        this.tradePlanner = tradePlanner;
         this.defaultCatalogItemIds = defaultMarketCatalog
             .items()
             .stream()
@@ -71,24 +74,28 @@ public class DashboardMarketItemService {
 
     @Transactional
     public List<MarketItem> getAllMarketItems() {
-        List<MarketItem> items = marketSnapshotStateLoader.refreshedItems();
-        items.forEach(tradePlanner::recomputeDerivedProjections);
-        return items;
+        return withPricingCache(() -> {
+            List<MarketItem> items = marketSnapshotStateLoader.refreshedItems();
+            items.forEach(tradePlanner::recomputeDerivedProjections);
+            return items;
+        });
     }
 
     @Transactional
     public MarketItem createMarketItem(MarketItemCreateRequestDTO request) {
-        String itemId = request.itemId().trim();
-        if (
-            marketItemRepository.existsById(itemId)
-        ) throw new MarketItemAlreadyExistsException(itemId);
+        return withPricingCache(() -> {
+            String itemId = request.itemId().trim();
+            if (
+                marketItemRepository.existsById(itemId)
+            ) throw new MarketItemAlreadyExistsException(itemId);
 
-        MarketItem item = new MarketItem();
-        item.setItemId(itemId);
-        item.setCategory(getMarketCategory(request.categoryId().trim()));
-        item.setDisplayName(request.displayName().trim());
-        applyCreateValues(item, request);
-        return marketItemRepository.save(item);
+            MarketItem item = new MarketItem();
+            item.setItemId(itemId);
+            item.setCategory(getMarketCategory(request.categoryId().trim()));
+            item.setDisplayName(request.displayName().trim());
+            applyCreateValues(item, request);
+            return marketItemRepository.save(item);
+        });
     }
 
     @Transactional
@@ -96,9 +103,11 @@ public class DashboardMarketItemService {
         String itemId,
         MarketItemUpdateRequestDTO request
     ) {
-        MarketItem item = getMarketItem(itemId);
-        applyUpdateValues(item, request);
-        return marketItemRepository.save(item);
+        return withPricingCache(() -> {
+            MarketItem item = getMarketItem(itemId);
+            applyUpdateValues(item, request);
+            return marketItemRepository.save(item);
+        });
     }
 
     @Transactional
@@ -226,5 +235,14 @@ public class DashboardMarketItemService {
         BigDecimal defaultValue
     ) {
         return value == null ? defaultValue : value;
+    }
+
+    private <T> T withPricingCache(Supplier<T> operation) {
+        tradePlanner.clearPricingCache();
+        try {
+            return operation.get();
+        } finally {
+            tradePlanner.clearPricingCache();
+        }
     }
 }

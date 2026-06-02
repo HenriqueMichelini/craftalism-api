@@ -59,6 +59,15 @@ public final class MarketSnapshotStateLoader {
     }
 
     MarketSnapshotState regeneratedItems() {
+        tradePlanner.clearPricingCache();
+        try {
+            return regeneratedItemsWithinPricingCache();
+        } finally {
+            tradePlanner.clearPricingCache();
+        }
+    }
+
+    private MarketSnapshotState regeneratedItemsWithinPricingCache() {
         long fetchStartNanos = System.nanoTime();
         List<MarketItem> items = new ArrayList<>(
             marketItemRepository.findAllForMarketRead()

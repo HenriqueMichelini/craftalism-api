@@ -14,10 +14,16 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import io.github.HenriqueMichelini.craftalism.api.dto.MarketSide;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketCategory;
+import io.github.HenriqueMichelini.craftalism.api.model.MarketEventInstance;
+import io.github.HenriqueMichelini.craftalism.api.model.MarketEventRarity;
+import io.github.HenriqueMichelini.craftalism.api.model.MarketEventScope;
+import io.github.HenriqueMichelini.craftalism.api.model.MarketEventSource;
+import io.github.HenriqueMichelini.craftalism.api.model.MarketEventStatus;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketItem;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketQuote;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketTradeHistory;
 import io.github.HenriqueMichelini.craftalism.api.repository.MarketCategoryRepository;
+import io.github.HenriqueMichelini.craftalism.api.repository.MarketEventInstanceRepository;
 import io.github.HenriqueMichelini.craftalism.api.repository.MarketItemRepository;
 import io.github.HenriqueMichelini.craftalism.api.repository.MarketQuoteRepository;
 import io.github.HenriqueMichelini.craftalism.api.repository.MarketTradeHistoryRepository;
@@ -50,6 +56,9 @@ class DashboardMarketItemCrudApiIntegrationTest {
     private MarketCategoryRepository marketCategoryRepository;
 
     @Autowired
+    private MarketEventInstanceRepository marketEventInstanceRepository;
+
+    @Autowired
     private MarketQuoteRepository marketQuoteRepository;
 
     @Autowired
@@ -57,6 +66,7 @@ class DashboardMarketItemCrudApiIntegrationTest {
 
     @BeforeEach
     void setup() {
+        marketEventInstanceRepository.deleteAll();
         marketQuoteRepository.deleteAll();
         marketTradeHistoryRepository.deleteAll();
         marketItemRepository.deleteAll();
@@ -368,6 +378,78 @@ class DashboardMarketItemCrudApiIntegrationTest {
         assertNotEquals(100_000L, refreshedItem.getBuyUnitEstimate());
     }
 
+    @Test
+    void marketItemCrud_listUsesEventAwarePricingAndClearsCacheBetweenRequests()
+        throws Exception {
+        marketItemRepository.save(marketItem("eligible_item", "Eligible Item"));
+        MarketEventInstance event = marketEventInstanceRepository.save(
+            categoryEvent("custom", 12_000)
+        );
+
+        mockMvc
+            .perform(get(BASE_PATH))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$[0].buyUnitEstimate").value(120))
+            .andExpect(jsonPath("$[0].sellUnitEstimate").value(84))
+            .andExpect(jsonPath("$[0].variationPercent").value(20.0));
+
+        event.setStatus(MarketEventStatus.CANCELLED);
+        event.setUpdatedAt(Instant.now());
+        marketEventInstanceRepository.save(event);
+
+        mockMvc
+            .perform(get(BASE_PATH))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$[0].buyUnitEstimate").value(100))
+            .andExpect(jsonPath("$[0].sellUnitEstimate").value(70))
+            .andExpect(jsonPath("$[0].variationPercent").value(0.0));
+    }
+
+    @Test
+    void marketItemCrud_listPreservesPricingForEventIneligibleItem()
+        throws Exception {
+        marketCategoryRepository.save(marketCategory("other", "Other", 1));
+        MarketItem item = marketItem("ineligible_item", "Ineligible Item");
+        item.setCategoryId("other");
+        marketItemRepository.save(item);
+        marketEventInstanceRepository.save(categoryEvent("custom", 12_000));
+
+        mockMvc
+            .perform(get(BASE_PATH))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$[0].buyUnitEstimate").value(100))
+            .andExpect(jsonPath("$[0].sellUnitEstimate").value(70))
+            .andExpect(jsonPath("$[0].variationPercent").value(0.0));
+    }
+
+    @Test
+    void marketItemCrud_createAndUpdateResponsesUseEventAwarePricing()
+        throws Exception {
+        marketEventInstanceRepository.save(categoryEvent("custom", 12_000));
+
+        mockMvc
+            .perform(
+                post(BASE_PATH)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(createPayload("event_item"))
+            )
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.buyUnitEstimate").value(120))
+            .andExpect(jsonPath("$.sellUnitEstimate").value(84))
+            .andExpect(jsonPath("$.variationPercent").value(20.0));
+
+        mockMvc
+            .perform(
+                patch(BASE_PATH + "/event_item")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(updatePayload())
+            )
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.buyUnitEstimate").value(240))
+            .andExpect(jsonPath("$.sellUnitEstimate").value(168))
+            .andExpect(jsonPath("$.variationPercent").value(20.0));
+    }
+
     private static MarketItem marketItem(String itemId, String displayName) {
         MarketItem item = new MarketItem();
         item.setItemId(itemId);
@@ -411,6 +493,28 @@ class DashboardMarketItemCrudApiIntegrationTest {
         category.setCreatedAt(Instant.parse("2026-01-01T00:00:00Z"));
         category.setUpdatedAt(Instant.parse("2026-01-01T00:00:00Z"));
         return category;
+    }
+
+    private static MarketEventInstance categoryEvent(
+        String categoryId,
+        int effectBasisPoints
+    ) {
+        Instant now = Instant.now();
+        MarketEventInstance event = new MarketEventInstance();
+        event.setTemplateId("category_event");
+        event.setSource(MarketEventSource.ADMIN);
+        event.setRarity(MarketEventRarity.MEDIUM);
+        event.setScope(MarketEventScope.CATEGORY);
+        event.setSelectedCategoryId(categoryId);
+        event.setEffectBasisPoints(effectBasisPoints);
+        event.setEffectVersion(1);
+        event.setBlocking(false);
+        event.setStartedAt(now.minusSeconds(60L));
+        event.setEndsAt(now.plusSeconds(600L));
+        event.setStatus(MarketEventStatus.ACTIVE);
+        event.setCreatedAt(now);
+        event.setUpdatedAt(now);
+        return event;
     }
 
     private static MarketQuote quote(String itemId) {

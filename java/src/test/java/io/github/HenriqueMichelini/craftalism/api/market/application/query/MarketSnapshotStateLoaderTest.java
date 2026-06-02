@@ -3,12 +3,22 @@ package io.github.HenriqueMichelini.craftalism.api.market.application.query;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import io.github.HenriqueMichelini.craftalism.api.model.MarketItem;
+import io.github.HenriqueMichelini.craftalism.api.market.domain.event.MarketEventLifecycleService;
+import io.github.HenriqueMichelini.craftalism.api.market.domain.event.MarketEventPricingService;
 import io.github.HenriqueMichelini.craftalism.api.market.domain.trade.MarketTradePlanner;
+import io.github.HenriqueMichelini.craftalism.api.model.MarketEventInstance;
+import io.github.HenriqueMichelini.craftalism.api.model.MarketEventRarity;
+import io.github.HenriqueMichelini.craftalism.api.model.MarketEventScope;
+import io.github.HenriqueMichelini.craftalism.api.model.MarketEventSource;
+import io.github.HenriqueMichelini.craftalism.api.model.MarketEventStatus;
+import io.github.HenriqueMichelini.craftalism.api.repository.MarketEventInstanceRepository;
 import io.github.HenriqueMichelini.craftalism.api.repository.MarketItemRepository;
 import java.math.BigDecimal;
 import java.time.Clock;
@@ -224,6 +234,41 @@ class MarketSnapshotStateLoaderTest {
         verify(marketItemRepository).save(item);
     }
 
+    @Test
+    void regeneratedItems_clearsEventPricingCacheBetweenOperations() {
+        MarketItem duringEvent = pressureItem(1L, NOW.minusSeconds(60L));
+        MarketItem afterEvent = pressureItem(1L, NOW.minusSeconds(60L));
+        MarketEventInstanceRepository eventRepository = mock(
+            MarketEventInstanceRepository.class
+        );
+        when(eventRepository.findEffectiveActive(any()))
+            .thenReturn(Optional.of(categoryEvent(12_000)))
+            .thenReturn(Optional.empty());
+        MarketTradePlanner eventAwarePlanner = new MarketTradePlanner(
+            new MarketEventPricingService(
+                new MarketEventLifecycleService(eventRepository)
+            )
+        );
+        MarketSnapshotStateLoader eventAwareService =
+            new MarketSnapshotStateLoader(
+                marketItemRepository,
+                eventAwarePlanner,
+                clock
+            );
+        when(marketItemRepository.findAllForMarketRead())
+            .thenReturn(List.of(duringEvent))
+            .thenReturn(List.of(afterEvent));
+        when(marketItemRepository.findForUpdate("wheat"))
+            .thenReturn(Optional.of(duringEvent))
+            .thenReturn(Optional.of(afterEvent));
+
+        eventAwareService.regeneratedItems();
+        eventAwareService.regeneratedItems();
+
+        assertEquals(120L, duringEvent.getBuyUnitEstimate());
+        assertEquals(100L, afterEvent.getBuyUnitEstimate());
+    }
+
     private MarketSnapshotStateLoader service() {
         return new MarketSnapshotStateLoader(
             marketItemRepository,
@@ -265,5 +310,24 @@ class MarketSnapshotStateLoaderTest {
         item.setDriftEvaluatedAt(NOW);
         tradePlanner.recomputeDerivedProjections(item);
         return item;
+    }
+
+    private MarketEventInstance categoryEvent(int effectBasisPoints) {
+        MarketEventInstance event = new MarketEventInstance();
+        event.setId(42L);
+        event.setTemplateId("farming_bumper_crop");
+        event.setSource(MarketEventSource.SCHEDULER);
+        event.setRarity(MarketEventRarity.MEDIUM);
+        event.setScope(MarketEventScope.CATEGORY);
+        event.setSelectedCategoryId("farming");
+        event.setEffectBasisPoints(effectBasisPoints);
+        event.setEffectVersion(1);
+        event.setBlocking(false);
+        event.setStartedAt(NOW.minusSeconds(60L));
+        event.setEndsAt(NOW.plusSeconds(60L));
+        event.setStatus(MarketEventStatus.ACTIVE);
+        event.setCreatedAt(NOW.minusSeconds(60L));
+        event.setUpdatedAt(NOW.minusSeconds(60L));
+        return event;
     }
 }

@@ -16,29 +16,38 @@ public class MarketDriftAdminService {
     private static final long NEUTRAL_MULTIPLIER_BASIS_POINTS = 10_000L;
 
     private final MarketItemRepository marketItemRepository;
-    private final MarketTradePlanner tradePlanner = new MarketTradePlanner();
+    private final MarketTradePlanner tradePlanner;
 
-    public MarketDriftAdminService(MarketItemRepository marketItemRepository) {
+    public MarketDriftAdminService(
+        MarketItemRepository marketItemRepository,
+        MarketTradePlanner tradePlanner
+    ) {
         this.marketItemRepository = marketItemRepository;
+        this.tradePlanner = tradePlanner;
     }
 
     @Transactional
     public MarketDriftResetResponseDTO resetAllDrift() {
-        Instant now = Instant.now();
-        List<MarketItem> items = marketItemRepository.findAll();
-        for (MarketItem item : items) {
-            item.setDriftMultiplierBasisPoints(
-                NEUTRAL_MULTIPLIER_BASIS_POINTS
+        tradePlanner.clearPricingCache();
+        try {
+            Instant now = Instant.now();
+            List<MarketItem> items = marketItemRepository.findAll();
+            for (MarketItem item : items) {
+                item.setDriftMultiplierBasisPoints(
+                    NEUTRAL_MULTIPLIER_BASIS_POINTS
+                );
+                item.setDriftRevision(item.getDriftRevision() + 1L);
+                item.setDriftEvaluatedAt(now);
+                tradePlanner.recomputeDerivedProjections(item);
+            }
+            marketItemRepository.saveAll(items);
+            return new MarketDriftResetResponseDTO(
+                items.size(),
+                NEUTRAL_MULTIPLIER_BASIS_POINTS,
+                now
             );
-            item.setDriftRevision(item.getDriftRevision() + 1L);
-            item.setDriftEvaluatedAt(now);
-            tradePlanner.recomputeDerivedProjections(item);
+        } finally {
+            tradePlanner.clearPricingCache();
         }
-        marketItemRepository.saveAll(items);
-        return new MarketDriftResetResponseDTO(
-            items.size(),
-            NEUTRAL_MULTIPLIER_BASIS_POINTS,
-            now
-        );
     }
 }

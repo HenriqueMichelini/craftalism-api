@@ -12,7 +12,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import io.github.HenriqueMichelini.craftalism.api.model.MarketEventRarity;
+import io.github.HenriqueMichelini.craftalism.api.model.MarketEventInstance;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketEventScope;
+import io.github.HenriqueMichelini.craftalism.api.model.MarketEventSource;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketEventStatus;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketEventTemplate;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketItem;
@@ -289,6 +291,32 @@ class DashboardMarketEventAdminApiIntegrationTest {
         assertNotEquals(10_000L, item.getDriftMultiplierBasisPoints());
     }
 
+    @Test
+    void driftResetPersistsEventAwareProjectionsAndClearsCacheBetweenOperations()
+        throws Exception {
+        marketItemRepository.save(driftedItem());
+
+        mockMvc
+            .perform(post("/api/dashboard/market/drift/reset").with(adminJwt()))
+            .andExpect(status().isOk());
+
+        eventRepository.save(categoryEvent("farming", 12_000));
+
+        mockMvc
+            .perform(post("/api/dashboard/market/drift/reset").with(adminJwt()))
+            .andExpect(status().isOk());
+
+        MarketItem item = marketItemRepository.findById("wheat").orElseThrow();
+        assertEquals(10_000L, item.getDriftMultiplierBasisPoints());
+        assertEquals(9L, item.getDriftRevision());
+        assertEquals(120L, item.getBuyUnitEstimate());
+        assertEquals(84L, item.getSellUnitEstimate());
+        assertEquals(
+            0,
+            new BigDecimal("20.00").compareTo(item.getVariationPercent())
+        );
+    }
+
     private org.springframework.test.web.servlet.request.RequestPostProcessor adminJwt() {
         return jwt()
             .jwt(jwt -> jwt.subject("admin-user"))
@@ -377,5 +405,27 @@ class DashboardMarketEventAdminApiIntegrationTest {
         template.setCreatedAt(Instant.parse("2026-01-01T00:00:00Z"));
         template.setUpdatedAt(Instant.parse("2026-01-01T00:00:00Z"));
         return template;
+    }
+
+    private MarketEventInstance categoryEvent(
+        String categoryId,
+        int effectBasisPoints
+    ) {
+        Instant now = Instant.now();
+        MarketEventInstance event = new MarketEventInstance();
+        event.setTemplateId("category_event");
+        event.setSource(MarketEventSource.ADMIN);
+        event.setRarity(MarketEventRarity.MEDIUM);
+        event.setScope(MarketEventScope.CATEGORY);
+        event.setSelectedCategoryId(categoryId);
+        event.setEffectBasisPoints(effectBasisPoints);
+        event.setEffectVersion(1);
+        event.setBlocking(false);
+        event.setStartedAt(now.minusSeconds(60L));
+        event.setEndsAt(now.plusSeconds(600L));
+        event.setStatus(MarketEventStatus.ACTIVE);
+        event.setCreatedAt(now);
+        event.setUpdatedAt(now);
+        return event;
     }
 }
