@@ -28,7 +28,7 @@ public interface MarketEventInstanceRepository
     )
     Optional<MarketEventInstance> findEffectiveActive(@Param("now") Instant now);
 
-    @Modifying
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query(
         """
         UPDATE market_event_instances e

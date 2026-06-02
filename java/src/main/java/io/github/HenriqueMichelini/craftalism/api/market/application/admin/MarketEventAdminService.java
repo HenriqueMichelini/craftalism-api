@@ -38,7 +38,9 @@ public class MarketEventAdminService {
         this.lifecycleService = lifecycleService;
     }
 
+    @Transactional
     public List<MarketEventAdminResponseDTO> listEvents() {
+        reconcileExpiredEvents(Instant.now());
         return eventRepository
             .findAll()
             .stream()
@@ -57,15 +59,17 @@ public class MarketEventAdminService {
         String actor
     ) {
         MarketEventTemplate template = template(request.templateId());
-        return startEvent(request, actor, template);
+        Instant now = Instant.now();
+        reconcileExpiredEvents(now);
+        return startEvent(request, actor, template, now);
     }
 
     private MarketEventAdminResponseDTO startEvent(
         MarketEventAdminCreateRequestDTO request,
         String actor,
-        MarketEventTemplate template
+        MarketEventTemplate template,
+        Instant now
     ) {
-        Instant now = Instant.now();
         MarketEventInstance event = eventFromRequest(request, template, actor, now);
         return toResponse(lifecycleService.start(event));
     }
@@ -77,6 +81,7 @@ public class MarketEventAdminService {
     ) {
         MarketEventTemplate template = template(request.templateId());
         Instant now = Instant.now();
+        reconcileExpiredEvents(now);
         lifecycleService
             .effectiveActiveEvent(now)
             .ifPresent(active ->
@@ -87,7 +92,7 @@ public class MarketEventAdminService {
                     now
                 )
             );
-        return startEvent(request, actor, template);
+        return startEvent(request, actor, template, now);
     }
 
     @Transactional
@@ -96,8 +101,9 @@ public class MarketEventAdminService {
         MarketEventAdminUpdateRequestDTO request,
         String actor
     ) {
-        MarketEventInstance event = event(id);
         Instant now = Instant.now();
+        reconcileExpiredEvents(now);
+        MarketEventInstance event = event(id);
         String before = auditValues(event);
         if (request.effectBasisPoints() != null) {
             event.setEffectBasisPoints(request.effectBasisPoints());
@@ -116,7 +122,9 @@ public class MarketEventAdminService {
         event.setAuditMetadata(
             audit("update", actor, request.reason(), before, auditValues(event))
         );
-        return toResponse(eventRepository.save(event));
+        eventRepository.saveAndFlush(event);
+        reconcileExpiredEvents(now);
+        return toResponse(event(id));
     }
 
     @Transactional
@@ -125,8 +133,9 @@ public class MarketEventAdminService {
         MarketEventAdminCancelRequestDTO request,
         String actor
     ) {
-        MarketEventInstance event = event(id);
         Instant now = Instant.now();
+        reconcileExpiredEvents(now);
+        MarketEventInstance event = event(id);
         event.setActor(actor);
         event.setAuditMetadata(
             audit("cancel", actor, request.reason(), auditValues(event), null)
@@ -139,6 +148,10 @@ public class MarketEventAdminService {
                 now
             )
         );
+    }
+
+    private void reconcileExpiredEvents(Instant now) {
+        lifecycleService.expireElapsedActiveEvents(now);
     }
 
     private MarketEventInstance eventFromRequest(

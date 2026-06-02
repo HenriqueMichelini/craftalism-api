@@ -144,7 +144,7 @@ class MarketEventAdminServiceTest {
     void updateEventRecordsBeforeAndAfterAuditAndBumpsEffectVersion() {
         MarketEventInstance event = activeEvent();
         when(eventRepository.findById(10L)).thenReturn(Optional.of(event));
-        when(eventRepository.save(any())).thenAnswer(invocation ->
+        when(eventRepository.saveAndFlush(any())).thenAnswer(invocation ->
             invocation.getArgument(0)
         );
 

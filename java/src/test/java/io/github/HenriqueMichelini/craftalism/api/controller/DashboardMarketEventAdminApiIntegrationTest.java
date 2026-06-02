@@ -4,6 +4,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -11,6 +12,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import io.github.HenriqueMichelini.craftalism.api.model.MarketEventEndReason;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketEventRarity;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketEventInstance;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketEventScope;
@@ -148,6 +150,115 @@ class DashboardMarketEventAdminApiIntegrationTest {
             )
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.selectedItemIds").value("carrot"));
+    }
+
+    @Test
+    void adminListExpiresElapsedEventAndClearsActiveSlot() throws Exception {
+        MarketEventInstance elapsed = eventRepository.save(elapsedActiveEvent());
+
+        mockMvc
+            .perform(get("/api/dashboard/market/events").with(adminJwt()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$[0].status").value("EXPIRED"))
+            .andExpect(jsonPath("$[0].endReason").value("EXPIRED"));
+
+        MarketEventInstance expired = eventRepository
+            .findById(elapsed.getId())
+            .orElseThrow();
+        assertEquals(MarketEventStatus.EXPIRED, expired.getStatus());
+        assertEquals(MarketEventEndReason.EXPIRED, expired.getEndReason());
+        assertNull(expired.getActiveSlot());
+    }
+
+    @Test
+    void updateToPastEndTimeReturnsExpiredEvent() throws Exception {
+        MarketEventInstance active = eventRepository.save(activeEvent());
+
+        mockMvc
+            .perform(
+                patch("/api/dashboard/market/events/{id}", active.getId())
+                    .with(adminJwt())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(
+                        """
+                        {
+                          "endsAt": "2026-01-01T00:00:00Z",
+                          "reason": "expire immediately"
+                        }
+                        """
+                    )
+            )
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.status").value("EXPIRED"))
+            .andExpect(jsonPath("$.endReason").value("EXPIRED"));
+    }
+
+    @Test
+    void updateToElapsedDurationReturnsExpiredEvent() throws Exception {
+        MarketEventInstance active = eventRepository.save(activeEvent());
+
+        mockMvc
+            .perform(
+                patch("/api/dashboard/market/events/{id}", active.getId())
+                    .with(adminJwt())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(
+                        """
+                        {
+                          "durationSeconds": 1,
+                          "reason": "shorten immediately"
+                        }
+                        """
+                    )
+            )
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.status").value("EXPIRED"))
+            .andExpect(jsonPath("$.endReason").value("EXPIRED"));
+    }
+
+    @Test
+    void manualStartReconcilesElapsedEventBeforeStartingReplacement()
+        throws Exception {
+        MarketEventInstance elapsed = eventRepository.save(elapsedActiveEvent());
+
+        mockMvc
+            .perform(
+                post("/api/dashboard/market/events")
+                    .with(adminJwt())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(createEventJson("carrot"))
+            )
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.status").value("ACTIVE"))
+            .andExpect(jsonPath("$.selectedItemIds").value("carrot"));
+
+        assertEquals(
+            MarketEventStatus.EXPIRED,
+            eventRepository.findById(elapsed.getId()).orElseThrow().getStatus()
+        );
+    }
+
+    @Test
+    void supersedeReconcilesElapsedEventBeforeStartingReplacement()
+        throws Exception {
+        MarketEventInstance elapsed = eventRepository.save(elapsedActiveEvent());
+
+        mockMvc
+            .perform(
+                post("/api/dashboard/market/events/supersede")
+                    .with(adminJwt())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(createEventJson("carrot"))
+            )
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.status").value("ACTIVE"))
+            .andExpect(jsonPath("$.selectedItemIds").value("carrot"));
+
+        MarketEventInstance expired = eventRepository
+            .findById(elapsed.getId())
+            .orElseThrow();
+        assertEquals(MarketEventStatus.EXPIRED, expired.getStatus());
+        assertEquals(MarketEventEndReason.EXPIRED, expired.getEndReason());
     }
 
     @Test
@@ -351,6 +462,46 @@ class DashboardMarketEventAdminApiIntegrationTest {
         int valueStart = start + needle.length();
         int valueEnd = body.indexOf('"', valueStart);
         return body.substring(valueStart, valueEnd);
+    }
+
+    private String createEventJson(String selectedItemIds) {
+        return """
+        {
+          "templateId": "rare_customs_hold",
+          "scope": "ITEM",
+          "selectedItemIds": "%s",
+          "durationSeconds": 900,
+          "reason": "replacement"
+        }
+        """.formatted(selectedItemIds);
+    }
+
+    private MarketEventInstance elapsedActiveEvent() {
+        Instant now = Instant.now();
+        return event(now.minusSeconds(1_200L), now.minusSeconds(600L));
+    }
+
+    private MarketEventInstance activeEvent() {
+        Instant now = Instant.now();
+        return event(now.minusSeconds(600L), now.plusSeconds(600L));
+    }
+
+    private MarketEventInstance event(Instant startedAt, Instant endsAt) {
+        MarketEventInstance event = new MarketEventInstance();
+        event.setTemplateId("rare_customs_hold");
+        event.setSource(MarketEventSource.ADMIN);
+        event.setRarity(MarketEventRarity.RARE);
+        event.setScope(MarketEventScope.ITEM);
+        event.setSelectedItemIds("wheat");
+        event.setEffectBasisPoints(10_000);
+        event.setEffectVersion(1);
+        event.setBlocking(true);
+        event.setStartedAt(startedAt);
+        event.setEndsAt(endsAt);
+        event.setStatus(MarketEventStatus.ACTIVE);
+        event.setCreatedAt(startedAt);
+        event.setUpdatedAt(startedAt);
+        return event;
     }
 
     private MarketItem driftedItem() {
