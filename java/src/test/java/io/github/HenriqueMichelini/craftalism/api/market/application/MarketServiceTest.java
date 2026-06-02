@@ -82,7 +82,9 @@ class MarketServiceTest {
         int quoteRateLimitMaxRequests,
         int executeRateLimitMaxRequests
     ) {
-        return new MarketServiceConfiguration(fixedClock()).marketService(
+        MarketServiceConfiguration configuration =
+            new MarketServiceConfiguration(fixedClock());
+        return configuration.marketService(
             marketItemRepository,
             marketCategoryRepository,
             balanceRepository,
@@ -100,6 +102,10 @@ class MarketServiceTest {
                 quoteRateLimitMaxRequests,
                 executeRateLimitMaxRequests,
                 60L
+            ),
+            configuration.marketSnapshotStateLoader(
+                marketItemRepository,
+                null
             )
         );
     }

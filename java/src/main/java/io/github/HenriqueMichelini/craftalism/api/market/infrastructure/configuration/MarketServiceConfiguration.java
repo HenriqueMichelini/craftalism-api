@@ -64,6 +64,17 @@ public class MarketServiceConfiguration {
     }
 
     @Bean
+    public MarketSnapshotStateLoader marketSnapshotStateLoader(
+        MarketItemRepository marketItemRepository,
+        MarketEventPricingService eventPricingService
+    ) {
+        return new MarketSnapshotStateLoader(
+            marketItemRepository,
+            new MarketTradePlanner(eventPricingService)
+        );
+    }
+
+    @Bean
     public MarketService marketService(
         MarketItemRepository marketItemRepository,
         MarketCategoryRepository marketCategoryRepository,
@@ -75,7 +86,8 @@ public class MarketServiceConfiguration {
         MarketEventPricingService eventPricingService,
         MarketEventBlockingService eventBlockingService,
         DefaultMarketCatalog defaultMarketCatalog,
-        MarketSettings settings
+        MarketSettings settings,
+        MarketSnapshotStateLoader marketSnapshotStateLoader
     ) {
         MarketTradePlanner tradePlanner = new MarketTradePlanner(
             eventPricingService
@@ -89,7 +101,7 @@ public class MarketServiceConfiguration {
             );
         MarketSnapshotService marketSnapshotService =
             new MarketSnapshotService(
-                new MarketSnapshotStateLoader(marketItemRepository, tradePlanner),
+                marketSnapshotStateLoader,
                 new MarketSnapshotProjector(tradePlanner, eventBlockingService),
                 eventPublicContextService
             );

@@ -54,6 +54,10 @@ public final class MarketSnapshotStateLoader {
         this.clock = clock;
     }
 
+    public List<MarketItem> refreshedItems() {
+        return regeneratedItems().items();
+    }
+
     MarketSnapshotState regeneratedItems() {
         long fetchStartNanos = System.nanoTime();
         List<MarketItem> items = new ArrayList<>(

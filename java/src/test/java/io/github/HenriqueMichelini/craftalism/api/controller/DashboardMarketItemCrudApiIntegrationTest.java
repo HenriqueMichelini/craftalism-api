@@ -1,5 +1,8 @@
 package io.github.HenriqueMichelini.craftalism.api.controller;
 
+import static org.hamcrest.Matchers.not;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -285,6 +288,53 @@ class DashboardMarketItemCrudApiIntegrationTest {
             );
     }
 
+    @Test
+    void marketItemCrud_listRefreshesEligibleBalancedDriftAfterReset()
+        throws Exception {
+        MarketItem item = marketItem("eligible_drift_item", "Eligible Drift Item");
+        item.setBaseUnitPrice(100_000L);
+        item.setMinUnitPrice(50_000L);
+        item.setMaxUnitPrice(300_000L);
+        marketItemRepository.save(item);
+
+        mockMvc
+            .perform(post("/api/dashboard/market/drift/reset"))
+            .andExpect(status().isOk());
+
+        MarketItem resetItem = marketItemRepository
+            .findById("eligible_drift_item")
+            .orElseThrow();
+        long resetRevision = resetItem.getDriftRevision();
+
+        mockMvc
+            .perform(get(BASE_PATH))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$[0].buyUnitEstimate").value(100_000));
+
+        MarketItem beforeIntervalItem = marketItemRepository
+            .findById("eligible_drift_item")
+            .orElseThrow();
+        assertEquals(resetRevision, beforeIntervalItem.getDriftRevision());
+
+        beforeIntervalItem.setDriftEvaluatedAt(
+            beforeIntervalItem.getDriftEvaluatedAt().minusSeconds(3_600L)
+        );
+        marketItemRepository.save(beforeIntervalItem);
+
+        mockMvc
+            .perform(get(BASE_PATH))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$[0].buyUnitEstimate").value(not(100_000)));
+
+        MarketItem refreshedItem = marketItemRepository
+            .findById("eligible_drift_item")
+            .orElseThrow();
+        assertEquals(0L, refreshedItem.getNetPosition());
+        assertEquals(resetRevision + 1L, refreshedItem.getDriftRevision());
+        assertNotEquals(10_000L, refreshedItem.getDriftMultiplierBasisPoints());
+        assertNotEquals(100_000L, refreshedItem.getBuyUnitEstimate());
+    }
+
     private static MarketItem marketItem(String itemId, String displayName) {
         MarketItem item = new MarketItem();
         item.setItemId(itemId);
@@ -308,10 +358,10 @@ class DashboardMarketItemCrudApiIntegrationTest {
         item.setVariationPercent(new BigDecimal("0.00"));
         item.setBlocked(false);
         item.setOperating(true);
-        item.setLastUpdatedAt(Instant.parse("2026-01-01T00:00:00Z"));
+        item.setLastUpdatedAt(Instant.now());
         item.setDriftMultiplierBasisPoints(10_000L);
         item.setDriftRevision(0L);
-        item.setDriftEvaluatedAt(Instant.parse("2026-01-01T00:00:00Z"));
+        item.setDriftEvaluatedAt(Instant.now());
         return item;
     }
 
