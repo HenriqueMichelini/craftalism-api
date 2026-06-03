@@ -3,6 +3,7 @@ package io.github.HenriqueMichelini.craftalism.api.controller;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -10,6 +11,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import io.github.HenriqueMichelini.craftalism.api.model.MarketEventInstance;
+import io.github.HenriqueMichelini.craftalism.api.model.MarketEventScope;
+import io.github.HenriqueMichelini.craftalism.api.model.MarketEventSource;
+import io.github.HenriqueMichelini.craftalism.api.model.MarketEventStatus;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketEventTemplate;
 import io.github.HenriqueMichelini.craftalism.api.repository.MarketEventInstanceRepository;
 import io.github.HenriqueMichelini.craftalism.api.repository.MarketEventTemplateRepository;
@@ -135,6 +140,35 @@ class DashboardMarketEventTemplateApiIntegrationTest {
             );
 
         assertEquals(0L, templateRepository.count());
+    }
+
+    @Test
+    void deleteReferencedTemplateReturnsConflictAndPreservesTemplate()
+        throws Exception {
+        mockMvc
+            .perform(
+                post("/api/dashboard/market/event-templates")
+                    .with(adminJwt())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(validTemplate())
+            )
+            .andExpect(status().isCreated());
+        eventRepository.save(eventInstance("crafting_festival"));
+
+        mockMvc
+            .perform(
+                delete(
+                    "/api/dashboard/market/event-templates/crafting_festival"
+                ).with(adminJwt())
+            )
+            .andExpect(status().isConflict())
+            .andExpect(
+                jsonPath("$.detail").value(
+                    "Market event template is referenced and cannot be deleted: crafting_festival"
+                )
+            );
+
+        assertTrue(templateRepository.existsById("crafting_festival"));
     }
 
     @Test
@@ -277,5 +311,24 @@ class DashboardMarketEventTemplateApiIntegrationTest {
               "eligibleTargetMetadata": "{\\"categoryIds\\":[\\"farming\\"]}"
             }
             """;
+    }
+
+    private MarketEventInstance eventInstance(String templateId) {
+        Instant now = Instant.parse("2026-01-01T00:00:00Z");
+        MarketEventInstance event = new MarketEventInstance();
+        event.setTemplateId(templateId);
+        event.setSource(MarketEventSource.ADMIN);
+        event.setScope(MarketEventScope.MARKET_WIDE);
+        event.setEffectBasisPoints(10_200);
+        event.setEffectVersion(1);
+        event.setBlocking(false);
+        event.setStartedAt(now);
+        event.setEndsAt(now.plusSeconds(900));
+        event.setStatus(MarketEventStatus.CANCELLED);
+        event.setActor("admin-user");
+        event.setAuditMetadata("{}");
+        event.setCreatedAt(now);
+        event.setUpdatedAt(now);
+        return event;
     }
 }

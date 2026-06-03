@@ -5,11 +5,13 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.HenriqueMichelini.craftalism.api.dto.MarketEventTemplateCreateRequestDTO;
 import io.github.HenriqueMichelini.craftalism.api.dto.MarketEventTemplateResponseDTO;
 import io.github.HenriqueMichelini.craftalism.api.dto.MarketEventTemplateUpdateRequestDTO;
+import io.github.HenriqueMichelini.craftalism.api.exceptions.MarketEventTemplateInUseException;
 import io.github.HenriqueMichelini.craftalism.api.exceptions.MarketEventTemplateValidationException;
 import io.github.HenriqueMichelini.craftalism.api.market.domain.event.DefaultMarketEventTemplateCatalog;
 import io.github.HenriqueMichelini.craftalism.api.market.domain.event.MarketEventTemplateBuilder;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketEventScope;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketEventTemplate;
+import io.github.HenriqueMichelini.craftalism.api.repository.MarketEventInstanceRepository;
 import io.github.HenriqueMichelini.craftalism.api.repository.MarketEventTemplateRepository;
 import java.time.Instant;
 import java.util.Comparator;
@@ -22,15 +24,18 @@ import org.springframework.transaction.annotation.Transactional;
 public class MarketEventTemplateService {
 
     private final MarketEventTemplateRepository templateRepository;
+    private final MarketEventInstanceRepository eventRepository;
     private final ObjectMapper objectMapper;
     private final DefaultMarketEventTemplateCatalog defaultTemplateCatalog;
 
     public MarketEventTemplateService(
         MarketEventTemplateRepository templateRepository,
+        MarketEventInstanceRepository eventRepository,
         ObjectMapper objectMapper,
         DefaultMarketEventTemplateCatalog defaultTemplateCatalog
     ) {
         this.templateRepository = templateRepository;
+        this.eventRepository = eventRepository;
         this.objectMapper = objectMapper;
         this.defaultTemplateCatalog = defaultTemplateCatalog;
     }
@@ -131,6 +136,10 @@ public class MarketEventTemplateService {
             .orElseThrow(() ->
                 validation("Market event template does not exist.")
             );
+
+        if (eventRepository.existsByTemplateId(normalizedTemplateId)) {
+            throw new MarketEventTemplateInUseException(normalizedTemplateId);
+        }
 
         templateRepository.delete(template);
     }
