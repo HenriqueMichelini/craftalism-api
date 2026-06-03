@@ -18,8 +18,6 @@ public interface MarketEventInstanceRepository
 
     List<MarketEventInstance> findByCreatedAtAfter(Instant createdAt);
 
-    boolean existsByTemplateId(String templateId);
-
     @Query(
         """
         SELECT e FROM market_event_instances e

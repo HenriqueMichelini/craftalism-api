@@ -10,14 +10,12 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import io.github.HenriqueMichelini.craftalism.api.exceptions.MarketEventTemplateInUseException;
 import io.github.HenriqueMichelini.craftalism.api.dto.MarketEventTemplateUpdateRequestDTO;
 import io.github.HenriqueMichelini.craftalism.api.exceptions.MarketEventTemplateValidationException;
 import io.github.HenriqueMichelini.craftalism.api.market.domain.event.DefaultMarketEventTemplateCatalog;
 import io.github.HenriqueMichelini.craftalism.api.market.domain.event.MarketEventTemplateBuilder;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketEventScope;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketEventTemplate;
-import io.github.HenriqueMichelini.craftalism.api.repository.MarketEventInstanceRepository;
 import io.github.HenriqueMichelini.craftalism.api.repository.MarketEventTemplateRepository;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -35,16 +33,12 @@ class MarketEventTemplateTest {
     @Mock
     private MarketEventTemplateRepository templateRepository;
 
-    @Mock
-    private MarketEventInstanceRepository eventRepository;
-
     @Test
     void seedInitialTemplatesIfEmptySeedsAuthoredTemplates() {
         when(templateRepository.count()).thenReturn(0L);
 
         new MarketEventTemplateService(
             templateRepository,
-            eventRepository,
             new ObjectMapper(),
             new DefaultMarketEventTemplateCatalog()
         ).seedInitialTemplatesIfEmpty();
@@ -75,7 +69,6 @@ class MarketEventTemplateTest {
 
         new MarketEventTemplateService(
             templateRepository,
-            eventRepository,
             new ObjectMapper(),
             new DefaultMarketEventTemplateCatalog()
         ).seedInitialTemplatesIfEmpty();
@@ -97,7 +90,6 @@ class MarketEventTemplateTest {
 
         new MarketEventTemplateService(
             templateRepository,
-            eventRepository,
             new ObjectMapper(),
             new DefaultMarketEventTemplateCatalog()
         ).updateTemplate("crafting_festival", validUpdateRequest());
@@ -133,7 +125,6 @@ class MarketEventTemplateTest {
 
         new MarketEventTemplateService(
             templateRepository,
-            eventRepository,
             new ObjectMapper(),
             new DefaultMarketEventTemplateCatalog()
         ).updateTemplate("rare_customs_hold", validBlockUpdateRequest());
@@ -158,7 +149,6 @@ class MarketEventTemplateTest {
             () ->
                 new MarketEventTemplateService(
                     templateRepository,
-                    eventRepository,
                     new ObjectMapper(),
                     new DefaultMarketEventTemplateCatalog()
                 ).updateTemplate("missing", validUpdateRequest())
@@ -187,7 +177,6 @@ class MarketEventTemplateTest {
             () ->
                 new MarketEventTemplateService(
                     templateRepository,
-                    eventRepository,
                     new ObjectMapper(),
                     new DefaultMarketEventTemplateCatalog()
                 ).updateTemplate(
@@ -221,7 +210,6 @@ class MarketEventTemplateTest {
             () ->
                 new MarketEventTemplateService(
                     templateRepository,
-                    eventRepository,
                     new ObjectMapper(),
                     new DefaultMarketEventTemplateCatalog()
                 ).updateTemplate(
@@ -239,7 +227,7 @@ class MarketEventTemplateTest {
     }
 
     @Test
-    void deleteReferencedTemplateReturnsConflictWithoutDeletingTemplate() {
+    void deleteTemplateDeletesPersistedTemplate() {
         Instant createdAt = Instant.parse("2026-01-01T00:00:00Z");
         MarketEventTemplate existing = template(
             "crafting_festival",
@@ -248,23 +236,32 @@ class MarketEventTemplateTest {
         when(templateRepository.findById("crafting_festival")).thenReturn(
             Optional.of(existing)
         );
-        when(eventRepository.existsByTemplateId("crafting_festival")).thenReturn(
-            true
-        );
 
-        MarketEventTemplateInUseException exception = assertThrows(
-            MarketEventTemplateInUseException.class,
+        new MarketEventTemplateService(
+            templateRepository,
+            new ObjectMapper(),
+            new DefaultMarketEventTemplateCatalog()
+        ).deleteTemplate("crafting_festival");
+
+        verify(templateRepository).delete(existing);
+    }
+
+    @Test
+    void deleteUnknownTemplateReturnsValidationProblem() {
+        when(templateRepository.findById("missing")).thenReturn(Optional.empty());
+
+        MarketEventTemplateValidationException exception = assertThrows(
+            MarketEventTemplateValidationException.class,
             () ->
                 new MarketEventTemplateService(
                     templateRepository,
-                    eventRepository,
                     new ObjectMapper(),
                     new DefaultMarketEventTemplateCatalog()
-                ).deleteTemplate("crafting_festival")
+                ).deleteTemplate("missing")
         );
 
         assertEquals(
-            "Market event template is referenced and cannot be deleted: crafting_festival",
+            "Market event template does not exist.",
             exception.getMessage()
         );
         verify(templateRepository, never()).delete(any());

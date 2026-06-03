@@ -143,7 +143,7 @@ class DashboardMarketEventTemplateApiIntegrationTest {
     }
 
     @Test
-    void deleteReferencedTemplateReturnsConflictAndPreservesTemplate()
+    void deleteReferencedTemplateRemovesTemplateAndPreservesEventHistory()
         throws Exception {
         mockMvc
             .perform(
@@ -161,14 +161,14 @@ class DashboardMarketEventTemplateApiIntegrationTest {
                     "/api/dashboard/market/event-templates/crafting_festival"
                 ).with(adminJwt())
             )
-            .andExpect(status().isConflict())
-            .andExpect(
-                jsonPath("$.detail").value(
-                    "Market event template is referenced and cannot be deleted: crafting_festival"
-                )
-            );
+            .andExpect(status().isNoContent());
 
-        assertTrue(templateRepository.existsById("crafting_festival"));
+        assertTrue(templateRepository.findById("crafting_festival").isEmpty());
+        assertEquals(1L, eventRepository.count());
+        assertEquals(
+            "crafting_festival",
+            eventRepository.findAll().get(0).getTemplateId()
+        );
     }
 
     @Test
