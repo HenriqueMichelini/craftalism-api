@@ -9,6 +9,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import io.github.HenriqueMichelini.craftalism.api.config.MarketSettings;
 import io.github.HenriqueMichelini.craftalism.api.dto.MarketExecuteRequestDTO;
 import io.github.HenriqueMichelini.craftalism.api.dto.MarketExecuteSuccessResponseDTO;
 import io.github.HenriqueMichelini.craftalism.api.dto.MarketQuoteRequestDTO;
@@ -16,7 +17,6 @@ import io.github.HenriqueMichelini.craftalism.api.dto.MarketQuoteResponseDTO;
 import io.github.HenriqueMichelini.craftalism.api.dto.MarketSide;
 import io.github.HenriqueMichelini.craftalism.api.exceptions.MarketRejectionCode;
 import io.github.HenriqueMichelini.craftalism.api.exceptions.MarketRejectionException;
-import io.github.HenriqueMichelini.craftalism.api.config.MarketSettings;
 import io.github.HenriqueMichelini.craftalism.api.market.domain.catalog.DefaultMarketCatalog;
 import io.github.HenriqueMichelini.craftalism.api.market.domain.trade.MarketTradePlanner;
 import io.github.HenriqueMichelini.craftalism.api.market.infrastructure.configuration.MarketServiceConfiguration;
@@ -73,10 +73,7 @@ class MarketServiceTest {
 
     @BeforeEach
     void setUp() {
-        marketService = marketService(
-            0,
-            0
-        );
+        marketService = marketService(0, 0);
     }
 
     private MarketService marketService(
@@ -115,14 +112,22 @@ class MarketServiceTest {
     @Test
     void quote_rejectsStaleSnapshotVersion() {
         MarketItem item = marketItem(5L);
-        when(marketItemRepository.findAllForMarketRead()).thenReturn(java.util.List.of(item));
+        when(marketItemRepository.findAllForMarketRead()).thenReturn(
+            java.util.List.of(item)
+        );
 
         MarketRejectionException exception = assertThrows(
             MarketRejectionException.class,
             () ->
                 marketService.quote(
                     authentication(),
-                    new MarketQuoteRequestDTO("wheat", MarketSide.BUY, 10L, "market:stale", null),
+                    new MarketQuoteRequestDTO(
+                        "wheat",
+                        MarketSide.BUY,
+                        10L,
+                        "market:stale",
+                        null
+                    ),
                     null
                 )
         );
@@ -134,7 +139,9 @@ class MarketServiceTest {
     @ValueSource(longs = { 0L, -1L })
     void quote_rejectsInvalidQuantity(long quantity) {
         MarketItem item = marketItem(5L);
-        when(marketItemRepository.findAllForMarketRead()).thenReturn(java.util.List.of(item));
+        when(marketItemRepository.findAllForMarketRead()).thenReturn(
+            java.util.List.of(item)
+        );
 
         MarketRejectionException exception = assertThrows(
             MarketRejectionException.class,
@@ -154,17 +161,27 @@ class MarketServiceTest {
 
         assertEquals(MarketRejectionCode.INVALID_QUANTITY, exception.getCode());
         assertNotNull(exception.getSnapshotVersion());
-        verify(quoteStore, never()).put(any(MarketQuoteStore.StoredQuote.class));
+        verify(quoteStore, never()).put(
+            any(MarketQuoteStore.StoredQuote.class)
+        );
     }
 
     @Test
     void execute_buyUpdatesBalanceAndPressure() {
         MarketItem item = marketItem(5L);
-        when(marketItemRepository.findAllForMarketRead()).thenReturn(java.util.List.of(item));
+        when(marketItemRepository.findAllForMarketRead()).thenReturn(
+            java.util.List.of(item)
+        );
 
         MarketQuoteResponseDTO quote = marketService.quote(
             authentication(),
-            new MarketQuoteRequestDTO("wheat", MarketSide.BUY, 10L, marketService.getSnapshot().snapshotVersion(), null),
+            new MarketQuoteRequestDTO(
+                "wheat",
+                MarketSide.BUY,
+                10L,
+                marketService.getSnapshot().snapshotVersion(),
+                null
+            ),
             null
         );
 
@@ -190,13 +207,24 @@ class MarketServiceTest {
                 )
             )
         );
-        when(marketItemRepository.findForUpdate("wheat")).thenReturn(Optional.of(item));
-        when(balanceRepository.findForUpdate(playerUuid())).thenReturn(Optional.of(balance));
+        when(marketItemRepository.findForUpdate("wheat")).thenReturn(
+            Optional.of(item)
+        );
+        when(balanceRepository.findForUpdate(playerUuid())).thenReturn(
+            Optional.of(balance)
+        );
         when(quoteStore.consume(quote.quoteToken())).thenReturn(true);
 
         MarketExecuteSuccessResponseDTO response = marketService.execute(
             authentication(),
-            new MarketExecuteRequestDTO("wheat", MarketSide.BUY, 10L, quote.quoteToken(), quote.snapshotVersion(), null),
+            new MarketExecuteRequestDTO(
+                "wheat",
+                MarketSide.BUY,
+                10L,
+                quote.quoteToken(),
+                quote.snapshotVersion(),
+                null
+            ),
             null
         );
 
@@ -208,17 +236,27 @@ class MarketServiceTest {
         assertNotNull(response.updatedItem());
         verify(balanceRepository).save(balance);
         verify(marketItemRepository).save(item);
-        verify(marketTradeHistoryRepository).save(any(MarketTradeHistory.class));
+        verify(marketTradeHistoryRepository).save(
+            any(MarketTradeHistory.class)
+        );
     }
 
     @Test
     void quote_buyTraversesVirtualPressureSegmentsProgressively() {
         MarketItem item = marketItem(5L);
-        when(marketItemRepository.findAllForMarketRead()).thenReturn(java.util.List.of(item));
+        when(marketItemRepository.findAllForMarketRead()).thenReturn(
+            java.util.List.of(item)
+        );
 
         MarketQuoteResponseDTO quote = marketService.quote(
             authentication(),
-            new MarketQuoteRequestDTO("wheat", MarketSide.BUY, 60L, marketService.getSnapshot().snapshotVersion(), null),
+            new MarketQuoteRequestDTO(
+                "wheat",
+                MarketSide.BUY,
+                60L,
+                marketService.getSnapshot().snapshotVersion(),
+                null
+            ),
             null
         );
 
@@ -230,7 +268,9 @@ class MarketServiceTest {
     @Test
     void execute_buyAcrossVirtualSegments_updatesExecutedQuantityAndDerivedProjections() {
         MarketItem item = marketItem(5L);
-        when(marketItemRepository.findAllForMarketRead()).thenReturn(java.util.List.of(item));
+        when(marketItemRepository.findAllForMarketRead()).thenReturn(
+            java.util.List.of(item)
+        );
         String snapshotVersion = marketService.getSnapshot().snapshotVersion();
 
         Balance balance = new Balance(playerUuid(), 1_000L);
@@ -255,13 +295,24 @@ class MarketServiceTest {
                 )
             )
         );
-        when(marketItemRepository.findForUpdate("wheat")).thenReturn(Optional.of(item));
-        when(balanceRepository.findForUpdate(playerUuid())).thenReturn(Optional.of(balance));
+        when(marketItemRepository.findForUpdate("wheat")).thenReturn(
+            Optional.of(item)
+        );
+        when(balanceRepository.findForUpdate(playerUuid())).thenReturn(
+            Optional.of(balance)
+        );
         when(quoteStore.consume("segment-quote")).thenReturn(true);
 
         MarketExecuteSuccessResponseDTO response = marketService.execute(
             authentication(),
-            new MarketExecuteRequestDTO("wheat", MarketSide.BUY, 60L, "segment-quote", snapshotVersion, null),
+            new MarketExecuteRequestDTO(
+                "wheat",
+                MarketSide.BUY,
+                60L,
+                "segment-quote",
+                snapshotVersion,
+                null
+            ),
             null
         );
 
@@ -278,7 +329,9 @@ class MarketServiceTest {
     @Test
     void execute_buyAtSegmentBoundary_mutatesPressurePosition() {
         MarketItem item = marketItem(5L);
-        when(marketItemRepository.findAllForMarketRead()).thenReturn(java.util.List.of(item));
+        when(marketItemRepository.findAllForMarketRead()).thenReturn(
+            java.util.List.of(item)
+        );
         String snapshotVersion = marketService.getSnapshot().snapshotVersion();
 
         Balance balance = new Balance(playerUuid(), 1_000L);
@@ -303,13 +356,24 @@ class MarketServiceTest {
                 )
             )
         );
-        when(marketItemRepository.findForUpdate("wheat")).thenReturn(Optional.of(item));
-        when(balanceRepository.findForUpdate(playerUuid())).thenReturn(Optional.of(balance));
+        when(marketItemRepository.findForUpdate("wheat")).thenReturn(
+            Optional.of(item)
+        );
+        when(balanceRepository.findForUpdate(playerUuid())).thenReturn(
+            Optional.of(balance)
+        );
         when(quoteStore.consume("exhaust-quote")).thenReturn(true);
 
         MarketExecuteSuccessResponseDTO response = marketService.execute(
             authentication(),
-            new MarketExecuteRequestDTO("wheat", MarketSide.BUY, 50L, "exhaust-quote", snapshotVersion, null),
+            new MarketExecuteRequestDTO(
+                "wheat",
+                MarketSide.BUY,
+                50L,
+                "exhaust-quote",
+                snapshotVersion,
+                null
+            ),
             null
         );
 
@@ -328,19 +392,38 @@ class MarketServiceTest {
         MarketItem changedCarrot = marketItem("carrot", 10L);
         changedCarrot.setBlocked(true);
         MarketItem lockedWheat = marketItem(5L);
+
+        List<MarketItem> initialItems = java.util.List.of(
+            quotedWheat,
+            initialCarrot
+        );
+        List<MarketItem> changedItems = java.util.List.of(
+            quotedWheat,
+            changedCarrot
+        );
+        List<MarketItem> lockedItems = java.util.List.of(
+            lockedWheat,
+            changedCarrot
+        );
+
         when(marketItemRepository.findAllForMarketRead())
-            .thenReturn(
-                java.util.List.of(quotedWheat, initialCarrot),
-                java.util.List.of(quotedWheat, initialCarrot),
-                java.util.List.of(quotedWheat, changedCarrot),
-                java.util.List.of(quotedWheat, changedCarrot),
-                java.util.List.of(lockedWheat, changedCarrot)
-            );
+            .thenReturn(initialItems)
+            .thenReturn(initialItems)
+            .thenReturn(changedItems)
+            .thenReturn(changedItems)
+            .thenReturn(lockedItems);
+
         String snapshotVersion = marketService.getSnapshot().snapshotVersion();
 
         MarketQuoteResponseDTO quote = marketService.quote(
             authentication(),
-            new MarketQuoteRequestDTO("wheat", MarketSide.BUY, 10L, snapshotVersion, null),
+            new MarketQuoteRequestDTO(
+                "wheat",
+                MarketSide.BUY,
+                10L,
+                snapshotVersion,
+                null
+            ),
             null
         );
         Balance balance = new Balance(playerUuid(), 1_000L);
@@ -366,8 +449,12 @@ class MarketServiceTest {
             )
         );
         when(quoteStore.consume(quote.quoteToken())).thenReturn(true);
-        when(marketItemRepository.findForUpdate("wheat")).thenReturn(Optional.of(lockedWheat));
-        when(balanceRepository.findForUpdate(playerUuid())).thenReturn(Optional.of(balance));
+        when(marketItemRepository.findForUpdate("wheat")).thenReturn(
+            Optional.of(lockedWheat)
+        );
+        when(balanceRepository.findForUpdate(playerUuid())).thenReturn(
+            Optional.of(balance)
+        );
 
         MarketExecuteSuccessResponseDTO response = marketService.execute(
             authentication(),
@@ -394,8 +481,9 @@ class MarketServiceTest {
         MarketItem snapshotItem = marketItem(5L);
         MarketItem lockedItem = marketItem(5L);
         lockedItem.setNetPosition(50L);
-        when(marketItemRepository.findAllForMarketRead())
-            .thenReturn(java.util.List.of(snapshotItem));
+        when(marketItemRepository.findAllForMarketRead()).thenReturn(
+            java.util.List.of(snapshotItem)
+        );
         String snapshotVersion = marketService.getSnapshot().snapshotVersion();
         Balance balance = new Balance(playerUuid(), 1_000L);
         when(quoteStore.get("mismatched-buy-quote")).thenReturn(
@@ -420,8 +508,12 @@ class MarketServiceTest {
             )
         );
         when(quoteStore.consume("mismatched-buy-quote")).thenReturn(true);
-        when(marketItemRepository.findForUpdate("wheat")).thenReturn(Optional.of(lockedItem));
-        when(balanceRepository.findForUpdate(playerUuid())).thenReturn(Optional.of(balance));
+        when(marketItemRepository.findForUpdate("wheat")).thenReturn(
+            Optional.of(lockedItem)
+        );
+        when(balanceRepository.findForUpdate(playerUuid())).thenReturn(
+            Optional.of(balance)
+        );
 
         MarketExecuteSuccessResponseDTO response = marketService.execute(
             authentication(),
@@ -450,8 +542,9 @@ class MarketServiceTest {
     @Test
     void execute_settlesStoredSellQuotePriceWhenCurrentPlanPriceDiffers() {
         MarketItem item = marketItem(5L);
-        when(marketItemRepository.findAllForMarketRead())
-            .thenReturn(java.util.List.of(item));
+        when(marketItemRepository.findAllForMarketRead()).thenReturn(
+            java.util.List.of(item)
+        );
         String snapshotVersion = marketService.getSnapshot().snapshotVersion();
         Balance balance = new Balance(playerUuid(), 1_000L);
         when(quoteStore.get("mismatched-sell-quote")).thenReturn(
@@ -476,8 +569,12 @@ class MarketServiceTest {
             )
         );
         when(quoteStore.consume("mismatched-sell-quote")).thenReturn(true);
-        when(marketItemRepository.findForUpdate("wheat")).thenReturn(Optional.of(item));
-        when(balanceRepository.findForUpdate(playerUuid())).thenReturn(Optional.of(balance));
+        when(marketItemRepository.findForUpdate("wheat")).thenReturn(
+            Optional.of(item)
+        );
+        when(balanceRepository.findForUpdate(playerUuid())).thenReturn(
+            Optional.of(balance)
+        );
 
         MarketExecuteSuccessResponseDTO response = marketService.execute(
             authentication(),
@@ -506,11 +603,19 @@ class MarketServiceTest {
     @Test
     void quote_buyAllowsQuantityBeyondLegacyStockWhenNoPressureBoundExists() {
         MarketItem item = marketItem(5L);
-        when(marketItemRepository.findAllForMarketRead()).thenReturn(java.util.List.of(item));
+        when(marketItemRepository.findAllForMarketRead()).thenReturn(
+            java.util.List.of(item)
+        );
 
         MarketQuoteResponseDTO quote = marketService.quote(
             authentication(),
-            new MarketQuoteRequestDTO("wheat", MarketSide.BUY, 41L, marketService.getSnapshot().snapshotVersion(), null),
+            new MarketQuoteRequestDTO(
+                "wheat",
+                MarketSide.BUY,
+                41L,
+                marketService.getSnapshot().snapshotVersion(),
+                null
+            ),
             null
         );
 
@@ -523,32 +628,53 @@ class MarketServiceTest {
     void quote_buyRejectsWhenQuantityExceedsMaximumPressureBound() {
         MarketItem item = marketItem(5L);
         item.setMaxNetPosition(40L);
-        when(marketItemRepository.findAllForMarketRead()).thenReturn(java.util.List.of(item));
+        when(marketItemRepository.findAllForMarketRead()).thenReturn(
+            java.util.List.of(item)
+        );
 
         MarketRejectionException exception = assertThrows(
             MarketRejectionException.class,
             () ->
                 marketService.quote(
                     authentication(),
-                    new MarketQuoteRequestDTO("wheat", MarketSide.BUY, 41L, marketService.getSnapshot().snapshotVersion(), null),
+                    new MarketQuoteRequestDTO(
+                        "wheat",
+                        MarketSide.BUY,
+                        41L,
+                        marketService.getSnapshot().snapshotVersion(),
+                        null
+                    ),
                     null
                 )
         );
 
-        assertEquals(MarketRejectionCode.INSUFFICIENT_STOCK, exception.getCode());
-        verify(quoteStore, never()).put(any(MarketQuoteStore.StoredQuote.class));
+        assertEquals(
+            MarketRejectionCode.INSUFFICIENT_STOCK,
+            exception.getCode()
+        );
+        verify(quoteStore, never()).put(
+            any(MarketQuoteStore.StoredQuote.class)
+        );
     }
 
     @Test
     void quote_rejectsRateLimitedRequestWithCurrentSnapshotVersion() {
         marketService = rateLimitedMarketService(1, 0);
         MarketItem item = marketItem(5L);
-        when(marketItemRepository.findAllForMarketRead()).thenReturn(java.util.List.of(item));
+        when(marketItemRepository.findAllForMarketRead()).thenReturn(
+            java.util.List.of(item)
+        );
         String snapshotVersion = marketService.getSnapshot().snapshotVersion();
 
         marketService.quote(
             authentication(),
-            new MarketQuoteRequestDTO("wheat", MarketSide.BUY, 10L, snapshotVersion, null),
+            new MarketQuoteRequestDTO(
+                "wheat",
+                MarketSide.BUY,
+                10L,
+                snapshotVersion,
+                null
+            ),
             null
         );
 
@@ -576,7 +702,9 @@ class MarketServiceTest {
     void quote_sellRejectsWhenQuantityExceedsMinimumPressureBound() {
         MarketItem item = marketItem(5L);
         item.setMinNetPosition(0L);
-        when(marketItemRepository.findAllForMarketRead()).thenReturn(java.util.List.of(item));
+        when(marketItemRepository.findAllForMarketRead()).thenReturn(
+            java.util.List.of(item)
+        );
 
         MarketRejectionException exception = assertThrows(
             MarketRejectionException.class,
@@ -594,8 +722,13 @@ class MarketServiceTest {
                 )
         );
 
-        assertEquals(MarketRejectionCode.INSUFFICIENT_STOCK, exception.getCode());
-        verify(quoteStore, never()).put(any(MarketQuoteStore.StoredQuote.class));
+        assertEquals(
+            MarketRejectionCode.INSUFFICIENT_STOCK,
+            exception.getCode()
+        );
+        verify(quoteStore, never()).put(
+            any(MarketQuoteStore.StoredQuote.class)
+        );
     }
 
     @Test
@@ -607,13 +740,25 @@ class MarketServiceTest {
         item.setDisplayName("Iron Ingot");
         item.setIconKey("IRON_INGOT");
         item.setVariationPercent(new BigDecimal("1.1"));
-        when(marketItemRepository.findAllForMarketRead()).thenReturn(java.util.List.of(item));
+        when(marketItemRepository.findAllForMarketRead()).thenReturn(
+            java.util.List.of(item)
+        );
 
         MarketQuoteResponseDTO quote = marketService.quote(
             authentication(),
-            new MarketQuoteRequestDTO("iron_ingot", MarketSide.BUY, 2_304L, marketService.getSnapshot().snapshotVersion(), null),
+            new MarketQuoteRequestDTO(
+                "iron_ingot",
+                MarketSide.BUY,
+                2_304L,
+                marketService.getSnapshot().snapshotVersion(),
+                null
+            ),
             null
         );
+
+        assertEquals("iron_ingot", quote.itemId());
+        assertEquals(MarketSide.BUY, quote.side());
+        assertEquals(2_304L, quote.quantity());
 
         assertEquals(0L, item.getCurrentStock());
         assertEquals(0L, item.getMarketMomentum());
@@ -627,9 +772,8 @@ class MarketServiceTest {
         marketService.initializeCatalogIfEmpty();
 
         @SuppressWarnings("unchecked")
-        ArgumentCaptor<Iterable<MarketItem>> itemCaptor = ArgumentCaptor.forClass(
-            Iterable.class
-        );
+        ArgumentCaptor<Iterable<MarketItem>> itemCaptor =
+            ArgumentCaptor.forClass(Iterable.class);
         verify(marketItemRepository).saveAll(itemCaptor.capture());
 
         List<MarketItem> savedItems = new java.util.ArrayList<>();
@@ -647,8 +791,9 @@ class MarketServiceTest {
 
     @Test
     void execute_rejectsExpiredQuote() {
-        when(marketItemRepository.findAllForMarketRead())
-            .thenReturn(java.util.List.of(marketItem(5L)));
+        when(marketItemRepository.findAllForMarketRead()).thenReturn(
+            java.util.List.of(marketItem(5L))
+        );
         when(quoteStore.get("missing-token")).thenReturn(Optional.empty());
 
         MarketRejectionException exception = assertThrows(
@@ -656,7 +801,14 @@ class MarketServiceTest {
             () ->
                 marketService.execute(
                     authentication(),
-                    new MarketExecuteRequestDTO("wheat", MarketSide.BUY, 10L, "missing-token", "market:any", null),
+                    new MarketExecuteRequestDTO(
+                        "wheat",
+                        MarketSide.BUY,
+                        10L,
+                        "missing-token",
+                        "market:any",
+                        null
+                    ),
                     null
                 )
         );
@@ -668,8 +820,9 @@ class MarketServiceTest {
     @ParameterizedTest
     @ValueSource(longs = { 0L, -1L })
     void execute_rejectsInvalidQuantity(long quantity) {
-        when(marketItemRepository.findAllForMarketRead())
-            .thenReturn(java.util.List.of(marketItem(5L)));
+        when(marketItemRepository.findAllForMarketRead()).thenReturn(
+            java.util.List.of(marketItem(5L))
+        );
 
         MarketRejectionException exception = assertThrows(
             MarketRejectionException.class,
@@ -697,8 +850,9 @@ class MarketServiceTest {
     @Test
     void execute_rejectsRateLimitedRequestWithCurrentSnapshotVersion() {
         marketService = rateLimitedMarketService(0, 1);
-        when(marketItemRepository.findAllForMarketRead())
-            .thenReturn(java.util.List.of(marketItem(5L)));
+        when(marketItemRepository.findAllForMarketRead()).thenReturn(
+            java.util.List.of(marketItem(5L))
+        );
         String snapshotVersion = marketService.getSnapshot().snapshotVersion();
         when(quoteStore.get("missing-token")).thenReturn(Optional.empty());
 
@@ -718,7 +872,10 @@ class MarketServiceTest {
                     null
                 )
         );
-        assertEquals(MarketRejectionCode.QUOTE_EXPIRED, firstException.getCode());
+        assertEquals(
+            MarketRejectionCode.QUOTE_EXPIRED,
+            firstException.getCode()
+        );
 
         MarketRejectionException secondException = assertThrows(
             MarketRejectionException.class,
@@ -737,7 +894,10 @@ class MarketServiceTest {
                 )
         );
 
-        assertEquals(MarketRejectionCode.RATE_LIMITED, secondException.getCode());
+        assertEquals(
+            MarketRejectionCode.RATE_LIMITED,
+            secondException.getCode()
+        );
         assertEquals(snapshotVersion, secondException.getSnapshotVersion());
         verify(quoteStore).get("missing-token");
         verify(balanceRepository, never()).save(any());

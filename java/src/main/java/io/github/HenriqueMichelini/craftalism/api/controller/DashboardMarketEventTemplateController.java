@@ -8,6 +8,7 @@ import jakarta.validation.Valid;
 import java.net.URI;
 import java.util.List;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -29,7 +30,9 @@ public class DashboardMarketEventTemplateController {
     }
 
     @GetMapping
-    public ResponseEntity<List<MarketEventTemplateResponseDTO>> listTemplates() {
+    public ResponseEntity<
+        List<MarketEventTemplateResponseDTO>
+    > listTemplates() {
         return ResponseEntity.ok(templateService.listTemplates());
     }
 
@@ -37,9 +40,8 @@ public class DashboardMarketEventTemplateController {
     public ResponseEntity<MarketEventTemplateResponseDTO> createTemplate(
         @RequestBody @Valid MarketEventTemplateCreateRequestDTO request
     ) {
-        MarketEventTemplateResponseDTO template = templateService.createTemplate(
-            request
-        );
+        MarketEventTemplateResponseDTO template =
+            templateService.createTemplate(request);
         return ResponseEntity.created(
             URI.create(
                 "/api/dashboard/market/event-templates/" + template.templateId()
@@ -55,5 +57,13 @@ public class DashboardMarketEventTemplateController {
         return ResponseEntity.ok(
             templateService.updateTemplate(templateId, request)
         );
+    }
+
+    @DeleteMapping("/{templateId}")
+    public ResponseEntity<Void> deleteTemplate(
+        @PathVariable String templateId
+    ) {
+        templateService.deleteTemplate(templateId);
+        return ResponseEntity.noContent().build();
     }
 }

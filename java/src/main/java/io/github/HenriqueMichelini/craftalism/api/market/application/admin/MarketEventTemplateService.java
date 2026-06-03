@@ -18,6 +18,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
+@Transactional(readOnly = true)
 public class MarketEventTemplateService {
 
     private final MarketEventTemplateRepository templateRepository;
@@ -39,10 +40,11 @@ public class MarketEventTemplateService {
         if (templateRepository.count() > 0L) {
             return;
         }
-        templateRepository.saveAll(defaultTemplateCatalog.templates(Instant.now()));
+        templateRepository.saveAll(
+            defaultTemplateCatalog.templates(Instant.now())
+        );
     }
 
-    @Transactional(readOnly = true)
     public List<MarketEventTemplateResponseDTO> listTemplates() {
         return templateRepository
             .findAll()
@@ -76,9 +78,7 @@ public class MarketEventTemplateService {
             .effectDirection(effectDirection)
             .cooldownSeconds(request.cooldownSeconds())
             .playerFacingName(request.playerFacingName().trim())
-            .playerFacingDescription(
-                request.playerFacingDescription().trim()
-            )
+            .playerFacingDescription(request.playerFacingDescription().trim())
             .broadScopeHint(request.broadScopeHint().trim())
             .eligibleTargetMetadata(request.eligibleTargetMetadata().trim())
             .timestamps(now)
@@ -120,6 +120,19 @@ public class MarketEventTemplateService {
         template.setUpdatedAt(Instant.now());
 
         return toResponse(templateRepository.save(template));
+    }
+
+    @Transactional
+    public void deleteTemplate(String templateId) {
+        String normalizedTemplateId = templateId.trim();
+
+        MarketEventTemplate template = templateRepository
+            .findById(normalizedTemplateId)
+            .orElseThrow(() ->
+                validation("Market event template does not exist.")
+            );
+
+        templateRepository.delete(template);
     }
 
     private String validate(MarketEventTemplateCreateRequestDTO request) {
@@ -218,10 +231,7 @@ public class MarketEventTemplateService {
         if (maxEffectBasisPoints < 10_000) {
             return "DOWN";
         }
-        if (
-            minEffectBasisPoints == 10_000 &&
-            maxEffectBasisPoints == 10_000
-        ) {
+        if (minEffectBasisPoints == 10_000 && maxEffectBasisPoints == 10_000) {
             return "BLOCK";
         }
         throw validation(
@@ -234,7 +244,9 @@ public class MarketEventTemplateService {
         int minEffectBasisPoints
     ) {
         if (minEffectBasisPoints <= 10_000) {
-            throw validation("UP effects must be greater than 10000 basis points.");
+            throw validation(
+                "UP effects must be greater than 10000 basis points."
+            );
         }
         validateNonBlockingEffect(blockingAllowed);
     }
@@ -244,7 +256,9 @@ public class MarketEventTemplateService {
         int maxEffectBasisPoints
     ) {
         if (maxEffectBasisPoints >= 10_000) {
-            throw validation("DOWN effects must be less than 10000 basis points.");
+            throw validation(
+                "DOWN effects must be less than 10000 basis points."
+            );
         }
         validateNonBlockingEffect(blockingAllowed);
     }

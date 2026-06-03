@@ -16,7 +16,6 @@ import static org.mockito.Mockito.when;
 import io.github.HenriqueMichelini.craftalism.api.market.domain.event.MarketEventLifecycleService;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketEventInstance;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketEventScope;
-import io.github.HenriqueMichelini.craftalism.api.model.MarketEventSource;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketEventTemplate;
 import io.github.HenriqueMichelini.craftalism.api.repository.MarketEventInstanceRepository;
 import io.github.HenriqueMichelini.craftalism.api.repository.MarketEventSchedulerLockRepository;
@@ -55,8 +54,14 @@ class MarketEventSchedulerTest {
             MarketEventScope.CATEGORY,
             false
         );
-        when(lockRepository.acquireExpiredLease(anyString(), anyString(), any(), any()))
-            .thenReturn(1);
+        when(
+            lockRepository.acquireExpiredLease(
+                anyString(),
+                anyString(),
+                any(),
+                any()
+            )
+        ).thenReturn(1);
         when(lifecycleService.effectiveActiveEvent(any())).thenReturn(
             Optional.empty()
         );
@@ -83,8 +88,10 @@ class MarketEventSchedulerTest {
 
     @Test
     void rollWindow_skipsWhenMarketClosed() {
-        MarketEventScheduler.SchedulerDecision decision = scheduler(true, false)
-            .rollWindow();
+        MarketEventScheduler.SchedulerDecision decision = scheduler(
+            true,
+            false
+        ).rollWindow();
 
         assertFalse(decision.started());
         assertEquals("market_closed", decision.reason());
@@ -98,8 +105,14 @@ class MarketEventSchedulerTest {
 
     @Test
     void rollWindow_skipsWhenStartRollChoosesNoEvent() {
-        when(lockRepository.acquireExpiredLease(anyString(), anyString(), any(), any()))
-            .thenReturn(1);
+        when(
+            lockRepository.acquireExpiredLease(
+                anyString(),
+                anyString(),
+                any(),
+                any()
+            )
+        ).thenReturn(1);
         when(lifecycleService.effectiveActiveEvent(any())).thenReturn(
             Optional.empty()
         );
@@ -118,8 +131,14 @@ class MarketEventSchedulerTest {
 
     @Test
     void rollWindow_waitsForNextJitteredWindowAfterDecision() {
-        when(lockRepository.acquireExpiredLease(anyString(), anyString(), any(), any()))
-            .thenReturn(1);
+        when(
+            lockRepository.acquireExpiredLease(
+                anyString(),
+                anyString(),
+                any(),
+                any()
+            )
+        ).thenReturn(1);
         when(lifecycleService.effectiveActiveEvent(any())).thenReturn(
             Optional.empty()
         );
@@ -149,8 +168,14 @@ class MarketEventSchedulerTest {
             MarketEventScope.CATEGORY,
             false
         );
-        when(lockRepository.acquireExpiredLease(anyString(), anyString(), any(), any()))
-            .thenReturn(1, 0);
+        when(
+            lockRepository.acquireExpiredLease(
+                anyString(),
+                anyString(),
+                any(),
+                any()
+            )
+        ).thenReturn(1, 0);
         when(lifecycleService.effectiveActiveEvent(any())).thenReturn(
             Optional.empty()
         );
@@ -187,8 +212,14 @@ class MarketEventSchedulerTest {
             false
         );
         disabledTemplate.setAutomaticEnabled(false);
-        when(lockRepository.acquireExpiredLease(anyString(), anyString(), any(), any()))
-            .thenReturn(1);
+        when(
+            lockRepository.acquireExpiredLease(
+                anyString(),
+                anyString(),
+                any(),
+                any()
+            )
+        ).thenReturn(1);
         when(lifecycleService.effectiveActiveEvent(any())).thenReturn(
             Optional.empty()
         );
@@ -197,8 +228,10 @@ class MarketEventSchedulerTest {
             List.of(blockingTemplate, disabledTemplate)
         );
 
-        MarketEventScheduler.SchedulerDecision decision = scheduler(true, true)
-            .rollWindow();
+        MarketEventScheduler.SchedulerDecision decision = scheduler(
+            true,
+            true
+        ).rollWindow();
 
         assertFalse(decision.started());
         assertEquals("no_eligible_templates", decision.reason());
@@ -218,8 +251,14 @@ class MarketEventSchedulerTest {
             false
         );
         longerCooldown.setCooldownSeconds(7_200L);
-        when(lockRepository.acquireExpiredLease(anyString(), anyString(), any(), any()))
-            .thenReturn(1);
+        when(
+            lockRepository.acquireExpiredLease(
+                anyString(),
+                anyString(),
+                any(),
+                any()
+            )
+        ).thenReturn(1);
         when(lifecycleService.effectiveActiveEvent(any())).thenReturn(
             Optional.empty()
         );
