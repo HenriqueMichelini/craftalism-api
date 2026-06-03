@@ -8,7 +8,6 @@ import io.github.HenriqueMichelini.craftalism.api.dto.MarketEventTemplateUpdateR
 import io.github.HenriqueMichelini.craftalism.api.exceptions.MarketEventTemplateValidationException;
 import io.github.HenriqueMichelini.craftalism.api.market.domain.event.DefaultMarketEventTemplateCatalog;
 import io.github.HenriqueMichelini.craftalism.api.market.domain.event.MarketEventTemplateBuilder;
-import io.github.HenriqueMichelini.craftalism.api.model.MarketEventRarity;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketEventScope;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketEventTemplate;
 import io.github.HenriqueMichelini.craftalism.api.repository.MarketEventTemplateRepository;
@@ -66,7 +65,6 @@ public class MarketEventTemplateService {
         Instant now = Instant.now();
         MarketEventTemplate template = new MarketEventTemplateBuilder()
             .templateId(templateId)
-            .rarity(request.rarity())
             .scope(request.scope())
             .automaticWeight(request.automaticWeight())
             .automaticEnabled(request.automaticEnabled())
@@ -101,7 +99,6 @@ public class MarketEventTemplateService {
 
         String effectDirection = validate(request);
 
-        template.setRarity(request.rarity());
         template.setScope(request.scope());
         template.setAutomaticWeight(request.automaticWeight());
         template.setAutomaticEnabled(request.automaticEnabled());
@@ -127,7 +124,6 @@ public class MarketEventTemplateService {
 
     private String validate(MarketEventTemplateCreateRequestDTO request) {
         return validate(
-            request.rarity(),
             request.scope(),
             request.automaticWeight(),
             request.automaticEnabled(),
@@ -142,7 +138,6 @@ public class MarketEventTemplateService {
 
     private String validate(MarketEventTemplateUpdateRequestDTO request) {
         return validate(
-            request.rarity(),
             request.scope(),
             request.automaticWeight(),
             request.automaticEnabled(),
@@ -156,7 +151,6 @@ public class MarketEventTemplateService {
     }
 
     private String validate(
-        MarketEventRarity rarity,
         MarketEventScope scope,
         int automaticWeight,
         boolean automaticEnabled,
@@ -182,11 +176,6 @@ public class MarketEventTemplateService {
                 "Automatically enabled templates must have a positive automatic weight."
             );
         }
-        if (rarity == MarketEventRarity.EXTRA_RARE && automaticEnabled) {
-            throw validation(
-                "Extra-rare templates cannot be enabled for automatic selection."
-            );
-        }
 
         String effectDirection = deriveEffectDirection(
             minEffectBasisPoints,
@@ -202,7 +191,6 @@ public class MarketEventTemplateService {
                 maxEffectBasisPoints
             );
             case "BLOCK" -> validateBlockEffect(
-                rarity,
                 scope,
                 automaticEnabled,
                 blockingAllowed,
@@ -268,7 +256,6 @@ public class MarketEventTemplateService {
     }
 
     private void validateBlockEffect(
-        MarketEventRarity rarity,
         MarketEventScope scope,
         boolean automaticEnabled,
         boolean blockingAllowed,
@@ -279,12 +266,11 @@ public class MarketEventTemplateService {
             !blockingAllowed ||
             scope != MarketEventScope.ITEM ||
             automaticEnabled ||
-            rarity == MarketEventRarity.MEDIUM ||
             minEffectBasisPoints != 10_000 ||
             maxEffectBasisPoints != 10_000
         ) {
             throw validation(
-                "BLOCK templates must be manual rare or extra-rare item templates with neutral price basis points."
+                "BLOCK templates must be manual item templates that allow blocking with neutral price basis points."
             );
         }
     }
@@ -294,7 +280,6 @@ public class MarketEventTemplateService {
     ) {
         return new MarketEventTemplateResponseDTO(
             template.getTemplateId(),
-            template.getRarity(),
             template.getScope(),
             template.getAutomaticWeight(),
             template.isAutomaticEnabled(),

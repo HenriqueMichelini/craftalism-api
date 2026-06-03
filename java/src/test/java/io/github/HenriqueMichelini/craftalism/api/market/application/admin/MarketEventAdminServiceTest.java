@@ -17,7 +17,6 @@ import io.github.HenriqueMichelini.craftalism.api.exceptions.MarketEventTemplate
 import io.github.HenriqueMichelini.craftalism.api.market.domain.event.MarketEventLifecycleService;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketEventEndReason;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketEventInstance;
-import io.github.HenriqueMichelini.craftalism.api.model.MarketEventRarity;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketEventScope;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketEventSource;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketEventStatus;
@@ -347,7 +346,6 @@ class MarketEventAdminServiceTest {
     private MarketEventTemplate template() {
         MarketEventTemplate template = new MarketEventTemplate();
         template.setTemplateId("rare_customs_hold");
-        template.setRarity(MarketEventRarity.RARE);
         template.setScope(MarketEventScope.ITEM);
         template.setAutomaticWeight(0);
         template.setAutomaticEnabled(false);
@@ -370,7 +368,6 @@ class MarketEventAdminServiceTest {
     private MarketEventTemplate downTemplate() {
         MarketEventTemplate template = new MarketEventTemplate();
         template.setTemplateId("farming_bumper_crop");
-        template.setRarity(MarketEventRarity.MEDIUM);
         template.setScope(MarketEventScope.CATEGORY);
         template.setAutomaticWeight(80);
         template.setAutomaticEnabled(true);
@@ -395,7 +392,6 @@ class MarketEventAdminServiceTest {
         event.setId(10L);
         event.setTemplateId("rare_customs_hold");
         event.setSource(MarketEventSource.ADMIN);
-        event.setRarity(MarketEventRarity.RARE);
         event.setScope(MarketEventScope.ITEM);
         event.setSelectedItemIds("wheat");
         event.setEffectBasisPoints(10_000);

@@ -1,12 +1,10 @@
 package io.github.HenriqueMichelini.craftalism.api.dto;
 
-import io.github.HenriqueMichelini.craftalism.api.model.MarketEventRarity;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketEventScope;
 import java.time.Instant;
 
 public record MarketEventTemplateResponseDTO(
     String templateId,
-    MarketEventRarity rarity,
     MarketEventScope scope,
     int automaticWeight,
     boolean automaticEnabled,

@@ -46,7 +46,6 @@ public class MarketEventScheduler {
     private final String owner;
     private final boolean schedulerEnabled;
     private final boolean marketEnabled;
-    private final boolean automaticExtraRareEnabled;
     private final long startChanceBasisPoints;
     private final Duration leaseDuration;
     private final Duration eventWindowInterval;
@@ -61,7 +60,6 @@ public class MarketEventScheduler {
         MarketEventLifecycleService lifecycleService,
         @Value("${craftalism.market-events.scheduler.enabled:true}") boolean schedulerEnabled,
         @Value("${craftalism.market.enabled:true}") boolean marketEnabled,
-        @Value("${craftalism.market-events.scheduler.automatic-extra-rare-enabled:false}") boolean automaticExtraRareEnabled,
         @Value("${craftalism.market-events.scheduler.start-chance-basis-points:2500}") long startChanceBasisPoints,
         @Value("${craftalism.market-events.scheduler.lease-seconds:60}") long leaseSeconds,
         @Value("${craftalism.market-events.scheduler.window-interval-seconds:7200}") long eventWindowIntervalSeconds,
@@ -77,7 +75,6 @@ public class MarketEventScheduler {
             new SecureRandom(),
             schedulerEnabled,
             marketEnabled,
-            automaticExtraRareEnabled,
             startChanceBasisPoints,
             Duration.ofSeconds(leaseSeconds),
             Duration.ofSeconds(eventWindowIntervalSeconds),
@@ -96,7 +93,6 @@ public class MarketEventScheduler {
         Random random,
         boolean schedulerEnabled,
         boolean marketEnabled,
-        boolean automaticExtraRareEnabled,
         long startChanceBasisPoints,
         Duration leaseDuration,
         Duration eventWindowInterval,
@@ -112,7 +108,6 @@ public class MarketEventScheduler {
             random,
             schedulerEnabled,
             marketEnabled,
-            automaticExtraRareEnabled,
             startChanceBasisPoints,
             leaseDuration,
             eventWindowInterval,
@@ -131,7 +126,6 @@ public class MarketEventScheduler {
         Random random,
         boolean schedulerEnabled,
         boolean marketEnabled,
-        boolean automaticExtraRareEnabled,
         long startChanceBasisPoints,
         Duration leaseDuration,
         Duration eventWindowInterval,
@@ -148,7 +142,6 @@ public class MarketEventScheduler {
         this.transactionOperations = transactionOperations;
         this.schedulerEnabled = schedulerEnabled;
         this.marketEnabled = marketEnabled;
-        this.automaticExtraRareEnabled = automaticExtraRareEnabled;
         this.startChanceBasisPoints = startChanceBasisPoints;
         this.leaseDuration = leaseDuration;
         this.eventWindowInterval = eventWindowInterval;
@@ -252,10 +245,7 @@ public class MarketEventScheduler {
 
     private List<MarketEventTemplate> eligibleTemplates(Instant now) {
         List<MarketEventTemplate> candidates =
-            selectionPolicy.automaticCandidates(
-                templateRepository.findAll(),
-                automaticExtraRareEnabled
-            );
+            selectionPolicy.automaticCandidates(templateRepository.findAll());
         if (candidates.isEmpty()) {
             return List.of();
         }
@@ -291,7 +281,6 @@ public class MarketEventScheduler {
         MarketEventInstance event = new MarketEventInstance();
         event.setTemplateId(template.getTemplateId());
         event.setSource(MarketEventSource.SCHEDULER);
-        event.setRarity(template.getRarity());
         event.setScope(template.getScope());
         event.setSelectedCategoryId(
             template.getScope() == MarketEventScope.CATEGORY

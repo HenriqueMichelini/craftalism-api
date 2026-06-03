@@ -52,7 +52,7 @@ Market Events have two separate concepts:
 
 Drift is ambient per-item movement. It is always small, tightly capped, and separate from player-driven pressure.
 
-Named events are explicit temporary world conditions. They use authored templates, have a rarity, duration, scope, narrative description, and one or more effects.
+Named events are explicit temporary world conditions. They use authored templates, duration, scope, narrative description, and one or more effects.
 
 ## Drift Rules
 
@@ -87,7 +87,7 @@ SELL prices must continue to derive from the adjusted buy price using the config
 
 ## Named Event Rules
 
-- Named events start at medium rarity. Very common market movement is represented by drift.
+- Very common market movement is represented by drift rather than named events.
 - The MVP supports only one active named event at a time.
 - Named events are globally shared world state.
 - Named events are systemically random or admin-triggered, never player-targeted.
@@ -99,29 +99,17 @@ SELL prices must continue to derive from the adjusted buy price using the config
 - Expired events may be transitioned to an expired status opportunistically by snapshot, quote, scheduler, or admin paths, but pricing must not depend on cleanup having already run.
 - Event source is stored internally but is not normally player-facing.
 
-## Rarity Rules
+## Explicit Event Rule Fields
 
-Supported conceptual rarities:
+Named event behavior is controlled by explicit template and instance fields.
+Scheduler selection uses `automaticEnabled`, positive `automaticWeight`,
+`blockingAllowed`, cooldown, scope, and target eligibility. Template validation
+uses scope, automatic selection, `blockingAllowed`, effect basis-point bounds,
+duration bounds, and target metadata.
 
-- `MEDIUM`
-- `RARE`
-- `EXTRA_RARE`
-
-Very common movement is drift, not a named event rarity.
-
-Rarity influences:
-
-- scheduler probability and template weight
-- target scope eligibility
-- effect strength
-- duration range
-- cooldown requirements
-- whether blocking is allowed
-- whether automatic selection is allowed
-
-Pain should scale by rarity, but harsh effects should target market access or profitability rather than player-owned assets.
-
-Strength and duration should usually have an inverse relationship. Stronger events should usually be shorter; milder events may last longer.
+Strength and duration should usually have an inverse relationship. Stronger
+events should usually be shorter; milder events may last longer. Harsh effects
+should target market access or profitability rather than player-owned assets.
 
 ## Scope Rules
 
@@ -134,7 +122,7 @@ Supported conceptual scopes:
 
 MVP implementation should focus primarily on item, category, and market-wide scopes. Item-set scope may exist conceptually or internally but should not be emphasized until needed.
 
-Event instances must persist selected targets explicitly enough for audit. Category-scoped events store the selected category target and resolve currently affected items dynamically during pricing. Item-scoped events store explicit item targets. Rare mixed-target events should store explicit item targets to avoid ambiguous pricing.
+Event instances must persist selected targets explicitly enough for audit. Category-scoped events store the selected category target and resolve currently affected items dynamically during pricing. Item-scoped events store explicit item targets. Mixed-target events should store explicit item targets to avoid ambiguous pricing.
 
 High-value items may be eligible for events, but should have lower weights and stronger cooldowns.
 
@@ -146,7 +134,6 @@ Templates are hand-authored first.
 
 Templates define:
 
-- rarity
 - automatic selection weight
 - allowed source
 - scope
@@ -162,7 +149,7 @@ Templates define:
 
 Templates should be category-flavored where possible. Generic templates are allowed, but common player-facing events should feel like world conditions rather than raw math.
 
-Templates may repeat, but rare and extra-rare templates need enough variety and cooldowns that repeats feel natural rather than spammy.
+Templates may repeat, but enough variety and cooldowns are needed that repeats feel natural rather than spammy.
 
 Templates must not create neutral no-effect events.
 
@@ -183,7 +170,6 @@ Persisted template rows are exposed through:
 Template create requests include:
 
 - `templateId`
-- `rarity`
 - `scope`
 - `automaticWeight`
 - `automaticEnabled`
@@ -200,7 +186,6 @@ Template create requests include:
 
 Template update requests use the same authored fields except `templateId`:
 
-- `rarity`
 - `scope`
 - `automaticWeight`
 - `automaticEnabled`
@@ -225,13 +210,11 @@ basis-point range. Ranges entirely above `10000` derive `UP`; ranges entirely
 below `10000` derive `DOWN`; ranges with both bounds exactly `10000` derive
 `BLOCK` and remain subject to blocking-template validation. Mixed ranges that
 cross or include `10000` without being exactly neutral are invalid. Neutral
-`10000` ranges are valid only for manual rare or extra-rare item templates that
-allow blocking.
+`10000` ranges are valid only for manual item templates that allow blocking.
 
 Template create and update responses return the persisted template row:
 
 - `templateId`
-- `rarity`
 - `scope`
 - `automaticWeight`
 - `automaticEnabled`
@@ -273,9 +256,8 @@ Public market experience should expose:
 Public market experience should not expose:
 
 - exact multipliers
-- exact target lists for mixed rare+ events
+- exact target lists for mixed events
 - exact countdowns
-- public rarity labels unless a later product decision explicitly allows them
 - internal random seed or roll data
 - scheduler decision data
 - admin audit metadata

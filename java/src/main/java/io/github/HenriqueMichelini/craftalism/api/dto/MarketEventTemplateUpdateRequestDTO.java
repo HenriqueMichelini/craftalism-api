@@ -1,6 +1,5 @@
 package io.github.HenriqueMichelini.craftalism.api.dto;
 
-import io.github.HenriqueMichelini.craftalism.api.model.MarketEventRarity;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketEventScope;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -9,9 +8,6 @@ import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Size;
 
 public record MarketEventTemplateUpdateRequestDTO(
-    @NotNull(message = "Rarity is required")
-    MarketEventRarity rarity,
-
     @NotNull(message = "Scope is required")
     MarketEventScope scope,
 

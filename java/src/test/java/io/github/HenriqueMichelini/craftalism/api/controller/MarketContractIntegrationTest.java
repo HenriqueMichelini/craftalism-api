@@ -11,7 +11,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import io.github.HenriqueMichelini.craftalism.api.dto.MarketSide;
 import io.github.HenriqueMichelini.craftalism.api.model.Balance;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketEventInstance;
-import io.github.HenriqueMichelini.craftalism.api.model.MarketEventRarity;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketEventScope;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketEventSource;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketEventStatus;
@@ -143,7 +142,6 @@ class MarketContractIntegrationTest {
             .andExpect(jsonPath("$.activeEvent.description").value("Farms are overflowing."))
             .andExpect(jsonPath("$.activeEvent.broadScopeHint").value("Farming goods"))
             .andExpect(jsonPath("$.activeEvent.temporalLabel").value("active now"))
-            .andExpect(jsonPath("$.activeEvent.rarity").doesNotExist())
             .andExpect(jsonPath("$.activeEvent.source").doesNotExist())
             .andExpect(jsonPath("$.activeEvent.effectBasisPoints").doesNotExist())
             .andExpect(jsonPath("$.activeEvent.auditMetadata").doesNotExist());
@@ -1651,7 +1649,6 @@ class MarketContractIntegrationTest {
     private MarketEventTemplate activeEventTemplate() {
         MarketEventTemplate template = new MarketEventTemplate();
         template.setTemplateId("farming_bumper_crop");
-        template.setRarity(MarketEventRarity.MEDIUM);
         template.setScope(MarketEventScope.CATEGORY);
         template.setAutomaticWeight(80);
         template.setAutomaticEnabled(true);
@@ -1674,7 +1671,6 @@ class MarketContractIntegrationTest {
     private MarketEventTemplate blockingEventTemplate() {
         MarketEventTemplate template = new MarketEventTemplate();
         template.setTemplateId("rare_customs_hold");
-        template.setRarity(MarketEventRarity.RARE);
         template.setScope(MarketEventScope.ITEM);
         template.setAutomaticWeight(0);
         template.setAutomaticEnabled(false);
@@ -1700,7 +1696,6 @@ class MarketContractIntegrationTest {
         MarketEventInstance event = new MarketEventInstance();
         event.setTemplateId("farming_bumper_crop");
         event.setSource(MarketEventSource.SYSTEM);
-        event.setRarity(MarketEventRarity.MEDIUM);
         event.setScope(MarketEventScope.CATEGORY);
         event.setSelectedCategoryId("farming");
         event.setEffectBasisPoints(9_500);
@@ -1722,7 +1717,6 @@ class MarketContractIntegrationTest {
         MarketEventInstance event = new MarketEventInstance();
         event.setTemplateId("rare_customs_hold");
         event.setSource(MarketEventSource.ADMIN);
-        event.setRarity(MarketEventRarity.RARE);
         event.setScope(MarketEventScope.ITEM);
         event.setSelectedItemIds("wheat");
         event.setEffectBasisPoints(10_000);

@@ -7,7 +7,6 @@ import static org.mockito.Mockito.when;
 
 import io.github.HenriqueMichelini.craftalism.api.model.MarketEventEndReason;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketEventInstance;
-import io.github.HenriqueMichelini.craftalism.api.model.MarketEventRarity;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketEventScope;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketEventSource;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketEventStatus;
@@ -111,7 +110,6 @@ class MarketEventLifecycleServiceTest {
         MarketEventInstance event = new MarketEventInstance();
         event.setTemplateId("template");
         event.setSource(MarketEventSource.SYSTEM);
-        event.setRarity(MarketEventRarity.MEDIUM);
         event.setScope(MarketEventScope.MARKET_WIDE);
         event.setEffectBasisPoints(10_000);
         event.setEffectVersion(1);

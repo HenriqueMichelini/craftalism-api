@@ -14,7 +14,6 @@ import io.github.HenriqueMichelini.craftalism.api.dto.MarketEventTemplateUpdateR
 import io.github.HenriqueMichelini.craftalism.api.exceptions.MarketEventTemplateValidationException;
 import io.github.HenriqueMichelini.craftalism.api.market.domain.event.DefaultMarketEventTemplateCatalog;
 import io.github.HenriqueMichelini.craftalism.api.market.domain.event.MarketEventTemplateBuilder;
-import io.github.HenriqueMichelini.craftalism.api.model.MarketEventRarity;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketEventScope;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketEventTemplate;
 import io.github.HenriqueMichelini.craftalism.api.repository.MarketEventTemplateRepository;
@@ -228,7 +227,7 @@ class MarketEventTemplateTest {
     }
 
     @Test
-    void initialTemplatesIncludeAutomaticMediumAndManualOnlyRareTemplates() {
+    void initialTemplatesUseExplicitAutomaticAndBlockingRules() {
         List<MarketEventTemplate> templates =
             new DefaultMarketEventTemplateCatalog().templates(
             Instant.parse("2026-01-01T00:00:00Z")
@@ -238,27 +237,26 @@ class MarketEventTemplateTest {
             templates
                 .stream()
                 .anyMatch(template ->
-                    template.getRarity() == MarketEventRarity.MEDIUM &&
                     template.isAutomaticEnabled() &&
-                    template.getAutomaticWeight() > 0
+                    template.getAutomaticWeight() > 0 &&
+                    !template.isBlockingAllowed()
                 )
         );
         assertTrue(
             templates
                 .stream()
                 .anyMatch(template ->
-                    template.getRarity() == MarketEventRarity.RARE &&
                     template.isBlockingAllowed() &&
-                    !template.isAutomaticEnabled()
+                    !template.isAutomaticEnabled() &&
+                    template.getScope() == MarketEventScope.ITEM &&
+                    template.getMinEffectBasisPoints() == 10_000 &&
+                    template.getMaxEffectBasisPoints() == 10_000
                 )
         );
         assertFalse(
-            templates
-                .stream()
-                .filter(template ->
-                    template.getRarity() == MarketEventRarity.EXTRA_RARE
-                )
-                .anyMatch(MarketEventTemplate::isAutomaticEnabled)
+            templates.stream().anyMatch(template ->
+                template.isAutomaticEnabled() && template.isBlockingAllowed()
+            )
         );
         assertFalse(
             templates.stream().anyMatch(this::isNeutralNoEffectTemplate)
@@ -275,7 +273,6 @@ class MarketEventTemplateTest {
         assertTemplate(
             templates.get(0),
             "farming_bumper_crop",
-            MarketEventRarity.MEDIUM,
             MarketEventScope.CATEGORY,
             80,
             true,
@@ -295,7 +292,6 @@ class MarketEventTemplateTest {
         assertTemplate(
             templates.get(1),
             "mining_tool_shortage",
-            MarketEventRarity.MEDIUM,
             MarketEventScope.CATEGORY,
             70,
             true,
@@ -315,7 +311,6 @@ class MarketEventTemplateTest {
         assertTemplate(
             templates.get(2),
             "rare_customs_hold",
-            MarketEventRarity.RARE,
             MarketEventScope.ITEM,
             0,
             false,
@@ -335,7 +330,6 @@ class MarketEventTemplateTest {
         assertTemplate(
             templates.get(3),
             "extra_rare_market_alarm",
-            MarketEventRarity.EXTRA_RARE,
             MarketEventScope.MARKET_WIDE,
             0,
             false,
@@ -358,7 +352,6 @@ class MarketEventTemplateTest {
     private void assertTemplate(
         MarketEventTemplate template,
         String templateId,
-        MarketEventRarity rarity,
         MarketEventScope scope,
         int automaticWeight,
         boolean automaticEnabled,
@@ -376,7 +369,6 @@ class MarketEventTemplateTest {
         Instant timestamp
     ) {
         assertEquals(templateId, template.getTemplateId());
-        assertEquals(rarity, template.getRarity());
         assertEquals(scope, template.getScope());
         assertEquals(automaticWeight, template.getAutomaticWeight());
         assertEquals(automaticEnabled, template.isAutomaticEnabled());
@@ -401,7 +393,6 @@ class MarketEventTemplateTest {
     private MarketEventTemplate template(String templateId, Instant timestamp) {
         return new MarketEventTemplateBuilder()
             .templateId(templateId)
-            .rarity(MarketEventRarity.MEDIUM)
             .scope(MarketEventScope.MARKET_WIDE)
             .automaticWeight(25)
             .automaticEnabled(true)
@@ -424,7 +415,6 @@ class MarketEventTemplateTest {
 
     private MarketEventTemplateUpdateRequestDTO validUpdateRequest() {
         return new MarketEventTemplateUpdateRequestDTO(
-            MarketEventRarity.MEDIUM,
             MarketEventScope.CATEGORY,
             15,
             true,
@@ -443,7 +433,6 @@ class MarketEventTemplateTest {
 
     private MarketEventTemplateUpdateRequestDTO invalidDurationUpdateRequest() {
         return new MarketEventTemplateUpdateRequestDTO(
-            MarketEventRarity.MEDIUM,
             MarketEventScope.CATEGORY,
             15,
             true,
@@ -462,7 +451,6 @@ class MarketEventTemplateTest {
 
     private MarketEventTemplateUpdateRequestDTO validBlockUpdateRequest() {
         return new MarketEventTemplateUpdateRequestDTO(
-            MarketEventRarity.RARE,
             MarketEventScope.ITEM,
             0,
             false,
@@ -481,7 +469,6 @@ class MarketEventTemplateTest {
 
     private MarketEventTemplateUpdateRequestDTO mixedEffectRangeUpdateRequest() {
         return new MarketEventTemplateUpdateRequestDTO(
-            MarketEventRarity.MEDIUM,
             MarketEventScope.CATEGORY,
             15,
             true,

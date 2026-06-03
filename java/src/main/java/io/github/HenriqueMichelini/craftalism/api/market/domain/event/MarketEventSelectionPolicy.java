@@ -1,7 +1,6 @@
 package io.github.HenriqueMichelini.craftalism.api.market.domain.event;
 
 import io.github.HenriqueMichelini.craftalism.api.model.MarketEventInstance;
-import io.github.HenriqueMichelini.craftalism.api.model.MarketEventRarity;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketEventScope;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketEventTemplate;
 import java.time.Instant;
@@ -13,21 +12,13 @@ import java.util.function.Function;
 public final class MarketEventSelectionPolicy {
 
     public List<MarketEventTemplate> automaticCandidates(
-        List<MarketEventTemplate> templates,
-        boolean automaticExtraRareEnabled
+        List<MarketEventTemplate> templates
     ) {
         return templates
             .stream()
             .filter(MarketEventTemplate::isAutomaticEnabled)
             .filter(template -> template.getAutomaticWeight() > 0)
-            .filter(template ->
-                automaticExtraRareEnabled ||
-                template.getRarity() != MarketEventRarity.EXTRA_RARE
-            )
-            .filter(template ->
-                template.getRarity() != MarketEventRarity.RARE ||
-                !template.isBlockingAllowed()
-            )
+            .filter(template -> !template.isBlockingAllowed())
             .toList();
     }
 

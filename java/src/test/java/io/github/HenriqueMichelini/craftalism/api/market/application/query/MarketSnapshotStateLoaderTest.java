@@ -14,7 +14,6 @@ import io.github.HenriqueMichelini.craftalism.api.market.domain.event.MarketEven
 import io.github.HenriqueMichelini.craftalism.api.market.domain.event.MarketEventPricingService;
 import io.github.HenriqueMichelini.craftalism.api.market.domain.trade.MarketTradePlanner;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketEventInstance;
-import io.github.HenriqueMichelini.craftalism.api.model.MarketEventRarity;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketEventScope;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketEventSource;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketEventStatus;
@@ -317,7 +316,6 @@ class MarketSnapshotStateLoaderTest {
         event.setId(42L);
         event.setTemplateId("farming_bumper_crop");
         event.setSource(MarketEventSource.SCHEDULER);
-        event.setRarity(MarketEventRarity.MEDIUM);
         event.setScope(MarketEventScope.CATEGORY);
         event.setSelectedCategoryId("farming");
         event.setEffectBasisPoints(effectBasisPoints);

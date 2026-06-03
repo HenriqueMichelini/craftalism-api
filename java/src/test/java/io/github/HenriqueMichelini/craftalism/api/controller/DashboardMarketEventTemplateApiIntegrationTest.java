@@ -242,7 +242,6 @@ class DashboardMarketEventTemplateApiIntegrationTest {
         return """
             {
               "templateId": "crafting_festival",
-              "rarity": "MEDIUM",
               "scope": "MARKET_WIDE",
               "automaticWeight": 25,
               "automaticEnabled": true,
@@ -263,7 +262,6 @@ class DashboardMarketEventTemplateApiIntegrationTest {
     private String updatedTemplate() {
         return """
             {
-              "rarity": "MEDIUM",
               "scope": "CATEGORY",
               "automaticWeight": 15,
               "automaticEnabled": true,

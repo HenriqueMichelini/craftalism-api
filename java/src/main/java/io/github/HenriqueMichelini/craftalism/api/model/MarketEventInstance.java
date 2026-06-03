@@ -27,10 +27,6 @@ public class MarketEventInstance {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 16)
-    private MarketEventRarity rarity;
-
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 16)
     private MarketEventScope scope;
 
     @Column
@@ -99,14 +95,6 @@ public class MarketEventInstance {
 
     public void setSource(MarketEventSource source) {
         this.source = source;
-    }
-
-    public MarketEventRarity getRarity() {
-        return rarity;
-    }
-
-    public void setRarity(MarketEventRarity rarity) {
-        this.rarity = rarity;
     }
 
     public MarketEventScope getScope() {

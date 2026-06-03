@@ -15,7 +15,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import io.github.HenriqueMichelini.craftalism.api.dto.MarketSide;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketCategory;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketEventInstance;
-import io.github.HenriqueMichelini.craftalism.api.model.MarketEventRarity;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketEventScope;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketEventSource;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketEventStatus;
@@ -503,7 +502,6 @@ class DashboardMarketItemCrudApiIntegrationTest {
         MarketEventInstance event = new MarketEventInstance();
         event.setTemplateId("category_event");
         event.setSource(MarketEventSource.ADMIN);
-        event.setRarity(MarketEventRarity.MEDIUM);
         event.setScope(MarketEventScope.CATEGORY);
         event.setSelectedCategoryId(categoryId);
         event.setEffectBasisPoints(effectBasisPoints);

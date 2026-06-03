@@ -190,7 +190,6 @@ public class MarketEventAdminService {
         MarketEventInstance event = new MarketEventInstance();
         event.setTemplateId(template.getTemplateId());
         event.setSource(MarketEventSource.ADMIN);
-        event.setRarity(template.getRarity());
         event.setScope(scope);
         event.setSelectedCategoryId(request.selectedCategoryId());
         event.setSelectedItemIds(request.selectedItemIds());
@@ -260,7 +259,6 @@ public class MarketEventAdminService {
             event.getId(),
             event.getTemplateId(),
             event.getSource(),
-            event.getRarity(),
             event.getScope(),
             event.getSelectedCategoryId(),
             event.getSelectedItemIds(),

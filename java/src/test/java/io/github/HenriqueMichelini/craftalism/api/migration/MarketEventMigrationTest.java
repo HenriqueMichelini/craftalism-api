@@ -25,7 +25,6 @@ class MarketEventMigrationTest {
             assertTableExists(connection, "market_event_templates");
             assertTableExists(connection, "market_event_instances");
             assertColumnExists(connection, "market_event_instances", "source");
-            assertColumnExists(connection, "market_event_instances", "rarity");
             assertColumnExists(connection, "market_event_instances", "scope");
             assertColumnExists(connection, "market_event_instances", "selected_category_id");
             assertColumnExists(connection, "market_event_instances", "selected_item_ids");
@@ -71,7 +70,6 @@ class MarketEventMigrationTest {
                 """
                 INSERT INTO market_event_templates (
                     template_id,
-                    rarity,
                     scope,
                     automatic_weight,
                     automatic_enabled,
@@ -91,7 +89,6 @@ class MarketEventMigrationTest {
                 )
                 VALUES (
                     'template',
-                    'MEDIUM',
                     'MARKET_WIDE',
                     1,
                     TRUE,
@@ -128,7 +125,6 @@ class MarketEventMigrationTest {
                 INSERT INTO market_event_instances (
                     template_id,
                     source,
-                    rarity,
                     scope,
                     effect_basis_points,
                     effect_version,
@@ -145,7 +141,6 @@ class MarketEventMigrationTest {
                 VALUES (
                     'template',
                     'SYSTEM',
-                    'MEDIUM',
                     'MARKET_WIDE',
                     10000,
                     1,

@@ -1,6 +1,5 @@
 package io.github.HenriqueMichelini.craftalism.api.dto;
 
-import io.github.HenriqueMichelini.craftalism.api.model.MarketEventRarity;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketEventScope;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -12,9 +11,6 @@ public record MarketEventTemplateCreateRequestDTO(
     @NotBlank(message = "Template ID is required")
     @Size(max = 96, message = "Template ID must be at most 96 characters")
     String templateId,
-
-    @NotNull(message = "Rarity is required")
-    MarketEventRarity rarity,
 
     @NotNull(message = "Scope is required")
     MarketEventScope scope,

@@ -15,7 +15,6 @@ import static org.mockito.Mockito.when;
 
 import io.github.HenriqueMichelini.craftalism.api.market.domain.event.MarketEventLifecycleService;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketEventInstance;
-import io.github.HenriqueMichelini.craftalism.api.model.MarketEventRarity;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketEventScope;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketEventSource;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketEventTemplate;
@@ -53,9 +52,8 @@ class MarketEventSchedulerTest {
     void rollWindow_startsWeightedEligibleTemplateWhenLeaseAvailable() {
         MarketEventTemplate template = automaticTemplate(
             "farming_bumper_crop",
-            MarketEventRarity.MEDIUM,
             MarketEventScope.CATEGORY,
-            true
+            false
         );
         when(lockRepository.acquireExpiredLease(anyString(), anyString(), any(), any()))
             .thenReturn(1);
@@ -148,9 +146,8 @@ class MarketEventSchedulerTest {
     void rollWindow_duplicateExecutionsOnlyAcquireOneLease() {
         MarketEventTemplate template = automaticTemplate(
             "farming_bumper_crop",
-            MarketEventRarity.MEDIUM,
             MarketEventScope.CATEGORY,
-            true
+            false
         );
         when(lockRepository.acquireExpiredLease(anyString(), anyString(), any(), any()))
             .thenReturn(1, 0);
@@ -178,7 +175,18 @@ class MarketEventSchedulerTest {
     }
 
     @Test
-    void rollWindow_filtersAutomaticExtraRareAndBlockingRareTemplatesByDefault() {
+    void rollWindow_filtersBlockingTemplatesAndAutomaticDisabledTemplates() {
+        MarketEventTemplate blockingTemplate = automaticTemplate(
+            "customs_hold",
+            MarketEventScope.ITEM,
+            true
+        );
+        MarketEventTemplate disabledTemplate = automaticTemplate(
+            "market_alarm",
+            MarketEventScope.MARKET_WIDE,
+            false
+        );
+        disabledTemplate.setAutomaticEnabled(false);
         when(lockRepository.acquireExpiredLease(anyString(), anyString(), any(), any()))
             .thenReturn(1);
         when(lifecycleService.effectiveActiveEvent(any())).thenReturn(
@@ -186,20 +194,7 @@ class MarketEventSchedulerTest {
         );
         when(random.nextLong(10_000L)).thenReturn(0L);
         when(templateRepository.findAll()).thenReturn(
-            List.of(
-                automaticTemplate(
-                    "rare_customs_hold",
-                    MarketEventRarity.RARE,
-                    MarketEventScope.ITEM,
-                    true
-                ),
-                automaticTemplate(
-                    "extra_rare_market_alarm",
-                    MarketEventRarity.EXTRA_RARE,
-                    MarketEventScope.MARKET_WIDE,
-                    false
-                )
-            )
+            List.of(blockingTemplate, disabledTemplate)
         );
 
         MarketEventScheduler.SchedulerDecision decision = scheduler(true, true)
@@ -213,14 +208,12 @@ class MarketEventSchedulerTest {
     void rollWindow_loadsBoundedCooldownHistoryOnceForMultipleCandidates() {
         MarketEventTemplate shorterCooldown = automaticTemplate(
             "farming_bumper_crop",
-            MarketEventRarity.MEDIUM,
             MarketEventScope.CATEGORY,
             false
         );
         shorterCooldown.setCooldownSeconds(3_600L);
         MarketEventTemplate longerCooldown = automaticTemplate(
             "farming_supply_shortage",
-            MarketEventRarity.MEDIUM,
             MarketEventScope.CATEGORY,
             false
         );
@@ -270,7 +263,6 @@ class MarketEventSchedulerTest {
             random,
             schedulerEnabled,
             marketEnabled,
-            false,
             startChanceBasisPoints,
             Duration.ofSeconds(60L),
             Duration.ofSeconds(7_200L),
@@ -281,13 +273,11 @@ class MarketEventSchedulerTest {
 
     private MarketEventTemplate automaticTemplate(
         String templateId,
-        MarketEventRarity rarity,
         MarketEventScope scope,
         boolean blockingAllowed
     ) {
         MarketEventTemplate template = new MarketEventTemplate();
         template.setTemplateId(templateId);
-        template.setRarity(rarity);
         template.setScope(scope);
         template.setAutomaticEnabled(true);
         template.setAutomaticWeight(10);

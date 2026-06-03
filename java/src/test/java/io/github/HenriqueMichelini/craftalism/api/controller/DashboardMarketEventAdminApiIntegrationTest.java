@@ -14,7 +14,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import io.github.HenriqueMichelini.craftalism.api.model.MarketEventEndReason;
-import io.github.HenriqueMichelini.craftalism.api.model.MarketEventRarity;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketEventInstance;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketEventScope;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketEventSource;
@@ -627,7 +626,6 @@ class DashboardMarketEventAdminApiIntegrationTest {
         MarketEventInstance event = new MarketEventInstance();
         event.setTemplateId("rare_customs_hold");
         event.setSource(MarketEventSource.ADMIN);
-        event.setRarity(MarketEventRarity.RARE);
         event.setScope(MarketEventScope.ITEM);
         event.setSelectedItemIds("wheat");
         event.setEffectBasisPoints(10_000);
@@ -675,7 +673,6 @@ class DashboardMarketEventAdminApiIntegrationTest {
     private MarketEventTemplate blockingTemplate() {
         MarketEventTemplate template = new MarketEventTemplate();
         template.setTemplateId("rare_customs_hold");
-        template.setRarity(MarketEventRarity.RARE);
         template.setScope(MarketEventScope.ITEM);
         template.setAutomaticWeight(0);
         template.setAutomaticEnabled(false);
@@ -698,7 +695,6 @@ class DashboardMarketEventAdminApiIntegrationTest {
     private MarketEventTemplate downTemplate() {
         MarketEventTemplate template = new MarketEventTemplate();
         template.setTemplateId("farming_bumper_crop");
-        template.setRarity(MarketEventRarity.MEDIUM);
         template.setScope(MarketEventScope.CATEGORY);
         template.setAutomaticWeight(80);
         template.setAutomaticEnabled(true);
@@ -726,7 +722,6 @@ class DashboardMarketEventAdminApiIntegrationTest {
         MarketEventInstance event = new MarketEventInstance();
         event.setTemplateId("category_event");
         event.setSource(MarketEventSource.ADMIN);
-        event.setRarity(MarketEventRarity.MEDIUM);
         event.setScope(MarketEventScope.CATEGORY);
         event.setSelectedCategoryId(categoryId);
         event.setEffectBasisPoints(effectBasisPoints);

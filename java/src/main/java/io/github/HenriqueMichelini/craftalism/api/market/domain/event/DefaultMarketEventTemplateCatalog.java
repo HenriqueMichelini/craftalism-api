@@ -1,6 +1,5 @@
 package io.github.HenriqueMichelini.craftalism.api.market.domain.event;
 
-import io.github.HenriqueMichelini.craftalism.api.model.MarketEventRarity;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketEventScope;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketEventTemplate;
 import java.time.Instant;
@@ -14,7 +13,6 @@ public class DefaultMarketEventTemplateCatalog {
         return List.of(
             new MarketEventTemplateBuilder()
                 .templateId("farming_bumper_crop")
-                .rarity(MarketEventRarity.MEDIUM)
                 .scope(MarketEventScope.CATEGORY)
                 .automaticWeight(80)
                 .automaticEnabled(true)
@@ -35,7 +33,6 @@ public class DefaultMarketEventTemplateCatalog {
                 .build(),
             new MarketEventTemplateBuilder()
                 .templateId("mining_tool_shortage")
-                .rarity(MarketEventRarity.MEDIUM)
                 .scope(MarketEventScope.CATEGORY)
                 .automaticWeight(70)
                 .automaticEnabled(true)
@@ -56,7 +53,6 @@ public class DefaultMarketEventTemplateCatalog {
                 .build(),
             new MarketEventTemplateBuilder()
                 .templateId("rare_customs_hold")
-                .rarity(MarketEventRarity.RARE)
                 .scope(MarketEventScope.ITEM)
                 .automaticWeight(0)
                 .automaticEnabled(false)
@@ -77,7 +73,6 @@ public class DefaultMarketEventTemplateCatalog {
                 .build(),
             new MarketEventTemplateBuilder()
                 .templateId("extra_rare_market_alarm")
-                .rarity(MarketEventRarity.EXTRA_RARE)
                 .scope(MarketEventScope.MARKET_WIDE)
                 .automaticWeight(0)
                 .automaticEnabled(false)

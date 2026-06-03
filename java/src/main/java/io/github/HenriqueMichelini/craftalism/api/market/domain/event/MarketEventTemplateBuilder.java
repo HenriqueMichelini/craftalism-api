@@ -1,6 +1,5 @@
 package io.github.HenriqueMichelini.craftalism.api.market.domain.event;
 
-import io.github.HenriqueMichelini.craftalism.api.model.MarketEventRarity;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketEventScope;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketEventTemplate;
 import java.time.Instant;
@@ -11,11 +10,6 @@ public final class MarketEventTemplateBuilder {
 
     public MarketEventTemplateBuilder templateId(String templateId) {
         template.setTemplateId(templateId);
-        return this;
-    }
-
-    public MarketEventTemplateBuilder rarity(MarketEventRarity rarity) {
-        template.setRarity(rarity);
         return this;
     }
 
