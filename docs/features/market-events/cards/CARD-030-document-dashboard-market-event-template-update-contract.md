@@ -2,7 +2,7 @@
 
 ## Status
 
-planned
+completed
 
 ## Objective
 
@@ -68,3 +68,14 @@ grep -nE "event-templates|template update|MarketEventTemplate|SCOPE_market:admin
 
 ## Completion Notes
 
+- Documented `PUT /api/dashboard/market/event-templates/{templateId}` in the
+  market-events feature contract.
+- Recorded the complete update request shape, response row shape,
+  path-bound immutable `templateId` behavior, `SCOPE_market:admin` boundary,
+  validation/error ownership, delete out-of-scope status, and downstream
+  dashboard ownership limits.
+- Validation: `rtk rg -n
+  "event-templates|template update|MarketEventTemplate|SCOPE_market:admin|delete"
+  docs/features/market-events/contract.md
+  docs/features/market-events/cards/CARD-030-document-dashboard-market-event-template-update-contract.md`
+  passed from the repository root.

@@ -3,13 +3,17 @@ package io.github.HenriqueMichelini.craftalism.api.market.application.admin;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import io.github.HenriqueMichelini.craftalism.api.dto.MarketEventTemplateUpdateRequestDTO;
+import io.github.HenriqueMichelini.craftalism.api.exceptions.MarketEventTemplateValidationException;
 import io.github.HenriqueMichelini.craftalism.api.market.domain.event.DefaultMarketEventTemplateCatalog;
+import io.github.HenriqueMichelini.craftalism.api.market.domain.event.MarketEventTemplateBuilder;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketEventRarity;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketEventScope;
 import io.github.HenriqueMichelini.craftalism.api.model.MarketEventTemplate;
@@ -17,6 +21,7 @@ import io.github.HenriqueMichelini.craftalism.api.repository.MarketEventTemplate
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -70,6 +75,95 @@ class MarketEventTemplateTest {
         ).seedInitialTemplatesIfEmpty();
 
         verify(templateRepository, never()).saveAll(any());
+    }
+
+    @Test
+    void updateTemplatePersistsAuthoredFieldsAndPreservesIdentityAndCreatedAt() {
+        Instant createdAt = Instant.parse("2026-01-01T00:00:00Z");
+        MarketEventTemplate existing = template(
+            "crafting_festival",
+            createdAt
+        );
+        when(templateRepository.findById("crafting_festival")).thenReturn(
+            Optional.of(existing)
+        );
+        when(templateRepository.save(existing)).thenReturn(existing);
+
+        new MarketEventTemplateService(
+            templateRepository,
+            new ObjectMapper(),
+            new DefaultMarketEventTemplateCatalog()
+        ).updateTemplate("crafting_festival", validUpdateRequest());
+
+        ArgumentCaptor<MarketEventTemplate> templateCaptor =
+            ArgumentCaptor.forClass(MarketEventTemplate.class);
+        verify(templateRepository).save(templateCaptor.capture());
+
+        MarketEventTemplate updated = templateCaptor.getValue();
+        assertEquals("crafting_festival", updated.getTemplateId());
+        assertEquals(createdAt, updated.getCreatedAt());
+        assertTrue(updated.getUpdatedAt().isAfter(createdAt));
+        assertEquals(MarketEventScope.CATEGORY, updated.getScope());
+        assertEquals("DOWN", updated.getEffectDirection());
+        assertEquals("Quiet Market", updated.getPlayerFacingName());
+        assertEquals(
+            "{\"categoryIds\":[\"farming\"]}",
+            updated.getEligibleTargetMetadata()
+        );
+    }
+
+    @Test
+    void updateUnknownTemplateReturnsValidationProblemWithoutCreatingTemplate() {
+        when(templateRepository.findById("missing")).thenReturn(Optional.empty());
+
+        MarketEventTemplateValidationException exception = assertThrows(
+            MarketEventTemplateValidationException.class,
+            () ->
+                new MarketEventTemplateService(
+                    templateRepository,
+                    new ObjectMapper(),
+                    new DefaultMarketEventTemplateCatalog()
+                ).updateTemplate("missing", validUpdateRequest())
+        );
+
+        assertEquals(
+            "Market event template does not exist.",
+            exception.getMessage()
+        );
+        verify(templateRepository, never()).save(any());
+    }
+
+    @Test
+    void invalidUpdateDoesNotMutateStoredTemplate() {
+        Instant createdAt = Instant.parse("2026-01-01T00:00:00Z");
+        MarketEventTemplate existing = template(
+            "crafting_festival",
+            createdAt
+        );
+        when(templateRepository.findById("crafting_festival")).thenReturn(
+            Optional.of(existing)
+        );
+
+        MarketEventTemplateValidationException exception = assertThrows(
+            MarketEventTemplateValidationException.class,
+            () ->
+                new MarketEventTemplateService(
+                    templateRepository,
+                    new ObjectMapper(),
+                    new DefaultMarketEventTemplateCatalog()
+                ).updateTemplate(
+                    "crafting_festival",
+                    invalidDurationUpdateRequest()
+                )
+        );
+
+        assertEquals(
+            "Maximum duration seconds must be greater than or equal to minimum duration seconds.",
+            exception.getMessage()
+        );
+        assertEquals("Crafting Festival", existing.getPlayerFacingName());
+        assertEquals(createdAt, existing.getUpdatedAt());
+        verify(templateRepository, never()).save(any());
     }
 
     @Test
@@ -241,6 +335,70 @@ class MarketEventTemplateTest {
         assertEquals(eligibleTargetMetadata, template.getEligibleTargetMetadata());
         assertEquals(timestamp, template.getCreatedAt());
         assertEquals(timestamp, template.getUpdatedAt());
+    }
+
+    private MarketEventTemplate template(String templateId, Instant timestamp) {
+        return new MarketEventTemplateBuilder()
+            .templateId(templateId)
+            .rarity(MarketEventRarity.MEDIUM)
+            .scope(MarketEventScope.MARKET_WIDE)
+            .automaticWeight(25)
+            .automaticEnabled(true)
+            .blockingAllowed(false)
+            .minDurationSeconds(1_800L)
+            .maxDurationSeconds(3_600L)
+            .minEffectBasisPoints(10_200)
+            .maxEffectBasisPoints(10_500)
+            .effectDirection("UP")
+            .cooldownSeconds(7_200L)
+            .playerFacingName("Crafting Festival")
+            .playerFacingDescription(
+                "Demand is lifting prices across the market."
+            )
+            .broadScopeHint("World market")
+            .eligibleTargetMetadata("{}")
+            .timestamps(timestamp)
+            .build();
+    }
+
+    private MarketEventTemplateUpdateRequestDTO validUpdateRequest() {
+        return new MarketEventTemplateUpdateRequestDTO(
+            MarketEventRarity.MEDIUM,
+            MarketEventScope.CATEGORY,
+            15,
+            true,
+            false,
+            1_800L,
+            5_400L,
+            9_400,
+            9_800,
+            "down",
+            10_800L,
+            "Quiet Market",
+            "Supply is softening category prices.",
+            "Farming goods",
+            "{\"categoryIds\":[\"farming\"]}"
+        );
+    }
+
+    private MarketEventTemplateUpdateRequestDTO invalidDurationUpdateRequest() {
+        return new MarketEventTemplateUpdateRequestDTO(
+            MarketEventRarity.MEDIUM,
+            MarketEventScope.CATEGORY,
+            15,
+            true,
+            false,
+            1_800L,
+            1_200L,
+            9_400,
+            9_800,
+            "down",
+            10_800L,
+            "Quiet Market",
+            "Supply is softening category prices.",
+            "Farming goods",
+            "{\"categoryIds\":[\"farming\"]}"
+        );
     }
 
     private boolean isNeutralNoEffectTemplate(MarketEventTemplate template) {

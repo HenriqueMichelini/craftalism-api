@@ -2,7 +2,7 @@
 
 ## Status
 
-planned
+completed
 
 ## Objective
 
@@ -86,3 +86,20 @@ Run from `java/`.
 
 ## Completion Notes
 
+- Added `PUT /api/dashboard/market/event-templates/{templateId}` with
+  path-bound immutable `templateId`.
+- Added an explicit update request DTO that reuses authored template fields
+  except identity.
+- Updated `MarketEventTemplateService` to reject unknown templates, validate
+  update requests with the same MVP invariants as create, preserve `createdAt`,
+  refresh `updatedAt`, and return the persisted row.
+- Extended integration, security, and service tests for successful update,
+  unknown-template rejection, invalid-update no-mutation behavior, timestamp
+  behavior, authorization, and list/create regression coverage.
+- Validation: `rtk ./gradlew test --tests
+  io.github.HenriqueMichelini.craftalism.api.controller.DashboardMarketEventTemplateApiIntegrationTest
+  --tests
+  io.github.HenriqueMichelini.craftalism.api.controller.DashboardMarketEventAdminSecurityTest
+  --tests
+  io.github.HenriqueMichelini.craftalism.api.market.application.admin.MarketEventTemplateTest`
+  passed from `java/`.

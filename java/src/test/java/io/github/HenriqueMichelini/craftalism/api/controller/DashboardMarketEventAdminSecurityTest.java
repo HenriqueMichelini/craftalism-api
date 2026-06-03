@@ -3,6 +3,7 @@ package io.github.HenriqueMichelini.craftalism.api.controller;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import io.github.HenriqueMichelini.craftalism.api.config.SecurityConfig;
@@ -81,6 +82,27 @@ class DashboardMarketEventAdminSecurityTest {
                     .with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_api:write")))
             )
             .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void apiWriteScopeCannotAccessEventTemplateUpdateRoute() throws Exception {
+        mockMvc
+            .perform(
+                put("/api/dashboard/market/event-templates/crafting_festival")
+                    .with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_api:write")))
+            )
+            .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void marketAdminScopeCanPassEventTemplateUpdateSecurityBoundary()
+        throws Exception {
+        mockMvc
+            .perform(
+                put("/api/dashboard/market/event-templates/crafting_festival")
+                    .with(jwt().authorities(new SimpleGrantedAuthority("SCOPE_market:admin")))
+            )
+            .andExpect(status().isBadRequest());
     }
 
     @Test

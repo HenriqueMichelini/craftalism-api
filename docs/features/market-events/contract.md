@@ -167,6 +167,92 @@ Templates may repeat, but rare and extra-rare templates need enough variety and 
 
 Templates must not create neutral no-effect events.
 
+## Dashboard Template Admin API
+
+Template administration is an internal dashboard/admin API owned by
+`craftalism-api`.
+
+Template routes require `SCOPE_market:admin`. Generic `SCOPE_api:write` is not
+sufficient.
+
+Persisted template rows are exposed through:
+
+- `GET /api/dashboard/market/event-templates`
+- `POST /api/dashboard/market/event-templates`
+- `PUT /api/dashboard/market/event-templates/{templateId}`
+
+Template create requests include:
+
+- `templateId`
+- `rarity`
+- `scope`
+- `automaticWeight`
+- `automaticEnabled`
+- `blockingAllowed`
+- `minDurationSeconds`
+- `maxDurationSeconds`
+- `minEffectBasisPoints`
+- `maxEffectBasisPoints`
+- `effectDirection`
+- `cooldownSeconds`
+- `playerFacingName`
+- `playerFacingDescription`
+- `broadScopeHint`
+- `eligibleTargetMetadata`
+
+Template update requests use the same authored fields except `templateId`:
+
+- `rarity`
+- `scope`
+- `automaticWeight`
+- `automaticEnabled`
+- `blockingAllowed`
+- `minDurationSeconds`
+- `maxDurationSeconds`
+- `minEffectBasisPoints`
+- `maxEffectBasisPoints`
+- `effectDirection`
+- `cooldownSeconds`
+- `playerFacingName`
+- `playerFacingDescription`
+- `broadScopeHint`
+- `eligibleTargetMetadata`
+
+For updates, `templateId` is path-bound and immutable. The update request body
+must not define template identity, and the API does not perform template rename
+or upsert behavior. Updating an unknown `templateId` returns a validation-style
+client error and does not create a template.
+
+Template create and update responses return the persisted template row:
+
+- `templateId`
+- `rarity`
+- `scope`
+- `automaticWeight`
+- `automaticEnabled`
+- `blockingAllowed`
+- `minDurationSeconds`
+- `maxDurationSeconds`
+- `minEffectBasisPoints`
+- `maxEffectBasisPoints`
+- `effectDirection`
+- `cooldownSeconds`
+- `playerFacingName`
+- `playerFacingDescription`
+- `broadScopeHint`
+- `eligibleTargetMetadata`
+- `createdAt`
+- `updatedAt`
+
+`craftalism-api` owns template validation, normalization, persistence,
+timestamps, scheduler semantics, pricing semantics, and lifecycle semantics.
+Dashboard/front-end repositories may submit authored create or update requests
+and render returned template rows; they must not calculate authoritative
+template validation, persistence, scheduler behavior, pricing behavior, or
+lifecycle semantics locally.
+
+Template delete behavior is out of scope unless a later card explicitly adds it.
+
 ## Player Visibility Rules
 
 Players should usually see enough active event context before committing to a trade to feel that the market is fair.

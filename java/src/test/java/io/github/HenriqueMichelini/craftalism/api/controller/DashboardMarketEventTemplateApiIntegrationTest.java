@@ -1,15 +1,19 @@
 package io.github.HenriqueMichelini.craftalism.api.controller;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import io.github.HenriqueMichelini.craftalism.api.model.MarketEventTemplate;
 import io.github.HenriqueMichelini.craftalism.api.repository.MarketEventInstanceRepository;
 import io.github.HenriqueMichelini.craftalism.api.repository.MarketEventTemplateRepository;
+import java.time.Instant;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -67,6 +71,116 @@ class DashboardMarketEventTemplateApiIntegrationTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$[0].templateId").value("crafting_festival"))
             .andExpect(jsonPath("$[0].eligibleTargetMetadata").value("{}"));
+    }
+
+    @Test
+    void adminCanUpdateExistingEventTemplate() throws Exception {
+        mockMvc
+            .perform(
+                post("/api/dashboard/market/event-templates")
+                    .with(adminJwt())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(validTemplate())
+            )
+            .andExpect(status().isCreated());
+
+        MarketEventTemplate before = templateRepository
+            .findById("crafting_festival")
+            .orElseThrow();
+        Instant createdAt = before.getCreatedAt();
+        Instant previousUpdatedAt = before.getUpdatedAt();
+
+        Thread.sleep(5L);
+
+        mockMvc
+            .perform(
+                put(
+                    "/api/dashboard/market/event-templates/crafting_festival"
+                )
+                    .with(adminJwt())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(updatedTemplate())
+            )
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.templateId").value("crafting_festival"))
+            .andExpect(jsonPath("$.effectDirection").value("DOWN"))
+            .andExpect(jsonPath("$.playerFacingName").value("Quiet Market"))
+            .andExpect(jsonPath("$.createdAt").value(createdAt.toString()))
+            .andExpect(jsonPath("$.updatedAt").exists());
+
+        MarketEventTemplate after = templateRepository
+            .findById("crafting_festival")
+            .orElseThrow();
+        assertEquals(createdAt, after.getCreatedAt());
+        assertTrue(after.getUpdatedAt().isAfter(previousUpdatedAt));
+        assertEquals("Quiet Market", after.getPlayerFacingName());
+        assertEquals("{\"categoryIds\":[\"farming\"]}", after.getEligibleTargetMetadata());
+    }
+
+    @Test
+    void updateUnknownTemplateReturnsValidationProblemWithoutCreatingTemplate()
+        throws Exception {
+        mockMvc
+            .perform(
+                put("/api/dashboard/market/event-templates/unknown")
+                    .with(adminJwt())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(updatedTemplate())
+            )
+            .andExpect(status().isBadRequest())
+            .andExpect(
+                jsonPath("$.detail").value(
+                    "Market event template does not exist."
+                )
+            );
+
+        assertEquals(0L, templateRepository.count());
+    }
+
+    @Test
+    void invalidUpdateReturnsValidationProblemWithoutMutatingTemplate()
+        throws Exception {
+        mockMvc
+            .perform(
+                post("/api/dashboard/market/event-templates")
+                    .with(adminJwt())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(validTemplate())
+            )
+            .andExpect(status().isCreated());
+
+        Instant createdAt = templateRepository
+            .findById("crafting_festival")
+            .orElseThrow()
+            .getCreatedAt();
+
+        mockMvc
+            .perform(
+                put(
+                    "/api/dashboard/market/event-templates/crafting_festival"
+                )
+                    .with(adminJwt())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(
+                        updatedTemplate()
+                            .replace(
+                                "\"maxDurationSeconds\": 5400",
+                                "\"maxDurationSeconds\": 1200"
+                            )
+                    )
+            )
+            .andExpect(status().isBadRequest())
+            .andExpect(
+                jsonPath("$.detail").value(
+                    "Maximum duration seconds must be greater than or equal to minimum duration seconds."
+                )
+            );
+
+        MarketEventTemplate template = templateRepository
+            .findById("crafting_festival")
+            .orElseThrow();
+        assertEquals("Crafting Festival", template.getPlayerFacingName());
+        assertEquals(createdAt, template.getUpdatedAt());
     }
 
     @Test
@@ -143,6 +257,28 @@ class DashboardMarketEventTemplateApiIntegrationTest {
               "playerFacingDescription": "Demand is lifting prices across the market.",
               "broadScopeHint": "World market",
               "eligibleTargetMetadata": "{}"
+            }
+            """;
+    }
+
+    private String updatedTemplate() {
+        return """
+            {
+              "rarity": "MEDIUM",
+              "scope": "CATEGORY",
+              "automaticWeight": 15,
+              "automaticEnabled": true,
+              "blockingAllowed": false,
+              "minDurationSeconds": 1800,
+              "maxDurationSeconds": 5400,
+              "minEffectBasisPoints": 9400,
+              "maxEffectBasisPoints": 9800,
+              "effectDirection": "down",
+              "cooldownSeconds": 10800,
+              "playerFacingName": "Quiet Market",
+              "playerFacingDescription": "Supply is softening category prices.",
+              "broadScopeHint": "Farming goods",
+              "eligibleTargetMetadata": "{\\"categoryIds\\":[\\"farming\\"]}"
             }
             """;
     }
