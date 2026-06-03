@@ -153,7 +153,6 @@ Templates define:
 - eligible targets
 - duration range
 - effect range
-- effect direction
 - whether mixed effects are allowed
 - whether blocking is allowed
 - cooldown behavior
@@ -193,7 +192,6 @@ Template create requests include:
 - `maxDurationSeconds`
 - `minEffectBasisPoints`
 - `maxEffectBasisPoints`
-- `effectDirection`
 - `cooldownSeconds`
 - `playerFacingName`
 - `playerFacingDescription`
@@ -211,7 +209,6 @@ Template update requests use the same authored fields except `templateId`:
 - `maxDurationSeconds`
 - `minEffectBasisPoints`
 - `maxEffectBasisPoints`
-- `effectDirection`
 - `cooldownSeconds`
 - `playerFacingName`
 - `playerFacingDescription`
@@ -222,6 +219,14 @@ For updates, `templateId` is path-bound and immutable. The update request body
 must not define template identity, and the API does not perform template rename
 or upsert behavior. Updating an unknown `templateId` returns a validation-style
 client error and does not create a template.
+
+`effectDirection` is derived by `craftalism-api` from the authored effect
+basis-point range. Ranges entirely above `10000` derive `UP`; ranges entirely
+below `10000` derive `DOWN`; ranges with both bounds exactly `10000` derive
+`BLOCK` and remain subject to blocking-template validation. Mixed ranges that
+cross or include `10000` without being exactly neutral are invalid. Neutral
+`10000` ranges are valid only for manual rare or extra-rare item templates that
+allow blocking.
 
 Template create and update responses return the persisted template row:
 

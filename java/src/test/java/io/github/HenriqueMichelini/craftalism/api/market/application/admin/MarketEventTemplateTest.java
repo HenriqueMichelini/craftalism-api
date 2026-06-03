@@ -113,6 +113,35 @@ class MarketEventTemplateTest {
     }
 
     @Test
+    void updateTemplateDerivesBlockDirectionFromNeutralBlockingRange() {
+        Instant createdAt = Instant.parse("2026-01-01T00:00:00Z");
+        MarketEventTemplate existing = template(
+            "rare_customs_hold",
+            createdAt
+        );
+        when(templateRepository.findById("rare_customs_hold")).thenReturn(
+            Optional.of(existing)
+        );
+        when(templateRepository.save(existing)).thenReturn(existing);
+
+        new MarketEventTemplateService(
+            templateRepository,
+            new ObjectMapper(),
+            new DefaultMarketEventTemplateCatalog()
+        ).updateTemplate("rare_customs_hold", validBlockUpdateRequest());
+
+        ArgumentCaptor<MarketEventTemplate> templateCaptor =
+            ArgumentCaptor.forClass(MarketEventTemplate.class);
+        verify(templateRepository).save(templateCaptor.capture());
+
+        MarketEventTemplate updated = templateCaptor.getValue();
+        assertEquals("BLOCK", updated.getEffectDirection());
+        assertTrue(updated.isBlockingAllowed());
+        assertEquals(10_000, updated.getMinEffectBasisPoints());
+        assertEquals(10_000, updated.getMaxEffectBasisPoints());
+    }
+
+    @Test
     void updateUnknownTemplateReturnsValidationProblemWithoutCreatingTemplate() {
         when(templateRepository.findById("missing")).thenReturn(Optional.empty());
 
@@ -163,6 +192,38 @@ class MarketEventTemplateTest {
         );
         assertEquals("Crafting Festival", existing.getPlayerFacingName());
         assertEquals(createdAt, existing.getUpdatedAt());
+        verify(templateRepository, never()).save(any());
+    }
+
+    @Test
+    void mixedEffectRangeReturnsValidationProblemWithoutMutatingTemplate() {
+        Instant createdAt = Instant.parse("2026-01-01T00:00:00Z");
+        MarketEventTemplate existing = template(
+            "crafting_festival",
+            createdAt
+        );
+        when(templateRepository.findById("crafting_festival")).thenReturn(
+            Optional.of(existing)
+        );
+
+        MarketEventTemplateValidationException exception = assertThrows(
+            MarketEventTemplateValidationException.class,
+            () ->
+                new MarketEventTemplateService(
+                    templateRepository,
+                    new ObjectMapper(),
+                    new DefaultMarketEventTemplateCatalog()
+                ).updateTemplate(
+                    "crafting_festival",
+                    mixedEffectRangeUpdateRequest()
+                )
+        );
+
+        assertEquals(
+            "Effect basis point range must be entirely above 10000, entirely below 10000, or exactly 10000 for blocking.",
+            exception.getMessage()
+        );
+        assertEquals("UP", existing.getEffectDirection());
         verify(templateRepository, never()).save(any());
     }
 
@@ -372,7 +433,6 @@ class MarketEventTemplateTest {
             5_400L,
             9_400,
             9_800,
-            "down",
             10_800L,
             "Quiet Market",
             "Supply is softening category prices.",
@@ -392,10 +452,47 @@ class MarketEventTemplateTest {
             1_200L,
             9_400,
             9_800,
-            "down",
             10_800L,
             "Quiet Market",
             "Supply is softening category prices.",
+            "Farming goods",
+            "{\"categoryIds\":[\"farming\"]}"
+        );
+    }
+
+    private MarketEventTemplateUpdateRequestDTO validBlockUpdateRequest() {
+        return new MarketEventTemplateUpdateRequestDTO(
+            MarketEventRarity.RARE,
+            MarketEventScope.ITEM,
+            0,
+            false,
+            true,
+            900L,
+            1_800L,
+            10_000,
+            10_000,
+            21_600L,
+            "Customs Hold",
+            "A specific good is temporarily held from trade.",
+            "One item",
+            "{\"manualOnly\":true}"
+        );
+    }
+
+    private MarketEventTemplateUpdateRequestDTO mixedEffectRangeUpdateRequest() {
+        return new MarketEventTemplateUpdateRequestDTO(
+            MarketEventRarity.MEDIUM,
+            MarketEventScope.CATEGORY,
+            15,
+            true,
+            false,
+            1_800L,
+            5_400L,
+            9_800,
+            10_200,
+            10_800L,
+            "Mixed Market",
+            "A contradictory market signal crosses neutral pricing.",
             "Farming goods",
             "{\"categoryIds\":[\"farming\"]}"
         );

@@ -61,7 +61,7 @@ public class MarketEventTemplateService {
         if (templateRepository.existsById(templateId)) {
             throw validation("Market event template already exists.");
         }
-        validate(request);
+        String effectDirection = validate(request);
 
         Instant now = Instant.now();
         MarketEventTemplate template = new MarketEventTemplateBuilder()
@@ -75,7 +75,7 @@ public class MarketEventTemplateService {
             .maxDurationSeconds(request.maxDurationSeconds())
             .minEffectBasisPoints(request.minEffectBasisPoints())
             .maxEffectBasisPoints(request.maxEffectBasisPoints())
-            .effectDirection(request.effectDirection().trim().toUpperCase())
+            .effectDirection(effectDirection)
             .cooldownSeconds(request.cooldownSeconds())
             .playerFacingName(request.playerFacingName().trim())
             .playerFacingDescription(
@@ -99,7 +99,7 @@ public class MarketEventTemplateService {
                 validation("Market event template does not exist.")
             );
 
-        validate(request);
+        String effectDirection = validate(request);
 
         template.setRarity(request.rarity());
         template.setScope(request.scope());
@@ -110,7 +110,7 @@ public class MarketEventTemplateService {
         template.setMaxDurationSeconds(request.maxDurationSeconds());
         template.setMinEffectBasisPoints(request.minEffectBasisPoints());
         template.setMaxEffectBasisPoints(request.maxEffectBasisPoints());
-        template.setEffectDirection(request.effectDirection().trim().toUpperCase());
+        template.setEffectDirection(effectDirection);
         template.setCooldownSeconds(request.cooldownSeconds());
         template.setPlayerFacingName(request.playerFacingName().trim());
         template.setPlayerFacingDescription(
@@ -125,8 +125,8 @@ public class MarketEventTemplateService {
         return toResponse(templateRepository.save(template));
     }
 
-    private void validate(MarketEventTemplateCreateRequestDTO request) {
-        validate(
+    private String validate(MarketEventTemplateCreateRequestDTO request) {
+        return validate(
             request.rarity(),
             request.scope(),
             request.automaticWeight(),
@@ -136,13 +136,12 @@ public class MarketEventTemplateService {
             request.maxDurationSeconds(),
             request.minEffectBasisPoints(),
             request.maxEffectBasisPoints(),
-            request.effectDirection(),
             request.eligibleTargetMetadata()
         );
     }
 
-    private void validate(MarketEventTemplateUpdateRequestDTO request) {
-        validate(
+    private String validate(MarketEventTemplateUpdateRequestDTO request) {
+        return validate(
             request.rarity(),
             request.scope(),
             request.automaticWeight(),
@@ -152,12 +151,11 @@ public class MarketEventTemplateService {
             request.maxDurationSeconds(),
             request.minEffectBasisPoints(),
             request.maxEffectBasisPoints(),
-            request.effectDirection(),
             request.eligibleTargetMetadata()
         );
     }
 
-    private void validate(
+    private String validate(
         MarketEventRarity rarity,
         MarketEventScope scope,
         int automaticWeight,
@@ -167,7 +165,6 @@ public class MarketEventTemplateService {
         long maxDurationSeconds,
         int minEffectBasisPoints,
         int maxEffectBasisPoints,
-        String effectDirectionValue,
         String eligibleTargetMetadata
     ) {
         if (maxDurationSeconds < minDurationSeconds) {
@@ -191,7 +188,10 @@ public class MarketEventTemplateService {
             );
         }
 
-        String effectDirection = effectDirectionValue.trim().toUpperCase();
+        String effectDirection = deriveEffectDirection(
+            minEffectBasisPoints,
+            maxEffectBasisPoints
+        );
         switch (effectDirection) {
             case "UP" -> validateUpEffect(
                 blockingAllowed,
@@ -209,9 +209,7 @@ public class MarketEventTemplateService {
                 minEffectBasisPoints,
                 maxEffectBasisPoints
             );
-            default -> throw validation(
-                "Effect direction must be UP, DOWN, or BLOCK."
-            );
+            default -> throw validation("Effect basis point range is invalid.");
         }
 
         try {
@@ -219,6 +217,28 @@ public class MarketEventTemplateService {
         } catch (JsonProcessingException ex) {
             throw validation("Eligible target metadata must be valid JSON.");
         }
+        return effectDirection;
+    }
+
+    private String deriveEffectDirection(
+        int minEffectBasisPoints,
+        int maxEffectBasisPoints
+    ) {
+        if (minEffectBasisPoints > 10_000) {
+            return "UP";
+        }
+        if (maxEffectBasisPoints < 10_000) {
+            return "DOWN";
+        }
+        if (
+            minEffectBasisPoints == 10_000 &&
+            maxEffectBasisPoints == 10_000
+        ) {
+            return "BLOCK";
+        }
+        throw validation(
+            "Effect basis point range must be entirely above 10000, entirely below 10000, or exactly 10000 for blocking."
+        );
     }
 
     private void validateUpEffect(

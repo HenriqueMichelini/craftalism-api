@@ -38,10 +38,6 @@ public record MarketEventTemplateCreateRequestDTO(
     @Positive(message = "Maximum effect basis points must be positive")
     int maxEffectBasisPoints,
 
-    @NotBlank(message = "Effect direction is required")
-    @Size(max = 16, message = "Effect direction must be at most 16 characters")
-    String effectDirection,
-
     @Positive(message = "Cooldown seconds must be positive")
     long cooldownSeconds,
 
