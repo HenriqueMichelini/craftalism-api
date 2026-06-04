@@ -227,6 +227,47 @@ class MarketEventTemplateTest {
     }
 
     @Test
+    void deleteTemplateDeletesPersistedTemplate() {
+        Instant createdAt = Instant.parse("2026-01-01T00:00:00Z");
+        MarketEventTemplate existing = template(
+            "crafting_festival",
+            createdAt
+        );
+        when(templateRepository.findById("crafting_festival")).thenReturn(
+            Optional.of(existing)
+        );
+
+        new MarketEventTemplateService(
+            templateRepository,
+            new ObjectMapper(),
+            new DefaultMarketEventTemplateCatalog()
+        ).deleteTemplate("crafting_festival");
+
+        verify(templateRepository).delete(existing);
+    }
+
+    @Test
+    void deleteUnknownTemplateReturnsValidationProblem() {
+        when(templateRepository.findById("missing")).thenReturn(Optional.empty());
+
+        MarketEventTemplateValidationException exception = assertThrows(
+            MarketEventTemplateValidationException.class,
+            () ->
+                new MarketEventTemplateService(
+                    templateRepository,
+                    new ObjectMapper(),
+                    new DefaultMarketEventTemplateCatalog()
+                ).deleteTemplate("missing")
+        );
+
+        assertEquals(
+            "Market event template does not exist.",
+            exception.getMessage()
+        );
+        verify(templateRepository, never()).delete(any());
+    }
+
+    @Test
     void initialTemplatesUseExplicitAutomaticAndBlockingRules() {
         List<MarketEventTemplate> templates =
             new DefaultMarketEventTemplateCatalog().templates(

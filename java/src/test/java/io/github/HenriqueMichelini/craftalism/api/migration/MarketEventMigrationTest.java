@@ -74,6 +74,8 @@ class MarketEventMigrationTest {
 
             insertTemplate(connection);
             insertActiveEvent(connection, "event-one");
+            deleteTemplate(connection);
+            assertMarketEventInstanceCount(connection, 1);
             assertThrows(
                 SQLException.class,
                 () -> insertActiveEvent(connection, "event-two")
@@ -203,6 +205,34 @@ class MarketEventMigrationTest {
             statement.setObject(4, now);
             statement.setObject(5, now);
             statement.executeUpdate();
+        }
+    }
+
+    private static void deleteTemplate(Connection connection) throws SQLException {
+        try (
+            PreparedStatement statement = connection.prepareStatement(
+                "DELETE FROM market_event_templates WHERE template_id = 'template'"
+            )
+        ) {
+            statement.executeUpdate();
+        }
+    }
+
+    private static void assertMarketEventInstanceCount(
+        Connection connection,
+        int expectedCount
+    ) throws SQLException {
+        try (
+            PreparedStatement statement = connection.prepareStatement(
+                "SELECT COUNT(*) FROM market_event_instances"
+            );
+            ResultSet resultSet = statement.executeQuery()
+        ) {
+            assertTrue(resultSet.next());
+            assertTrue(
+                resultSet.getInt(1) == expectedCount,
+                () -> "Expected market event instance count " + expectedCount
+            );
         }
     }
 
