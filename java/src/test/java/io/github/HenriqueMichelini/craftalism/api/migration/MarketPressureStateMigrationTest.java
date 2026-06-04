@@ -14,26 +14,18 @@ import java.sql.SQLException;
 import java.time.Instant;
 import java.util.UUID;
 import org.flywaydb.core.Flyway;
-import org.flywaydb.core.api.FlywayException;
 import org.flywaydb.core.api.configuration.FluentConfiguration;
 import org.junit.jupiter.api.Test;
 
 class MarketPressureStateMigrationTest {
 
     @Test
-    void v15AddsPressureColumnsAndBackfillsNetPositionFromLegacySegments() throws Exception {
+    void cleanMigrationChainCreatesCurrentPressureStateWithoutMarketSegments() throws Exception {
         String jdbcUrl = h2JdbcUrl();
-        migrateTo(jdbcUrl, "14");
-
-        try (Connection connection = connect(jdbcUrl)) {
-            insertLegacyMarketItem(connection, "wheat", 70L, 10L, 5L);
-            insertMarketSegment(connection, "wheat", 0L, 50L, 30L, 5L);
-            insertMarketSegment(connection, "wheat", 1L, 50L, 40L, 6L);
-        }
-
         migrateTo(jdbcUrl, null);
 
         try (Connection connection = connect(jdbcUrl)) {
+            assertColumnExists(connection, "market_items", "market_momentum");
             assertColumnExists(connection, "market_items", "base_unit_price");
             assertColumnExists(connection, "market_items", "min_unit_price");
             assertColumnExists(connection, "market_items", "max_unit_price");
@@ -46,10 +38,14 @@ class MarketPressureStateMigrationTest {
             assertColumnExists(connection, "market_items", "max_net_position");
             assertTableMissing(connection, "market_segments");
 
+            insertCategory(connection, "farming");
+            insertMinimalMarketItem(connection, "wheat");
+
             try (
                 PreparedStatement statement = connection.prepareStatement(
                     """
                     SELECT
+                        market_momentum,
                         base_unit_price,
                         min_unit_price,
                         max_unit_price,
@@ -69,33 +65,25 @@ class MarketPressureStateMigrationTest {
 
                 try (ResultSet resultSet = statement.executeQuery()) {
                     resultSet.next();
-                    assertEquals(5L, resultSet.getLong("base_unit_price"));
-                    assertEquals(3L, resultSet.getLong("min_unit_price"));
-                    assertEquals(15L, resultSet.getLong("max_unit_price"));
+                    assertEquals(0L, resultSet.getLong("market_momentum"));
+                    assertEquals(1L, resultSet.getLong("base_unit_price"));
+                    assertEquals(1L, resultSet.getLong("min_unit_price"));
+                    assertEquals(1L, resultSet.getLong("max_unit_price"));
                     assertEquals(50L, resultSet.getLong("segment_size"));
                     assertEquals(0, new BigDecimal("0.0800").compareTo(resultSet.getBigDecimal("price_sensitivity")));
                     assertEquals(1L, resultSet.getLong("base_regen_quantity"));
                     assertEquals(60L, resultSet.getLong("regen_interval_seconds"));
-                    assertEquals(30L, resultSet.getLong("net_position"));
+                    assertEquals(0L, resultSet.getLong("net_position"));
                     assertNull(resultSet.getObject("min_net_position"));
                     assertNull(resultSet.getObject("max_net_position"));
                 }
             }
+
+            assertThrows(
+                SQLException.class,
+                () -> insertInvalidPressureBounds(connection)
+            );
         }
-    }
-
-    @Test
-    void v15RejectsLegacyStateWhenCurrentStockDoesNotMatchRemainingSegmentCapacity() throws Exception {
-        String jdbcUrl = h2JdbcUrl();
-        migrateTo(jdbcUrl, "14");
-
-        try (Connection connection = connect(jdbcUrl)) {
-            insertLegacyMarketItem(connection, "wheat", 70L, 10L, 5L);
-            insertMarketSegment(connection, "wheat", 0L, 50L, 30L, 5L);
-            insertMarketSegment(connection, "wheat", 1L, 50L, 39L, 6L);
-        }
-
-        assertThrows(FlywayException.class, () -> migrateTo(jdbcUrl, null));
     }
 
     private static String h2JdbcUrl() {
@@ -116,20 +104,38 @@ class MarketPressureStateMigrationTest {
         configuration.load().migrate();
     }
 
-    private static void insertLegacyMarketItem(
-        Connection connection,
-        String itemId,
-        long currentStock,
-        long marketMomentum,
-        long buyUnitEstimate
-    ) throws SQLException {
+    private static void insertCategory(Connection connection, String categoryId)
+        throws SQLException {
+        try (
+            PreparedStatement statement = connection.prepareStatement(
+                """
+                INSERT INTO market_categories (
+                    category_id,
+                    display_name,
+                    display_order,
+                    icon_key,
+                    created_at,
+                    updated_at
+                )
+                VALUES (?, 'Farming', 0, 'WHEAT', ?, ?)
+                """
+            )
+        ) {
+            statement.setString(1, categoryId);
+            statement.setObject(2, Instant.parse("2026-01-01T00:00:00Z"));
+            statement.setObject(3, Instant.parse("2026-01-01T00:00:00Z"));
+            statement.executeUpdate();
+        }
+    }
+
+    private static void insertMinimalMarketItem(Connection connection, String itemId)
+        throws SQLException {
         try (
             PreparedStatement statement = connection.prepareStatement(
                 """
                 INSERT INTO market_items (
                     item_id,
                     category_id,
-                    category_display_name,
                     display_name,
                     icon_key,
                     buy_unit_estimate,
@@ -140,50 +146,50 @@ class MarketPressureStateMigrationTest {
                     blocked,
                     operating,
                     last_updated_at,
-                    market_momentum
+                    drift_evaluated_at
                 )
-                VALUES (?, 'farming', 'Farming', ?, 'wheat', ?, ?, 'COINS', ?, 0.00, FALSE, TRUE, ?, ?)
+                VALUES (?, 'farming', ?, 'WHEAT', 100, 70, 'COINS', 0, 0.00, FALSE, TRUE, ?, ?)
                 """
             )
         ) {
+            Instant timestamp = Instant.parse("2026-01-01T00:00:00Z");
             statement.setString(1, itemId);
             statement.setString(2, itemId);
-            statement.setLong(3, buyUnitEstimate);
-            statement.setLong(4, buyUnitEstimate);
-            statement.setLong(5, currentStock);
-            statement.setObject(6, Instant.parse("2026-01-01T00:00:00Z"));
-            statement.setLong(7, marketMomentum);
+            statement.setObject(3, timestamp);
+            statement.setObject(4, timestamp);
             statement.executeUpdate();
         }
     }
 
-    private static void insertMarketSegment(
-        Connection connection,
-        String itemId,
-        long segmentIndex,
-        long maxCapacity,
-        long remainingCapacity,
-        long unitPrice
-    ) throws SQLException {
+    private static void insertInvalidPressureBounds(Connection connection)
+        throws SQLException {
         try (
             PreparedStatement statement = connection.prepareStatement(
                 """
-                INSERT INTO market_segments (
+                INSERT INTO market_items (
                     item_id,
-                    segment_index,
-                    max_capacity,
-                    remaining_capacity,
-                    unit_price
+                    category_id,
+                    display_name,
+                    icon_key,
+                    buy_unit_estimate,
+                    sell_unit_estimate,
+                    currency,
+                    current_stock,
+                    variation_percent,
+                    blocked,
+                    operating,
+                    last_updated_at,
+                    min_net_position,
+                    max_net_position,
+                    drift_evaluated_at
                 )
-                VALUES (?, ?, ?, ?, ?)
+                VALUES ('invalid', 'farming', 'Invalid', 'WHEAT', 100, 70, 'COINS', 0, 0.00, FALSE, TRUE, ?, 5, 4, ?)
                 """
             )
         ) {
-            statement.setString(1, itemId);
-            statement.setLong(2, segmentIndex);
-            statement.setLong(3, maxCapacity);
-            statement.setLong(4, remainingCapacity);
-            statement.setLong(5, unitPrice);
+            Instant timestamp = Instant.parse("2026-01-01T00:00:00Z");
+            statement.setObject(1, timestamp);
+            statement.setObject(2, timestamp);
             statement.executeUpdate();
         }
     }

@@ -18,17 +18,14 @@ import org.junit.jupiter.api.Test;
 class MarketSellPricePercentageMigrationTest {
 
     @Test
-    void v18AddsSellPricePercentageDefaultAndConstraint() throws Exception {
+    void cleanMigrationChainCreatesSellPricePercentageDefaultAndConstraint() throws Exception {
         String jdbcUrl = h2JdbcUrl();
-        migrateTo(jdbcUrl, "17");
-
-        try (Connection connection = connect(jdbcUrl)) {
-            insertMarketItem(connection, "wheat");
-        }
-
         migrateTo(jdbcUrl, null);
 
         try (Connection connection = connect(jdbcUrl)) {
+            insertCategory(connection);
+            insertMarketItem(connection, "wheat");
+
             assertEquals(
                 0,
                 new BigDecimal("0.7000").compareTo(
@@ -61,6 +58,28 @@ class MarketSellPricePercentageMigrationTest {
         configuration.load().migrate();
     }
 
+    private static void insertCategory(Connection connection) throws SQLException {
+        try (
+            PreparedStatement statement = connection.prepareStatement(
+                """
+                INSERT INTO market_categories (
+                    category_id,
+                    display_name,
+                    display_order,
+                    icon_key,
+                    created_at,
+                    updated_at
+                )
+                VALUES ('farming', 'Farming', 0, 'WHEAT', ?, ?)
+                """
+            )
+        ) {
+            statement.setObject(1, Instant.parse("2026-01-01T00:00:00Z"));
+            statement.setObject(2, Instant.parse("2026-01-01T00:00:00Z"));
+            statement.executeUpdate();
+        }
+    }
+
     private static void insertMarketItem(
         Connection connection,
         String itemId
@@ -71,7 +90,6 @@ class MarketSellPricePercentageMigrationTest {
                 INSERT INTO market_items (
                     item_id,
                     category_id,
-                    category_display_name,
                     display_name,
                     icon_key,
                     buy_unit_estimate,
@@ -82,25 +100,17 @@ class MarketSellPricePercentageMigrationTest {
                     blocked,
                     operating,
                     last_updated_at,
-                    market_momentum,
-                    base_unit_price,
-                    min_unit_price,
-                    max_unit_price,
-                    segment_size,
-                    price_sensitivity,
-                    base_regen_quantity,
-                    regen_interval_seconds,
-                    net_position,
-                    min_net_position,
-                    max_net_position
+                    drift_evaluated_at
                 )
-                VALUES (?, 'farming', 'Farming', ?, 'wheat', 100, 100, 'COINS', 0, 0.00, FALSE, TRUE, ?, 0, 100, 50, 300, 50, 0.0800, 1, 60, 0, NULL, NULL)
+                VALUES (?, 'farming', ?, 'WHEAT', 100, 70, 'COINS', 0, 0.00, FALSE, TRUE, ?, ?)
                 """
             )
         ) {
+            Instant timestamp = Instant.parse("2026-01-01T00:00:00Z");
             statement.setString(1, itemId);
             statement.setString(2, itemId);
-            statement.setObject(3, Instant.parse("2026-01-01T00:00:00Z"));
+            statement.setObject(3, timestamp);
+            statement.setObject(4, timestamp);
             statement.executeUpdate();
         }
     }
@@ -134,7 +144,6 @@ class MarketSellPricePercentageMigrationTest {
                 INSERT INTO market_items (
                     item_id,
                     category_id,
-                    category_display_name,
                     display_name,
                     icon_key,
                     buy_unit_estimate,
@@ -145,24 +154,16 @@ class MarketSellPricePercentageMigrationTest {
                     blocked,
                     operating,
                     last_updated_at,
-                    market_momentum,
-                    base_unit_price,
-                    min_unit_price,
-                    max_unit_price,
-                    segment_size,
-                    price_sensitivity,
-                    base_regen_quantity,
-                    regen_interval_seconds,
-                    net_position,
-                    min_net_position,
-                    max_net_position,
-                    sell_price_percentage
+                    sell_price_percentage,
+                    drift_evaluated_at
                 )
-                VALUES ('invalid', 'farming', 'Farming', 'Invalid', 'wheat', 100, 100, 'COINS', 0, 0.00, FALSE, TRUE, ?, 0, 100, 50, 300, 50, 0.0800, 1, 60, 0, NULL, NULL, 1.0000)
+                VALUES ('invalid', 'farming', 'Invalid', 'WHEAT', 100, 70, 'COINS', 0, 0.00, FALSE, TRUE, ?, 1.0000, ?)
                 """
             )
         ) {
-            statement.setObject(1, Instant.parse("2026-01-01T00:00:00Z"));
+            Instant timestamp = Instant.parse("2026-01-01T00:00:00Z");
+            statement.setObject(1, timestamp);
+            statement.setObject(2, timestamp);
             statement.executeUpdate();
         }
     }

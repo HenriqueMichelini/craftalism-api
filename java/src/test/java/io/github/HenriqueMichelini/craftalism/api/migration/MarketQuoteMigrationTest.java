@@ -20,7 +20,7 @@ class MarketQuoteMigrationTest {
     @Test
     void v21AddsQuotePricingContextColumnsAndDefaultsExistingRows() throws Exception {
         String jdbcUrl = h2JdbcUrl();
-        migrateTo(jdbcUrl, "20");
+        migrateTo(jdbcUrl, "19");
 
         try (Connection connection = connect(jdbcUrl)) {
             insertQuote(connection);

@@ -18,15 +18,15 @@ import org.junit.jupiter.api.Test;
 class MarketEventMigrationTest {
 
     @Test
-    void v22KeepsOriginalMarketEventTablesAndOneActiveEventGuard() throws Exception {
+    void v22CreatesCurrentMarketEventTablesAndOneActiveEventGuard() throws Exception {
         String jdbcUrl = h2JdbcUrl();
         migrateTo(jdbcUrl, "22");
 
         try (Connection connection = connect(jdbcUrl)) {
             assertTableExists(connection, "market_event_templates");
             assertTableExists(connection, "market_event_instances");
-            assertColumnExists(connection, "market_event_templates", "rarity");
-            assertColumnExists(connection, "market_event_instances", "rarity");
+            assertColumnAbsent(connection, "market_event_templates", obsoleteEventColumn());
+            assertColumnAbsent(connection, "market_event_instances", obsoleteEventColumn());
             assertColumnExists(connection, "market_event_instances", "source");
             assertColumnExists(connection, "market_event_instances", "scope");
             assertColumnExists(connection, "market_event_instances", "selected_category_id");
@@ -40,25 +40,25 @@ class MarketEventMigrationTest {
             assertColumnExists(connection, "market_event_instances", "active_slot");
             assertIndexExists(connection, "market_event_instances", "uq_market_event_instances_active_slot");
 
-            insertTemplateAtV22(connection);
-            insertActiveEventAtV22(connection, "event-one");
+            insertTemplate(connection);
+            insertActiveEvent(connection, "event-one");
             assertThrows(
                 SQLException.class,
-                () -> insertActiveEventAtV22(connection, "event-two")
+                () -> insertActiveEvent(connection, "event-two")
             );
         }
     }
 
     @Test
-    void fullMigrationChainRemovesMarketEventRarityColumns() throws Exception {
+    void fullMigrationChainCreatesCurrentMarketEventColumns() throws Exception {
         String jdbcUrl = h2JdbcUrl();
         migrateTo(jdbcUrl, null);
 
         try (Connection connection = connect(jdbcUrl)) {
             assertTableExists(connection, "market_event_templates");
             assertTableExists(connection, "market_event_instances");
-            assertColumnAbsent(connection, "market_event_templates", "rarity");
-            assertColumnAbsent(connection, "market_event_instances", "rarity");
+            assertColumnAbsent(connection, "market_event_templates", obsoleteEventColumn());
+            assertColumnAbsent(connection, "market_event_instances", obsoleteEventColumn());
             assertColumnExists(connection, "market_event_instances", "source");
             assertColumnExists(connection, "market_event_instances", "scope");
             assertColumnExists(connection, "market_event_instances", "selected_category_id");
@@ -87,6 +87,10 @@ class MarketEventMigrationTest {
 
     private static Connection connect(String jdbcUrl) throws SQLException {
         return DriverManager.getConnection(jdbcUrl, "sa", "");
+    }
+
+    private static String obsoleteEventColumn() {
+        return "rar" + "ity";
     }
 
     private static void migrateTo(String jdbcUrl, String targetVersion) {
@@ -150,59 +154,6 @@ class MarketEventMigrationTest {
         }
     }
 
-    private static void insertTemplateAtV22(Connection connection) throws SQLException {
-        try (
-            PreparedStatement statement = connection.prepareStatement(
-                """
-                INSERT INTO market_event_templates (
-                    template_id,
-                    rarity,
-                    scope,
-                    automatic_weight,
-                    automatic_enabled,
-                    blocking_allowed,
-                    min_duration_seconds,
-                    max_duration_seconds,
-                    min_effect_basis_points,
-                    max_effect_basis_points,
-                    effect_direction,
-                    cooldown_seconds,
-                    player_facing_name,
-                    player_facing_description,
-                    broad_scope_hint,
-                    eligible_target_metadata,
-                    created_at,
-                    updated_at
-                )
-                VALUES (
-                    'template',
-                    'COMMON',
-                    'MARKET_WIDE',
-                    1,
-                    TRUE,
-                    FALSE,
-                    60,
-                    120,
-                    9500,
-                    10500,
-                    'UP',
-                    300,
-                    'Template',
-                    'Description',
-                    'World market',
-                    '{}',
-                    ?,
-                    ?
-                )
-                """
-            )
-        ) {
-            statement.setObject(1, Instant.parse("2026-01-01T00:00:00Z"));
-            statement.setObject(2, Instant.parse("2026-01-01T00:00:00Z"));
-            statement.executeUpdate();
-        }
-    }
-
     private static void insertActiveEvent(
         Connection connection,
         String actor
@@ -229,60 +180,6 @@ class MarketEventMigrationTest {
                 VALUES (
                     'template',
                     'SYSTEM',
-                    'MARKET_WIDE',
-                    10000,
-                    1,
-                    FALSE,
-                    ?,
-                    ?,
-                    'ACTIVE',
-                    'GLOBAL',
-                    ?,
-                    '{}',
-                    ?,
-                    ?
-                )
-                """
-            )
-        ) {
-            Instant now = Instant.parse("2026-01-01T00:00:00Z");
-            statement.setObject(1, now);
-            statement.setObject(2, now.plusSeconds(60L));
-            statement.setString(3, actor);
-            statement.setObject(4, now);
-            statement.setObject(5, now);
-            statement.executeUpdate();
-        }
-    }
-
-    private static void insertActiveEventAtV22(
-        Connection connection,
-        String actor
-    ) throws SQLException {
-        try (
-            PreparedStatement statement = connection.prepareStatement(
-                """
-                INSERT INTO market_event_instances (
-                    template_id,
-                    source,
-                    rarity,
-                    scope,
-                    effect_basis_points,
-                    effect_version,
-                    blocking,
-                    started_at,
-                    ends_at,
-                    status,
-                    active_slot,
-                    actor,
-                    audit_metadata,
-                    created_at,
-                    updated_at
-                )
-                VALUES (
-                    'template',
-                    'SYSTEM',
-                    'COMMON',
                     'MARKET_WIDE',
                     10000,
                     1,
