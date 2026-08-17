@@ -1,6 +1,6 @@
 # Craftalism API
 
-> Core backend service that manages players, balances, and transactions for the Craftalism economy through a JWT-secured REST API.
+> Core backend service for players, balances, transfers, transaction history, and the dynamic Craftalism market.
 
 ---
 
@@ -11,11 +11,12 @@ The Craftalism API is the central data service for the economy platform. It expo
 **Key capabilities:**
 
 - Player registration and lookup by UUID or display name.
-- Balance lifecycle management: create, deposit, withdraw, set, and rank.
+- Balance lifecycle management: create, deposit, withdraw, set, delete, rank, and transfer.
 - Transaction record storage between players.
-- JWT scope-based authorization for protected write endpoints.
+- Dynamic market snapshots, quote-backed execution, trade history, event scheduling, and dashboard administration.
+- JWT scope-based authorization for protected writes and market-administration routes.
 - Standardized error responses, including RFC 9457 `ProblemDetail` for general API errors and a stable rejection payload for market business rejections.
-- Interactive API documentation via Swagger UI (local profile).
+- OpenAPI documentation and Swagger UI.
 
 > **Important:** `POST /api/transactions` stores a transaction record only. It does **not** transfer balances. Use `POST /api/balances/transfer` for atomic balance movement **with transaction persistence and idempotency key support**.
 
@@ -23,29 +24,14 @@ The Craftalism API is the central data service for the economy platform. It expo
 
 ## Architecture
 
-The codebase follows a classic layered architecture. Each layer has a single responsibility and communicates only with the layer directly below it.
+The API combines shared HTTP and persistence layers with feature-oriented application and domain packages:
 
-### Controller layer (`controller/`)
-
-Exposes REST endpoints under `/api/**`. Validates request DTOs using Bean Validation and returns typed DTO responses with appropriate HTTP status codes.
-
-### Service layer (`service/`)
-
-Encapsulates business rules and transactional behavior. Throws typed domain exceptions for constraint violations (e.g., insufficient funds, duplicate player).
-
-### Repository layer (`repository/`)
-
-Spring Data JPA repositories with custom queries for top-balance ranking and pessimistic locking on concurrent balance updates.
-
-### Domain/model layer (`model/`)
-
-JPA entities: `Player`, `Balance`, `Transaction`.
-
-### Cross-cutting concerns
-
-- `config/` — Security configuration (resource server, scope rules) and OpenAPI configuration.
-- `exceptions/` — Centralized exception handler mapping domain exceptions to `ProblemDetail` responses.
-- `mapper/` — Entity-to-DTO mapping components.
+- `controller/` exposes REST endpoints under `/api/**`, validates request DTOs with Bean Validation, and returns typed DTO responses.
+- `player/application/`, `wallet/application/`, `transaction/application/`, and `transfer/application/` contain feature-specific use cases and transactional behavior.
+- `market/` is split into application commands/queries, domain pricing and trade rules, and infrastructure for catalog bootstrap, quote storage, configuration, and event scheduling.
+- `repository/` contains Spring Data JPA repositories, including locking queries used by balance transfers and market execution.
+- `model/` contains the JPA entities for players, balances, transactions, transfers, and the market.
+- `config/`, `exceptions/`, `mapper/`, and `shared/` provide security, error handling, DTO mapping, and reusable table filtering.
 
 ---
 
@@ -54,7 +40,7 @@ JPA entities: `Player`, `Balance`, `Transaction`.
 | Category | Technology |
 |---|---|
 | Language | Java 17 |
-| Framework | Spring Boot 3.5 |
+| Framework | Spring Boot 3.5.7 |
 | Web | Spring Web |
 | Persistence | Spring Data JPA |
 | Validation | Spring Validation |
@@ -63,7 +49,7 @@ JPA entities: `Player`, `Balance`, `Transaction`.
 | Database (local profile) | H2 in-memory |
 | Migrations | Flyway (Docker profile only) |
 | API Docs | springdoc-openapi (Swagger UI) |
-| Build Tool | Gradle |
+| Build Tool | Gradle 8.14.3 wrapper |
 | Testing | JUnit 5, Mockito, Spring Test |
 
 ---
@@ -71,6 +57,7 @@ JPA entities: `Player`, `Balance`, `Transaction`.
 ## Prerequisites
 
 - Java 17+
+- A reachable OAuth2/OIDC authorization server whose issuer matches `AUTH_ISSUER_URI`.
 - Docker Engine 20.10+ and Docker Compose v2+ *(for containerized deployment only)*
 
 ---
@@ -79,17 +66,35 @@ JPA entities: `Player`, `Balance`, `Transaction`.
 
 | Variable | Default | Description |
 |---|---|---|
-| `SPRING_PROFILES_ACTIVE` | — | **Required.** Set to `local` for H2 or `docker` for PostgreSQL. |
+| `SPRING_PROFILES_ACTIVE` | — | Select `local` for H2 or `docker` for PostgreSQL. The commands below set the appropriate profile. |
 | `AUTH_ISSUER_URI` | `http://localhost:9000` (local) / `http://craftalism-auth-server:9000` (docker) | JWT issuer URI. Must match the Authorization Server's configured issuer. |
-| `SPRING_DATASOURCE_URL` | — | JDBC connection string *(Docker profile only)*. |
-| `SPRING_DATASOURCE_USERNAME` | — | Database username *(Docker profile only)*. |
-| `SPRING_DATASOURCE_PASSWORD` | — | Database password *(Docker profile only)*. |
+| `SPRING_DATASOURCE_URL` | `jdbc:postgresql://postgres:5432/craftalism` | JDBC connection string *(Docker profile)*. |
+| `SPRING_DATASOURCE_USERNAME` | `admin` | Database username *(Docker profile)*. |
+| `SPRING_DATASOURCE_PASSWORD` | `123` | Database password *(Docker profile)*. |
+| `MARKET_QUOTE_RATE_LIMIT_MAX_REQUESTS` | `0` | Maximum quotes per player and rate-limit window; `0` disables this limit. |
+| `MARKET_EXECUTE_RATE_LIMIT_MAX_REQUESTS` | `0` | Maximum executions per player and rate-limit window; `0` disables this limit. |
+| `MARKET_RATE_LIMIT_WINDOW_SECONDS` | `60` | Rate-limit window length. |
 
 Additional settings are managed per profile:
 
 - `src/main/resources/application.properties` — shared defaults.
 - `src/main/resources/application-local.properties` — H2, create-drop schema, Flyway disabled.
 - `src/main/resources/application-docker.properties` — PostgreSQL, Flyway enabled.
+
+The market also supports these Spring properties:
+
+| Property | Default | Description |
+|---|---:|---|
+| `craftalism.market.enabled` | `true` | Enables quote and execute operations. |
+| `craftalism.market.quote-ttl-seconds` | `60` | Quote validity period. |
+| `craftalism.market.trusted-minecraft-server-client-id` | `minecraft-server` | Client allowed to provide another player's UUID for market operations. |
+| `craftalism.market-events.scheduler.enabled` | `true` | Enables automatic market-event selection. |
+| `craftalism.market-events.scheduler.start-chance-basis-points` | `2500` | Chance of starting an event when a scheduler window is due. |
+| `craftalism.market-events.scheduler.check-delay-ms` | `300000` | Delay between scheduler checks. |
+| `craftalism.market-events.scheduler.initial-delay-ms` | `300000` | Delay before the first scheduler check. |
+| `craftalism.market-events.scheduler.lease-seconds` | `60` | Distributed scheduler lease duration. |
+| `craftalism.market-events.scheduler.window-interval-seconds` | `7200` | Base interval between event windows. |
+| `craftalism.market-events.scheduler.window-jitter-seconds` | `1800` | Maximum random jitter added to an event window. |
 
 ### Security model
 
@@ -99,8 +104,11 @@ The API is a stateless OAuth2 resource server. JWTs are validated against the is
 |---|---|
 | *(no scope required)* | `GET /api/**` (public read policy for current MVP) |
 | `SCOPE_api:write` | `POST`, `PUT`, `PATCH`, `DELETE` on `/api/**` |
+| `SCOPE_market:admin` | All `/api/dashboard/market/events/**`, `/api/dashboard/market/event-templates/**`, and `/api/dashboard/market/drift/**` requests, including reads. |
 
-Public paths (no token required): `GET /actuator/health`, `/swagger-ui/**`, `/v3/api-docs/**`.
+The admin route rules take precedence over the general public-read and `api:write` rules. Dashboard category and item reads remain public; their writes require `api:write`.
+
+Public paths (no token required): `/actuator/health`, `/swagger-ui/**`, and `/v3/api-docs/**`. CORS allows `http://localhost:5173`, `http://localhost:5174`, and `http://localhost:25565`.
 
 ### Error contract
 
@@ -142,11 +150,16 @@ cd java
 SPRING_PROFILES_ACTIVE=local ./gradlew bootRun
 ```
 
+The authorization server must be available at `http://localhost:9000`, or set `AUTH_ISSUER_URI` to its issuer before starting the API.
+
 | Endpoint | URL |
 |---|---|
 | API | `http://localhost:8080` |
-| Swagger UI | `http://localhost:8080/api-docs` |
-| H2 Console | `http://localhost:8080/h2-console` |
+| Health | `http://localhost:8080/actuator/health` |
+| Swagger UI | `http://localhost:8080/swagger-ui/index.html` |
+| OpenAPI JSON | `http://localhost:8080/v3/api-docs` |
+
+The local profile configures the aliases `/api-docs` and `/h2-console`, but the current security rules do not make those paths public. Use the public Swagger URL above.
 
 ---
 
@@ -159,16 +172,26 @@ cd java
 docker compose up --build
 ```
 
+Set `AUTH_ISSUER_URI` to an issuer reachable from the API container unless a `craftalism-auth-server` host is already available on the Compose network:
+
+```bash
+AUTH_ISSUER_URI=http://auth-server:9000 docker compose up --build
+```
+
+Replace `auth-server` with a hostname or address resolvable from the Compose network, or attach the authorization-server container to that network.
+
 | Service | Port | URL |
 |---|---|---|
 | API | 8080 | `http://localhost:8080` |
 | PostgreSQL | 5432 | `localhost:5432` (user: `admin`, password: `123`, db: `craftalism`) |
 
+The checked-in Compose file sets `SPRING_JPA_HIBERNATE_DDL_AUTO=update`, overriding the Docker profile's `validate` setting while Flyway remains enabled. The Docker image health check currently probes `/health`, although the application exposes `/actuator/health`; the container can therefore be reported as unhealthy even when the API is serving requests.
+
 ---
 
 ## API Reference
 
-Base path: `/api`. Full interactive documentation is available at `http://localhost:8080/api-docs` when running locally.
+Base path: `/api`. Interactive documentation is available at `http://localhost:8080/swagger-ui/index.html` when running locally.
 
 ### Players
 
@@ -178,6 +201,8 @@ Base path: `/api`. Full interactive documentation is available at `http://localh
 | `GET` | `/players/{uuid}` | public | Get player by UUID. |
 | `GET` | `/players/name/{name}` | public | Get player by display name. |
 | `POST` | `/players` | `api:write` | Register a new player. |
+| `PATCH` | `/players/{uuid}` | `api:write` | Update a player's display name. |
+| `DELETE` | `/players/{uuid}` | `api:write` | Delete an unreferenced player. |
 
 ### Balances
 
@@ -185,18 +210,20 @@ Base path: `/api`. Full interactive documentation is available at `http://localh
 |---|---|---|---|
 | `GET` | `/balances` | public | List all balances. |
 | `GET` | `/balances/{uuid}` | public | Get a player's balance. |
-| `GET` | `/balances/top` | public | Top balances. `?limit=` clamped to 1–20, default 10. |
+| `GET` | `/balances/top` | public | Top balances. `limit` defaults to 10, values above 20 are capped at 20, and non-positive values use the default. |
 | `POST` | `/balances` | `api:write` | Create a balance record for a player. |
 | `PUT` | `/balances/{uuid}/set` | `api:write` | Overwrite a player's balance. |
+| `PATCH` | `/balances/{uuid}` | `api:write` | Overwrite a player's balance. |
+| `DELETE` | `/balances/{uuid}` | `api:write` | Delete a balance record. |
 | `POST` | `/balances/{uuid}/deposit` | `api:write` | Add funds to a player's balance. |
 | `POST` | `/balances/{uuid}/withdraw` | `api:write` | Deduct funds from a player's balance. |
-| `POST` | `/balances/transfer` | `api:write` | Atomically transfer funds from one player to another. |
+| `POST` | `/balances/transfer` | `api:write` | Atomically transfer funds and store the transaction. Requires `Idempotency-Key`. |
 
 ### Transactions
 
 | Method | Path | Scope | Description |
 |---|---|---|---|
-| `GET` | `/transactions` | public | List all transactions. |
+| `GET` | `/transactions` | public | Return paginated transactions with optional filters. |
 | `GET` | `/transactions/{id}` | public | Get transaction by ID. Legacy alias `/transactions/id/{id}` is also accepted. |
 | `GET` | `/transactions/from/{uuid}` | public | List outgoing transactions for a player. |
 | `GET` | `/transactions/to/{uuid}` | public | List incoming transactions for a player. |
@@ -207,18 +234,45 @@ Base path: `/api`. Full interactive documentation is available at `http://localh
 | Method | Path | Scope | Description |
 |---|---|---|---|
 | `GET` | `/market/snapshot` | public | Return the authoritative market snapshot with an opaque `snapshotVersion`. |
-| `GET` | `/market/trades` | public | List committed successful market executions. |
+| `GET` | `/market/trades` | public | Return paginated committed market executions with optional filters. |
 | `GET` | `/market/trades/{id}` | public | Get one committed successful market execution. |
 | `POST` | `/market/quotes` | `api:write` | Create a quote-backed market trade for the authenticated player context. |
 | `POST` | `/market/execute` | `api:write` | Execute a trade using a required `quoteToken` and `snapshotVersion`. |
 
 Market prices are exposed as string-encoded whole-coin amounts. Business rejections use a stable JSON contract with machine-readable codes instead of free-form text.
 
+`GET /transactions` and `GET /market/trades` accept Spring pagination parameters (`page`, `size`, and `sort`). Transaction filters include sender/receiver UUID, amount range, and creation-time range. Market-trade filters include player UUID, item ID, side, total-price range, and execution-time range. String filters support a companion `*Match` parameter with `contains` (default) or `exact`.
+
 Market snapshot and execute `updatedItem` payloads expose pressure-ladder state with `marketPressure`, `marketSegment`, and `pressureMagnitude`. The superseded `currentStock` field is not part of the public pressure-ladder contract. `INSUFFICIENT_STOCK` is reserved for trades that would exceed configured hard pressure bounds (`maxNetPosition` for buys or `minNetPosition` for sells).
 
 Market `snapshotVersion` values are opaque `market:<hash>` tokens derived from authoritative pressure state and trade-affecting configuration. Clients must compare or pass them through only; they must not parse token structure or infer inventory semantics from it.
 
 Market player context is resolved from a valid JWT `player_uuid` claim first, then a UUID-valued subject. When the authenticated client is the configured trusted Minecraft server client (`minecraft-server`, recognized from JWT `sub`, `client_id`, or `azp`) with `api:write`, quote and execute may instead supply the Bukkit player UUID as request field `playerUuid` or header `X-Craftalism-Player-Uuid`. Supplied player UUIDs are ignored for non-trusted clients and must be valid UUIDs.
+
+On startup, the service seeds the built-in market catalog and initial event templates only when the corresponding tables are empty.
+
+### Dashboard market administration
+
+| Method | Path | Scope | Description |
+|---|---|---|---|
+| `GET` | `/dashboard/market/categories` | public | List market categories. |
+| `POST` | `/dashboard/market/categories` | `api:write` | Create a category. |
+| `PATCH` | `/dashboard/market/categories/{categoryId}` | `api:write` | Update a category. |
+| `DELETE` | `/dashboard/market/categories/{categoryId}` | `api:write` | Delete an unused category. |
+| `GET` | `/dashboard/market/items` | public | List market items. |
+| `POST` | `/dashboard/market/items` | `api:write` | Create an item. |
+| `PATCH` | `/dashboard/market/items/{itemId}` | `api:write` | Update an item. |
+| `DELETE` | `/dashboard/market/items/{itemId}` | `api:write` | Delete an unused, dashboard-managed item. |
+| `GET` | `/dashboard/market/event-templates` | `market:admin` | List event templates. |
+| `POST` | `/dashboard/market/event-templates` | `market:admin` | Create an event template. |
+| `PUT` | `/dashboard/market/event-templates/{templateId}` | `market:admin` | Replace an event template. |
+| `DELETE` | `/dashboard/market/event-templates/{templateId}` | `market:admin` | Delete an event template. |
+| `GET` | `/dashboard/market/events` | `market:admin` | List market events. |
+| `POST` | `/dashboard/market/events` | `market:admin` | Start a manual event. |
+| `PATCH` | `/dashboard/market/events/{id}` | `market:admin` | Update an event. |
+| `POST` | `/dashboard/market/events/{id}/cancel` | `market:admin` | Cancel an event. |
+| `POST` | `/dashboard/market/events/supersede` | `market:admin` | Replace the active event. |
+| `POST` | `/dashboard/market/drift/reset` | `market:admin` | Reset drift for all market items. |
 
 ### Transfer incidents (diagnostic)
 
@@ -238,6 +292,13 @@ cd java
 ```
 
 The test suite includes unit tests and Spring MVC integration tests. Tests run against H2 with mock security tokens where needed.
+
+To compile, test, and build the executable JAR:
+
+```bash
+cd java
+./gradlew build
+```
 
 ## SonarQube Analysis
 
@@ -260,39 +321,37 @@ SONAR_TOKEN=<token> SONAR_HOST_URL=<sonarqube-url> SONAR_ORGANIZATION=<organizat
 java/
 ├── build.gradle
 ├── docker-compose.yml
+├── Dockerfile
 └── src/
-    ├── main/java/io/github/HenriqueMichelini/craftalism/api/
-    │   ├── Application.java
-    │   ├── config/
-    │   ├── controller/
-    │   ├── dto/
-    │   ├── exceptions/
-    │   ├── mapper/
-    │   ├── model/
-    │   ├── repository/
-    │   └── service/
-    └── main/resources/
-        ├── application.properties
-        ├── application-local.properties
-        ├── application-docker.properties
-        └── db/migration/
+    ├── main/
+    │   ├── java/io/github/HenriqueMichelini/craftalism/api/
+    │   │   ├── config/
+    │   │   ├── controller/
+    │   │   ├── dto/
+    │   │   ├── exceptions/
+    │   │   ├── market/
+    │   │   ├── model/
+    │   │   ├── player/
+    │   │   ├── repository/
+    │   │   ├── shared/
+    │   │   ├── transaction/
+    │   │   ├── transfer/
+    │   │   └── wallet/
+    │   └── resources/
+    │       ├── application.properties
+    │       ├── application-local.properties
+    │       ├── application-docker.properties
+    │       └── db/migration/
+    └── test/
 ```
 
 ---
 
 ## Known Limitations
 
-- List endpoints have no pagination or filtering support; all records are returned in a single response.
+- Only the transaction and market-trade list endpoints support pagination and filtering; other list endpoints return all matching records.
 - Integration tests do not run against a real PostgreSQL instance.
 - Repository workflows currently enforce checks, but branch protection/required status enforcement is configured outside this repository.
-
----
-
-## Roadmap
-
-- Add pagination and filtering to all list endpoints.
-- Add integration tests against real PostgreSQL with actual security tokens.
-- Add contract-focused smoke tests covering token issuance + protected write + read verification across composed services.
 
 ---
 
